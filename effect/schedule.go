@@ -43,6 +43,29 @@ func stopSchedule[Out any](output Out) ScheduleDecision[Out] {
 	return ScheduleDecision[Out]{output: output}
 }
 
+// ScheduleDriver is one policy's state for one run.
+//
+// A Schedule value is immutable and safe to reuse concurrently; a driver is
+// neither, and must not be shared between runs. Interpretation starts one per
+// interpretation, which is what keeps a single policy value reusable, and a
+// caller can start one directly to compute a policy's delays without running
+// any effects.
+type ScheduleDriver[In, Out any] struct {
+	step scheduleStep[In, Out]
+}
+
+// Start creates a fresh driver for one run of this policy.
+func (schedule Schedule[In, Out]) Start() *ScheduleDriver[In, Out] {
+	return &ScheduleDriver[In, Out]{step: schedule.driver()}
+}
+
+// Next feeds one input observed at now and returns the resulting decision.
+func (driver *ScheduleDriver[In, Out]) Next(now time.Time, input In) ScheduleDecision[Out] {
+	decision, next := driver.step(now, input)
+	driver.step = next
+	return decision
+}
+
 func (schedule Schedule[In, Out]) driver() scheduleStep[In, Out] {
 	if schedule.start == nil {
 		panic("effect: zero Schedule has no driver")

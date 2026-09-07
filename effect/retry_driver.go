@@ -36,14 +36,14 @@ func retrying[R, E, A, In, Out any](
 ) Effect[R, E, A] {
 	return suspendRuntime(func(context.Context, *runtimecore.State, R) Effect[R, E, A] {
 		progress := &attemptProgress{number: 1}
-		attempt := retryAttempt(fx, policy.driver(), eligible, exhausted, progress)
+		attempt := retryAttempt(fx, policy.Start(), eligible, exhausted, progress)
 		return attempt.withExitObserver(reportRetryOutcome(progress))
 	})
 }
 
 func retryAttempt[R, E, A, In, Out any](
 	fx Effect[R, E, A],
-	step scheduleStep[In, Out],
+	driver *ScheduleDriver[In, Out],
 	eligible retryEligibility[E, In],
 	exhausted retryExhaustion[R, E, A, In, Out],
 	progress *attemptProgress,
@@ -58,7 +58,7 @@ func retryAttempt[R, E, A, In, Out any](
 				return FailWithCause[R, A](InterruptCause[E](reason))
 			}
 
-			decision, next := step(state.Capabilities().Clock.Now(), input)
+			decision := driver.Next(state.Capabilities().Clock.Now(), input)
 			if !decision.continueRunning {
 				emitAttempt(ctx, state, retryExhaustedEvent(progress.number))
 				return exhausted(cause, input, decision.output)
@@ -68,7 +68,7 @@ func retryAttempt[R, E, A, In, Out any](
 			progress.number = nextCount(progress.number)
 			progress.repeated = true
 			return Sleep[R, E](decision.delay).AndThen(
-				retryAttempt(fx, next, eligible, exhausted, progress),
+				retryAttempt(fx, driver, eligible, exhausted, progress),
 			)
 		})
 	})
@@ -78,18 +78,18 @@ func retryAttempt[R, E, A, In, Out any](
 // typed failure, defect or interruption stops repetition immediately.
 func (fx Effect[R, E, A]) Repeat[Out any](policy Schedule[A, Out]) Effect[R, E, Out] {
 	return suspendRuntime(func(context.Context, *runtimecore.State, R) Effect[R, E, Out] {
-		return repeatRun(fx, policy.driver(), &attemptProgress{number: 1})
+		return repeatRun(fx, policy.Start(), &attemptProgress{number: 1})
 	})
 }
 
 func repeatRun[R, E, A, Out any](
 	fx Effect[R, E, A],
-	step scheduleStep[A, Out],
+	driver *ScheduleDriver[A, Out],
 	progress *attemptProgress,
 ) Effect[R, E, Out] {
 	return fx.FlatMap(func(value A) Effect[R, E, Out] {
 		return suspendRuntime(func(ctx context.Context, state *runtimecore.State, _ R) Effect[R, E, Out] {
-			decision, next := step(state.Capabilities().Clock.Now(), value)
+			decision := driver.Next(state.Capabilities().Clock.Now(), value)
 			if !decision.continueRunning {
 				emitAttempt(ctx, state, repeatCompletedEvent(progress.number))
 				return Succeed[R, E](decision.output)
@@ -97,7 +97,7 @@ func repeatRun[R, E, A, Out any](
 
 			emitAttempt(ctx, state, repeatScheduledEvent(progress.number, decision.delay))
 			progress.number = nextCount(progress.number)
-			return Sleep[R, E](decision.delay).AndThen(repeatRun(fx, next, progress))
+			return Sleep[R, E](decision.delay).AndThen(repeatRun(fx, driver, progress))
 		})
 	})
 }
