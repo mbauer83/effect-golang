@@ -119,6 +119,16 @@ func (queue Queue[A]) Take[R any]() Effect[R, Never, Receive[A]] {
 	})
 }
 
+// TakeAvailable removes up to limit values that are already waiting, without
+// blocking. An empty result means the queue was empty at that instant, which is
+// a different statement from being finished: use it to drain a backlog, and
+// TakeUpTo to consume a stream.
+func (queue Queue[A]) TakeAvailable[R any](limit int) Effect[R, Never, []A] {
+	return From(func(context.Context, R) Exit[Never, []A] {
+		return ExitSuccess[Never](queue.state.TakeAvailable(limit))
+	})
+}
+
 // TakeUpTo removes up to limit values, waiting for at least one. An empty
 // result therefore means the queue has been shut down and drained.
 func (queue Queue[A]) TakeUpTo[R any](limit int) Effect[R, Never, []A] {
@@ -179,7 +189,14 @@ func (Operations[R, E]) Take[A any](queue Queue[A]) Effect[R, E, Receive[A]] {
 	return WidenError[E](queue.Take[R]())
 }
 
-// TakeUpTo removes a batch from a queue in these channels.
+// TakeUpTo removes a batch from a queue in these channels, waiting for at least
+// one value.
 func (Operations[R, E]) TakeUpTo[A any](queue Queue[A], limit int) Effect[R, E, []A] {
 	return WidenError[E](queue.TakeUpTo[R](limit))
+}
+
+// TakeAvailable removes a queue's waiting backlog without blocking, in these
+// channels.
+func (Operations[R, E]) TakeAvailable[A any](queue Queue[A], limit int) Effect[R, E, []A] {
+	return WidenError[E](queue.TakeAvailable[R](limit))
 }

@@ -22,6 +22,9 @@ var (
 	ErrTimedOut = errors.New("effect: timed out")
 	// ErrRuntimeClosed reports that the owning runtime was closed.
 	ErrRuntimeClosed = errors.New("effect: runtime closed")
+	// ErrHubShutdown reports that a hub was shut down before a subscription
+	// could be added.
+	ErrHubShutdown = errors.New("effect: hub shut down")
 )
 
 // CancellationReason prefers an explicit cancellation cause so the reason a

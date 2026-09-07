@@ -23,6 +23,9 @@ var (
 	ErrTimedOut = lifetime.ErrTimedOut
 	// ErrRuntimeClosed reports that the owning Runtime was closed.
 	ErrRuntimeClosed = lifetime.ErrRuntimeClosed
+	// ErrHubShutdown reports that a Hub was shut down before a subscription
+	// could be added.
+	ErrHubShutdown = lifetime.ErrHubShutdown
 )
 
 // interruptionReason reports why the current context was canceled, or nil when

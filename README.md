@@ -41,10 +41,10 @@ Go 1.27 is required because the public API relies on generic methods.
   discarded is still running or finalizing.
 - **Native channels.** `Send`, `Recv` and `RecvOrFail` over ordinary Go
   channels, with Go's own closure and ownership semantics intact.
-- **Queue and Deferred.** Only where a channel genuinely cannot serve:
+- **Queue, Hub and Deferred.** Only where a channel genuinely cannot serve:
   shutdown that is safe from any side, a required choice of what a full queue
-  does, batched taking, and a value that every waiter observes rather than the
-  first receiver consuming.
+  does, batched taking, broadcasting to a changing set of subscribers, and a
+  value every waiter observes rather than the first receiver consuming.
 - **Schedules.** Immutable, concurrently reusable policies with a fresh driver
   per run: recurrence, spacing, capped exponential and Fibonacci backoff,
   elapsed limits, predicates, injected jitter, intersection and union.
@@ -129,7 +129,9 @@ construction. That directory does not have to be the module root, and it is not.
 - [Cause](docs/reference/cause.md)
 - [Interruption](docs/reference/interruption.md)
 - [Channels](docs/reference/channels.md)
-- [Queue and Deferred](docs/reference/queue.md)
+- [Queue](docs/reference/queue.md)
+- [Hub](docs/reference/hub.md)
+- [Deferred](docs/reference/deferred.md)
 - [Schedule](docs/reference/schedule.md)
 - [Retry](docs/reference/retry.md)
 - [Observability](docs/reference/observability.md)
@@ -168,5 +170,5 @@ adoption, usability, security, documentation, maintenance and long-term
 compatibility.
 
 An effect-specific abstraction is introduced only where it adds semantics native
-Go channels genuinely lack. `Queue` and `Deferred` clear that bar and are
-present; `Hub` and `Stream` do too and are not built yet.
+Go channels genuinely lack. `Queue`, `Hub` and `Deferred` clear that bar and are
+present. `Stream` does too and is not built yet.

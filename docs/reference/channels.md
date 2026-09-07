@@ -63,9 +63,9 @@ failure from looking like the end of a short stream. The
 
 An effect-specific abstraction is introduced only where it adds semantics native
 channels genuinely lack. Three such cases exist, and they are the whole
-justification for [`Queue` and `Deferred`](queue.md): shutdown that is safe from
-any side, a choice of what a full queue does, and a value that every waiter
-observes rather than the first receiver consuming.
+justification for [`Queue`](queue.md) and [`Deferred`](deferred.md): shutdown
+that is safe from any side, a choice of what a full queue does, and a value that
+every waiter observes rather than the first receiver consuming.
 
-`Hub` is a fourth — channels cannot broadcast to a changing set of subscribers
-at all — and is not built yet.
+[`Hub`](hub.md) is a fourth, and the starkest: channels cannot broadcast to a
+changing set of subscribers at all.

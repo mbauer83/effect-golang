@@ -135,8 +135,22 @@ func (queue *Queue[A]) admitOneOfferer() {
 	offerer.admitted <- true
 }
 
+// TakeAvailable removes up to limit values that are already waiting, without
+// blocking. An empty result means the queue was empty at that instant, which is
+// a different statement from being finished, so it is the primitive for
+// draining a backlog rather than for consuming a stream.
+func (queue *Queue[A]) TakeAvailable(limit int) []A {
+	if limit < 1 {
+		return nil
+	}
+	queue.mutex.Lock()
+	defer queue.mutex.Unlock()
+	return queue.drainUpTo(limit, nil)
+}
+
 // TakeUpTo removes up to limit values, waiting for at least one. An empty
-// result therefore means the queue has been shut down and drained.
+// result therefore means the queue has been shut down and drained, which is the
+// signal a consumer needs and TakeAvailable deliberately cannot give.
 func (queue *Queue[A]) TakeUpTo(ctx context.Context, limit int) ([]A, bool) {
 	if limit < 1 {
 		return nil, false
@@ -149,9 +163,14 @@ func (queue *Queue[A]) TakeUpTo(ctx context.Context, limit int) ([]A, bool) {
 		return nil, false
 	}
 
-	batch := append(make([]A, 0, limit), first)
 	queue.mutex.Lock()
 	defer queue.mutex.Unlock()
+	return queue.drainUpTo(limit, append(make([]A, 0, limit), first)), false
+}
+
+// drainUpTo moves waiting values into batch until it holds limit of them or the
+// queue is empty. It runs under the lock.
+func (queue *Queue[A]) drainUpTo(limit int, batch []A) []A {
 	for len(batch) < limit {
 		value, available := queue.dequeue()
 		if !available {
@@ -159,7 +178,7 @@ func (queue *Queue[A]) TakeUpTo(ctx context.Context, limit int) ([]A, bool) {
 		}
 		batch = append(batch, value)
 	}
-	return batch, false
+	return batch
 }
 
 // Shutdown stops the queue accepting values and releases everyone waiting on
