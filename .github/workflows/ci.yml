@@ -53,6 +53,12 @@ jobs:
       - name: Acceptance stress
         run: go test -race -count=10 ./test/acceptance/
 
+      # The sequencing benchmarks gate an experimental API on measured cost, so
+      # they must keep compiling and running even though CI does not judge the
+      # numbers.
+      - name: Benchmarks
+        run: go test -run '^$' -bench . -benchtime 1000x ./test/benchmark/
+
       # The examples must remain runnable programs, not only test fixtures.
       - name: Examples
         run: go run ./examples/cmd/effectdemo

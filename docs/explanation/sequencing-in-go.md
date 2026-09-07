@@ -59,22 +59,62 @@ It trades indentation for an explicit state struct. That is a good trade for a
 workflow with several cross-step dependencies and a poor one for a two-step
 composition.
 
-## Why not direct style
+## Direct style, and what it actually costs
 
-An API shaped like `user := d.Bind(LoadUser())` is superficially attractive, but
-`Bind` must return an `A` while also abandoning the callback on failure. Go has
-no resumable suspension and no typed early-return protocol, so an implementation
-needs a private panic sentinel. That is containable, and Go 1.27 generic methods
-can express it, but it costs:
+An API shaped like `user := direct.Bind(bind, LoadUser())` is attractive, and it
+exists in `experimental/direct`. `Bind` must return an `A` while also abandoning
+the callback when the effect did not succeed, and Go has no resumable suspension
+and no typed early-return protocol, so the implementation uses a private panic
+sentinel carrying a token unique to one `Run`.
 
-- user `defer` blocks running on every expected failure;
-- a broad `recover` in user code intercepting the sentinel;
-- less intuitive stack traces;
-- panic cost on an expected path.
+Two of the risks turn out to be detectable rather than merely documentable:
 
-Direct style is therefore not a foundational API and not an internal mechanism.
-If demand survives real use of the safe builder, it belongs in a clearly
-experimental subpackage.
+- a `Binder` used after its body returned reports that, instead of evaluating
+  against an interpretation that has ended;
+- a `recover()` in the body that swallows the sentinel is caught afterwards — if
+  the body returns a value although a `Bind` short-circuited, the sentinel was
+  swallowed, and reporting a defect is better than returning a result the
+  program never computed.
+
+Two costs remain and cannot be fixed. A `defer` block in the body runs on every
+expected failure, not only on an exceptional one; and a panic is paid for on the
+expected-failure path.
+
+### What it measures
+
+Three-step dependent workflow, same steps, three styles
+(`test/benchmark`, Go 1.27.1, i7-13700H):
+
+| Style | Success | Failure |
+|---|---|---|
+| `FlatMap` | 438 ns, 10 allocs | 470 ns, 9 allocs |
+| `Workflow` | 802 ns, 24 allocs | 685 ns, 18 allocs |
+| `direct` | 609 ns, 11 allocs | 861 ns, 10 allocs |
+
+The panic costs about 250 ns, which is the gap between direct style's own
+success and failure paths.
+
+This is not the result the design expected, and it is worth stating plainly:
+**direct style is cheaper than the safe builder on the success path**, in time
+and in allocations, because `Workflow` allocates a closure pair and copies its
+state on every `Bind`. On the failure path it is about 26% more expensive than
+`Workflow`.
+
+The steps here are `Succeed`, so these numbers are almost all framework
+overhead. Against any real work — a query, a file, a request — all three
+collapse into noise.
+
+### What that changes, and what it does not
+
+The recommendation is still to prefer `Workflow`, but **the cost argument does
+not support that preference and should not be used to justify it.** The reasons
+are the two unfixable ones above: a `defer` that runs on an expected path, and a
+`recover()` that can swallow a short-circuit. Those are properties of the
+approach, not of its speed.
+
+Reach for direct style when the explicit state type is the thing making a
+workflow hard to read, and when the body contains no `defer` you would be
+surprised to see run on a failure.
 
 ## Why not a source generator
 

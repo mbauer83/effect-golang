@@ -1982,6 +1982,38 @@ it may be offered in a clearly documented experimental subpackage, implemented o
 top of normal interpretation and tested against sentinel leakage, `recover`,
 defer, cancellation and defects.
 
+CORRECTED after measurement. It is offered in `experimental/direct`, and the
+gate this section set was cost, so the cost was measured rather than assumed:
+
+```text
+three-step dependent workflow    success            failure
+FlatMap                          438 ns, 10 allocs  470 ns,  9 allocs
+Workflow                         802 ns, 24 allocs  685 ns, 18 allocs
+direct                           609 ns, 11 allocs  861 ns, 10 allocs
+```
+
+Direct style is **cheaper than the safe builder on the success path**, because
+the builder allocates a closure pair and copies its state per bind. The panic
+costs roughly 250 ns, visible only on the failure path.
+
+The recommendation to prefer `Workflow` therefore stands on its two unfixable
+hazards -- a `defer` in the body running on an expected failure, and a
+`recover()` able to swallow the short-circuit -- and not on cost. This section
+previously implied cost was among the reasons; it is not.
+
+ADDED: two of the hazards this section listed proved detectable. A `Binder` used
+after its body returned reports that rather than evaluating against a finished
+interpretation, and a swallowed sentinel is caught by noticing that the body
+returned a value although a bind had short-circuited. Detecting a swallowed
+sentinel is the difference between a defect and a result the program never
+computed.
+
+ADDED: direct style needs one seam the core did not have. A bound effect must be
+evaluated inside the *current* interpretation, or it would silently get a fresh
+runtime with live defaults, a scope of its own and no cancellation. `Interpreting`
+and `Evaluate` provide that seam, and they are useful beyond direct style: they
+are how any caller writes a combinator this package does not provide.
+
 ## 21.4 Keep generation optional, mechanical and boundary-focused
 
 An external source generator could invent bespoke do syntax and emit `FlatMap`,

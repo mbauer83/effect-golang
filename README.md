@@ -150,6 +150,14 @@ construction. That directory does not have to be the module root, and it is not.
 - [Why a cause algebra](docs/explanation/cause-algebra.md)
 - [Sequencing in Go](docs/explanation/sequencing-in-go.md)
 
+### Experimental
+
+`experimental/direct` offers a direct-style alternative to `Workflow`, built on
+the public API and short-circuiting through a contained panic sentinel. Its
+costs are measured in
+[sequencing in Go](docs/explanation/sequencing-in-go.md#what-it-measures);
+prefer `Workflow`, for the reasons given there.
+
 ## Examples
 
 Every scenario is a complete program using only the public API, and every one is
