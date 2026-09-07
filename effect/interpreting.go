@@ -67,8 +67,3 @@ func Evaluate[R, E, A any](interpreter Interpreter[R, E], fx Effect[R, E, A]) Ex
 func (interpreter Interpreter[R, E]) Context() context.Context {
 	return interpreter.ctx
 }
-
-// Environment returns the environment this interpretation was given.
-func (interpreter Interpreter[R, E]) Environment() R {
-	return interpreter.environment
-}
