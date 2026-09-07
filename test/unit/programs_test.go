@@ -1,7 +1,7 @@
 package unit
 
 import (
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 // The programs under test share these channel selections, so each case reads as

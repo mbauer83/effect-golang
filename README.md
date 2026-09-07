@@ -59,29 +59,41 @@ custom scheduler and no CPS runtime.
 ## Layout
 
 ```text
-.                    package effect -- the public domain: the algebra, Cause,
-                     Exit, Scope, Fiber, schedules, retry, the base capability
-                     effects and the Runtime facade
-capability/          the ports: Clock, FileSystem, Logger, Observer, Diagnostics
-internal/outcome/    how a terminated effect is modelled: causes and exits
-internal/lifetime/   what owns work: scopes, fibers, cancellation reasons
-internal/runtime/    interpretation: instructions, the trampoline, runtime state
-internal/platform/   live adapters over os, time and log/slog
-effecttest/          deterministic capabilities and fixtures for tests
-examples/            runnable programs, one per scenario
-test/unit/           behaviour of the public API
-test/acceptance/     the acceptance program and the example scenarios
-test/architecture/   invariants over the shape of the code
+effect/                     package effect -- the public domain: the algebra,
+                            Cause, Exit, Scope, Fiber, schedules, retry, the
+                            base capability effects and the Runtime facade
+  capability/               the ports: Clock, FileSystem, Logger, Observer,
+                            Diagnostics
+  internal/outcome/         how a terminated effect is modelled
+  internal/lifetime/        what owns work: scopes, fibers, cancellation reasons
+  internal/runtime/         interpretation: instructions, the trampoline, state
+  internal/platform/        live adapters over os, time and log/slog
+effecttest/                 deterministic capabilities and fixtures for tests
+examples/<scenario>/        runnable programs, one per scenario
+test/unit/                  behaviour of the public API
+test/acceptance/            the acceptance program and the example scenarios
+test/architecture/          invariants over the shape of the code
+docs/                       tutorials, how-to guides, reference, explanation
 ```
 
-The dependency rule points inward: `capability` depends on nothing, `outcome`
-models a result, `lifetime` owns work, `runtime` interprets, and adapters sit
-outside all of it. `test/architecture` asserts that, along with the erasure
-boundary, the composition root, the file-size limits and this index.
+```go
+import "github.com/mbauer83/effect-golang/effect"
+```
+
+The module root holds no source. The dependency rule points inward: `capability`
+depends on nothing, `outcome` models a result, `lifetime` owns work, `runtime`
+interprets, and the adapters sit outside all of it. Nesting the internals under
+`effect/` means Go itself forbids anything outside the domain from reaching
+them.
+
+`test/architecture` asserts what Go cannot: the ordering among the internal
+layers, that only the composition root names a live adapter, that erased values
+stay inside their one documented file, the source-size limits, that the root
+stays free of source, and that this index reaches every document.
 
 `Effect`, `Cause`, `Exit`, `Scope` and `Fiber` share private representation, and
-Go keeps one package in one directory, so the public domain is one directory by
-construction rather than by preference.
+Go keeps one package in one directory, so the domain is one directory by
+construction. That directory does not have to be the module root, and it is not.
 
 ## Documentation
 

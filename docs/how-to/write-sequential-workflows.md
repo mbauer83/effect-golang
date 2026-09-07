@@ -121,7 +121,7 @@ Go requires imported identifiers to stay qualified. An ordinary import alias
 shortens effect-heavy code without hiding ownership:
 
 ```go
-import fx "github.com/mbauer83/effect-golang"
+import fx "github.com/mbauer83/effect-golang/effect"
 
 operations := fx.IO()
 program := fx.Zip(read, operations.Now())

@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 // Report is the aggregate outcome of one import.

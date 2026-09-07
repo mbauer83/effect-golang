@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 // Catalog is the workflow's requirement. Keeping it in R rather than reaching

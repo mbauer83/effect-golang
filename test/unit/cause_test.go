@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 func TestCauseZeroValueIsEmptyCompositionIdentity(t *testing.T) {

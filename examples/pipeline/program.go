@@ -14,7 +14,7 @@ import (
 	"context"
 	"strings"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 // Summary is the folded outcome of one pipeline run.

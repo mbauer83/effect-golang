@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 	"github.com/mbauer83/effect-golang/examples/checkout"
 	"github.com/mbauer83/effect-golang/examples/diagnostics"
 	"github.com/mbauer83/effect-golang/examples/filecopy"

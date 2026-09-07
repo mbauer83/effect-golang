@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 // The closure evaluator this runtime replaced overflowed Go's 1 GB goroutine

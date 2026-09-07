@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 type sourceSnapshot struct {

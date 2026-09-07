@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 	"github.com/mbauer83/effect-golang/examples/diagnostics"
 )
 

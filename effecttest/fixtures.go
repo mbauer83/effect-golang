@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 // Barrier releases each participant only once all of them have arrived.

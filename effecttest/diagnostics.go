@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 // RecordingDiagnostics stores instrumentation faults for assertions.

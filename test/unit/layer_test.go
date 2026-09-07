@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 type config struct{ DSN string }

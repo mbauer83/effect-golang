@@ -161,12 +161,12 @@ architectural boundary.
 Use this topology as the implementation grows:
 
 ```text
-module root (package effect)       public domain algebra and narrow facade
-capability/                        the ports the core defines
-internal/outcome/                  causes and exits: how a result is modelled
-internal/lifetime/                 scopes, fibers, cancellation reasons
-internal/runtime/                  interpretation and runtime state
-internal/platform/                 live clock/filesystem/logger adapters
+effect/                            public domain algebra and narrow facade
+effect/capability/                 the ports the core defines
+effect/internal/outcome/           causes and exits: how a result is modelled
+effect/internal/lifetime/          scopes, fibers, cancellation reasons
+effect/internal/runtime/           interpretation and runtime state
+effect/internal/platform/          live clock/filesystem/logger adapters
 effecttest/                        public deterministic test capabilities
 examples/<scenario>/               runnable, end-to-end-tested programs
 test/unit/                         behaviour of the public API
@@ -174,6 +174,17 @@ test/acceptance/                   acceptance program and example scenarios
 test/architecture/                 invariants over the shape of the code
 integration/<ecosystem>/           optional slog/OpenTelemetry/etc. adapters
 ```
+
+CORRECTED: the domain package is a directory, not the module root. The
+prohibition on `src/` stands and is unrelated: `src` would put a segment
+conveying nothing into every import path, whereas `effect/` names what it
+contains and yields `github.com/mbauer83/effect-golang/effect`. The module root
+holds only project metadata and documentation.
+
+ADDED: nesting the internals under `effect/` makes Go enforce the outer boundary
+directly -- nothing outside the domain can import them at all -- leaving
+`test/architecture` to assert only the ordering among the internal layers, which
+Go cannot express.
 
 CORRECTED: the single `internal/runtime` package above was split once its
 contents had three distinct owners. `outcome` models a terminated effect,

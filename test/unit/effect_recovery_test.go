@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 func TestCatchAllDoesNotDiscardCompositeCause(t *testing.T) {

@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"sync"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 // StageError is the program's expected failure type.

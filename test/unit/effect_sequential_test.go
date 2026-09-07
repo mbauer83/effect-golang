@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	effect "github.com/mbauer83/effect-golang"
+	"github.com/mbauer83/effect-golang/effect"
 )
 
 func TestSequentialConveniencesCompose(t *testing.T) {
