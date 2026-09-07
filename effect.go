@@ -100,7 +100,7 @@ func (fx Effect[R, E, A]) ContramapEnv[R0 any](f func(R0) R) Effect[R0, E, A] {
 
 // Provide supplies R and removes the environment requirement.
 func (fx Effect[R, E, A]) Provide(env R) Effect[Unit, E, A] {
-	return From(func(ctx context.Context, Unit) Exit[E, A] {
+	return From(func(ctx context.Context, _ Unit) Exit[E, A] {
 		return fx.run(ctx, env)
 	})
 }

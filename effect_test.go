@@ -107,3 +107,15 @@ func TestCatchAllHandlesTypedFailureOnly(t *testing.T) {
 		t.Fatalf("unexpected exit: %#v", exit)
 	}
 }
+
+func TestProvideRemovesEnvironment(t *testing.T) {
+	program := effect.FromEither(func(_ context.Context, env dbEnv) effect.Either[dbError, string] {
+		return effect.Right[dbError](env.prefix + "user")
+	}).Provide(dbEnv{prefix: "db:"})
+
+	exit := effect.Run(context.Background(), effect.Unit{}, program)
+	value, ok := exit.Value()
+	if !ok || value != "db:user" {
+		t.Fatalf("unexpected exit: %#v", exit)
+	}
+}
