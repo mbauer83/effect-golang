@@ -1,0 +1,34 @@
+package effecttest
+
+import (
+	"context"
+	"slices"
+	"sync"
+
+	effect "github.com/mbauer83/effect-golang"
+)
+
+// RecordingLogger stores structured records for deterministic assertions.
+type RecordingLogger struct {
+	mu      sync.Mutex
+	records []effect.LogRecord
+}
+
+func (logger *RecordingLogger) Log(_ context.Context, record effect.LogRecord) error {
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
+	record.Fields = slices.Clone(record.Fields)
+	logger.records = append(logger.records, record)
+	return nil
+}
+
+// Records returns a snapshot that callers may mutate safely.
+func (logger *RecordingLogger) Records() []effect.LogRecord {
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
+	records := slices.Clone(logger.records)
+	for index := range records {
+		records[index].Fields = slices.Clone(records[index].Fields)
+	}
+	return records
+}

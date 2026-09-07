@@ -4,6 +4,13 @@ package effect
 // require no environment or produce no meaningful value.
 type Unit struct{}
 
+// Never is the uninhabited typed-failure channel used by effects that cannot
+// fail with an expected domain error. Its unexported method prevents external
+// packages from implementing it.
+type Never interface {
+	effectNever()
+}
+
 // Product is the product of A and B. No information is discarded when two
 // values, environments, or results are composed.
 type Product[A, B any] struct {
