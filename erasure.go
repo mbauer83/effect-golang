@@ -77,6 +77,17 @@ func erasedFailureTransform[E, E2 any](transform func(E) E2) func(runtimecore.Ca
 	}
 }
 
+// erasedWork lifts a typed effect and its environment into the erased unit of
+// work a fiber or a parallel branch runs.
+func erasedWork[R, E, A any](
+	fx Effect[R, E, A],
+	env R,
+) func(context.Context, *runtimecore.State) runtimecore.Exit {
+	return func(ctx context.Context, state *runtimecore.State) runtimecore.Exit {
+		return fx.run(ctx, state, env).erased
+	}
+}
+
 // erasedFolder lifts a typed cause folder, so the stack-safe traversal can live
 // once in the runtime while elimination stays typed.
 func erasedFolder[E, A any](folder CauseFolder[E, A]) runtimecore.CauseFolder[A] {
