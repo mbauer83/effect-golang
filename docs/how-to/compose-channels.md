@@ -13,7 +13,7 @@ This preserves the monadic shape `Effect[Env, AppError, _]`.
 Use `FlatMapMerge` when the channels differ:
 
 ```go
-loadUser.FlatMapMerge(sendMail)
+effect.FlatMapMerge(loadUser, sendMail)
 ```
 
 Given:

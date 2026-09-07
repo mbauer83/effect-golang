@@ -17,7 +17,7 @@ E1 + E2  => Either[E1,E2]
 
 This is exact and statically checked. It is not canonical: nested products and sums do not automatically reassociate, deduplicate, or commute.
 
-To keep ordinary programs readable, `FlatMap` and `Zip` specialize the common case where `R` and `E` are already equal; the `*Merge` variants are used only when channel composition is required.
+To keep ordinary programs readable, `FlatMap` specializes the common case where `R` and `E` are already equal; the `*Merge` variants are used only when channel composition is required. Type-growing operations such as `Zip` are package functions because Go 1.27.1 rejects generic methods that recursively construct a receiver type argument with an instantiation cycle ([golang/go#80172](https://github.com/golang/go/issues/80172)).
 
 ## Why `Cause[E]`
 
