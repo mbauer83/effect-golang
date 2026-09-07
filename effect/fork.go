@@ -60,3 +60,25 @@ func forking[R, E, A any](fx Effect[R, E, A], selectOwner scopeSelector) Effect[
 		return ExitSuccess[Never](Fiber[E, A]{state: started})
 	})
 }
+
+// Operations carries these channels into the operations below, whose own
+// requirement channel is unused and whose failure channel is Never. Selecting
+// the channels once keeps a program composable with FlatMap instead of forcing
+// a widening at every step. The precise, narrower forms remain available.
+
+// Fork starts fx on its own goroutine owned by the current dynamic scope, in
+// these channels.
+func (Operations[R, E]) Fork[A any](fx Effect[R, E, A]) Effect[R, E, Fiber[E, A]] {
+	return WidenError[E](Fork(fx))
+}
+
+// ForkDaemon starts fx owned by the Runtime root scope, in these channels.
+func (Operations[R, E]) ForkDaemon[A any](fx Effect[R, E, A]) Effect[R, E, Fiber[E, A]] {
+	return WidenError[E](ForkDaemon(fx))
+}
+
+// ForkIn starts fx owned by scope rather than by the current dynamic scope, in
+// these channels.
+func (Operations[R, E]) ForkIn[A any](scope Scope, fx Effect[R, E, A]) Effect[R, E, Fiber[E, A]] {
+	return WidenError[E](scope.Fork(fx))
+}

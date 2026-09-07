@@ -33,3 +33,18 @@ func Sleep[R, E any](duration time.Duration) Effect[R, E, Unit] {
 		return ExitSuccess[E](Unit{})
 	})
 }
+
+// Operations carries these channels into the operations below, whose own
+// requirement channel is unused and whose failure channel is Never. Selecting
+// the channels once keeps a program composable with FlatMap instead of forcing
+// a widening at every step. The precise, narrower forms remain available.
+
+// Now reads the runtime clock using these channels.
+func (Operations[R, E]) Now() Effect[R, E, time.Time] {
+	return Now[R, E]()
+}
+
+// Sleep waits on the runtime clock using these channels.
+func (Operations[R, E]) Sleep(duration time.Duration) Effect[R, E, Unit] {
+	return Sleep[R, E](duration)
+}

@@ -63,3 +63,33 @@ func LogWarn[R, E any](message string, fields ...slog.Attr) Effect[R, E, Unit] {
 func LogError[R, E any](message string, fields ...slog.Attr) Effect[R, E, Unit] {
 	return Log[R, E](slog.LevelError, message, fields...)
 }
+
+// Operations carries these channels into the operations below, whose own
+// requirement channel is unused and whose failure channel is Never. Selecting
+// the channels once keeps a program composable with FlatMap instead of forcing
+// a widening at every step. The precise, narrower forms remain available.
+
+// Log emits one structured record using these channels.
+func (Operations[R, E]) Log(level slog.Level, message string, fields ...slog.Attr) Effect[R, E, Unit] {
+	return Log[R, E](level, message, fields...)
+}
+
+// LogDebug emits a debug record using these channels.
+func (operations Operations[R, E]) LogDebug(message string, fields ...slog.Attr) Effect[R, E, Unit] {
+	return operations.Log(slog.LevelDebug, message, fields...)
+}
+
+// LogInfo emits an informational record using these channels.
+func (operations Operations[R, E]) LogInfo(message string, fields ...slog.Attr) Effect[R, E, Unit] {
+	return operations.Log(slog.LevelInfo, message, fields...)
+}
+
+// LogWarn emits a warning record using these channels.
+func (operations Operations[R, E]) LogWarn(message string, fields ...slog.Attr) Effect[R, E, Unit] {
+	return operations.Log(slog.LevelWarn, message, fields...)
+}
+
+// LogError emits an error record using these channels.
+func (operations Operations[R, E]) LogError(message string, fields ...slog.Attr) Effect[R, E, Unit] {
+	return operations.Log(slog.LevelError, message, fields...)
+}

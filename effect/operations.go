@@ -1,10 +1,6 @@
 package effect
 
-import (
-	"context"
-	"log/slog"
-	"time"
-)
+import "context"
 
 // Operations carries an effect program's R and E channels so standard
 // capability constructors inherit them without repeated type arguments.
@@ -73,39 +69,4 @@ func (Operations[R, E]) FailuresAsDefects[A any](fx Effect[R, E, A]) Effect[R, N
 // channels.
 func (Operations[R, E]) CheckInterrupt() Effect[R, E, Unit] {
 	return CheckInterrupt[R, E]()
-}
-
-// Now reads the runtime clock using these channels.
-func (Operations[R, E]) Now() Effect[R, E, time.Time] {
-	return Now[R, E]()
-}
-
-// Sleep waits on the runtime clock using these channels.
-func (Operations[R, E]) Sleep(duration time.Duration) Effect[R, E, Unit] {
-	return Sleep[R, E](duration)
-}
-
-// Log emits one structured record using these channels.
-func (Operations[R, E]) Log(level slog.Level, message string, fields ...slog.Attr) Effect[R, E, Unit] {
-	return Log[R, E](level, message, fields...)
-}
-
-// LogDebug emits a debug record using these channels.
-func (operations Operations[R, E]) LogDebug(message string, fields ...slog.Attr) Effect[R, E, Unit] {
-	return operations.Log(slog.LevelDebug, message, fields...)
-}
-
-// LogInfo emits an informational record using these channels.
-func (operations Operations[R, E]) LogInfo(message string, fields ...slog.Attr) Effect[R, E, Unit] {
-	return operations.Log(slog.LevelInfo, message, fields...)
-}
-
-// LogWarn emits a warning record using these channels.
-func (operations Operations[R, E]) LogWarn(message string, fields ...slog.Attr) Effect[R, E, Unit] {
-	return operations.Log(slog.LevelWarn, message, fields...)
-}
-
-// LogError emits an error record using these channels.
-func (operations Operations[R, E]) LogError(message string, fields ...slog.Attr) Effect[R, E, Unit] {
-	return operations.Log(slog.LevelError, message, fields...)
 }

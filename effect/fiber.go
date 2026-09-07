@@ -80,3 +80,24 @@ func (fiber Fiber[E, A]) Interrupt[R any]() Effect[R, Never, Exit[E, A]] {
 		return ExitSuccess[Never](Exit[E, A]{erased: terminal})
 	})
 }
+
+// Operations carries these channels into the operations below, whose own
+// requirement channel is unused and whose failure channel is Never. Selecting
+// the channels once keeps a program composable with FlatMap instead of forcing
+// a widening at every step. The precise, narrower forms remain available.
+
+// Await waits for the fiber and yields its complete outcome, in these channels.
+func (Operations[R, E]) Await[A any](fiber Fiber[E, A]) Effect[R, E, Exit[E, A]] {
+	return WidenError[E](fiber.Await[R]())
+}
+
+// Join waits for the fiber and adopts its outcome, in these channels.
+func (Operations[R, E]) Join[A any](fiber Fiber[E, A]) Effect[R, E, A] {
+	return fiber.Join[R]()
+}
+
+// Interrupt cancels the fiber, waits for its cleanup, and yields its terminal
+// outcome, in these channels.
+func (Operations[R, E]) Interrupt[A any](fiber Fiber[E, A]) Effect[R, E, Exit[E, A]] {
+	return WidenError[E](fiber.Interrupt[R]())
+}
