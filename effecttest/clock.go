@@ -4,6 +4,7 @@ package effecttest
 import (
 	"context"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -122,4 +123,18 @@ func (clock *ManualClock) WaitForPending(ctx context.Context, count int) error {
 func (clock *ManualClock) signalChange() {
 	close(clock.changed)
 	clock.changed = make(chan struct{})
+}
+
+// AwaitSleepers blocks until at least count waits have registered, and fails
+// the test instead of hanging when they never do.
+//
+// A scheduling test must not advance the clock before the work it is driving
+// has actually parked, or the advance is lost and the test becomes a race.
+func (clock *ManualClock) AwaitSleepers(t testing.TB, count int) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := clock.WaitForPending(ctx, count); err != nil {
+		t.Fatalf("effecttest: expected %d pending sleep(s): %v", count, err)
+	}
 }
