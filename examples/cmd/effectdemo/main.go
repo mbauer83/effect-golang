@@ -115,12 +115,16 @@ func runCheckout(runtime *effect.Runtime, ctx context.Context) {
 		},
 		Prices: map[string]int{"widget": 250, "gasket": 125},
 	}
-	exit := runtime.Run(ctx, catalog, checkout.Program("c-1", []string{"widget", "gasket"}))
-	if quote, ok := exit.Value(); ok {
-		fmt.Printf("sequential workflow: %s owes %d for %d lines\n", quote.Customer, quote.Total, quote.Lines)
-		return
+	for _, style := range []string{"workflow", "direct"} {
+		exit := runtime.Run(ctx, catalog, checkout.Styles()[style]("c-1", []string{"widget", "gasket"}))
+		quote, ok := exit.Value()
+		if !ok {
+			report("sequential workflow ("+style+")", exit)
+			continue
+		}
+		fmt.Printf("sequential workflow (%s): %s owes %d for %d lines\n",
+			style, quote.Customer, quote.Total, quote.Lines)
 	}
-	report("sequential workflow", exit)
 }
 
 func runDiagnostics(runtime *effect.Runtime, ctx context.Context) {

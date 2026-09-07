@@ -75,6 +75,40 @@ Return a new state value rather than mutating shared data. A state value can
 still hold pointers, slices or maps; the builder is sequential and does not
 synchronize what those refer to.
 
+## Or drop the state type, experimentally
+
+`experimental/direct` writes the same workflow without a state type, because
+each `Bind` returns the value the next line uses:
+
+```go
+program := direct.Run(func(bind *direct.Binder[Env, AppError]) Quote {
+    customer := direct.Bind(bind, loadCustomer(id))
+    basket := direct.Bind(bind, loadBasket(customer))
+    return price(customer, basket)
+})
+```
+
+A failing `Bind` abandons the rest of the body, and the failure, defect or
+interruption reaches the effect unchanged. Everything else behaves as the core
+operators do: the effect stays lazy, one value is reusable, cancellation is
+observed, and a bound effect sees the surrounding runtime and scope.
+
+Two things to know before choosing it:
+
+- **A `defer` in the body runs on every expected failure**, not only on a panic.
+  Write the body without one, or use `Workflow`.
+- **A broad `recover()` in the body can swallow the short-circuit.** That is
+  detected and reported as a defect rather than returning a value the program
+  never computed, but it is detected after the fact.
+
+Cost is *not* a reason to prefer `Workflow`: direct style is
+[measurably cheaper on the success path](../explanation/sequencing-in-go.md#what-it-measures).
+The two hazards above are the reason.
+
+[`examples/checkout`](../../examples/checkout/program.go) is written both ways,
+and an end-to-end test asserts they agree on every path. The exact semantics are
+in the [direct style reference](../reference/direct.md).
+
 ## Know when not to use it
 
 The builder trades indentation for an explicit state struct and transitions.

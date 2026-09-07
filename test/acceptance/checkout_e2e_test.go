@@ -21,86 +21,124 @@ func catalog() checkout.Catalog {
 }
 
 func TestCheckoutComposesDependentSteps(t *testing.T) {
-	observer := &effecttest.RecordingObserver{}
-	runtime, err := effect.NewRuntime(effect.WithObserver(observer))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer runtime.Close(context.Background())
+	// Both sequencing styles are held to the same assertions, so the claim that
+	// they differ only in layout is checked rather than stated.
+	for style, program := range checkout.Styles() {
+		observer := &effecttest.RecordingObserver{}
+		runtime, err := effect.NewRuntime(effect.WithObserver(observer))
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	exit := runtime.Run(context.Background(), catalog(),
-		checkout.Program("c-1", []string{"widget", "gasket"}))
+		exit := runtime.Run(context.Background(), catalog(), program("c-1", []string{"widget", "gasket"}))
+		runtime.Close(context.Background())
 
-	quote, ok := exit.Value()
-	if !ok {
-		t.Fatalf("unexpected failure: %v", exit)
+		quote, ok := exit.Value()
+		if !ok {
+			t.Fatalf("%s: unexpected failure: %v", style, exit)
+		}
+		if quote.Customer != "Ada" || quote.Lines != 2 || quote.Total != 338 {
+			t.Fatalf("%s: unexpected quote: %#v", style, quote)
+		}
+		assertObservedKinds(t, observer, map[effect.EventKind]bool{
+			effect.EventSpanStarted: true,
+			effect.EventSpanEnded:   true,
+		})
 	}
-	if quote.Customer != "Ada" || quote.Lines != 2 || quote.Total != 338 {
-		t.Fatalf("unexpected quote: %#v", quote)
-	}
-	assertObservedKinds(t, observer, map[effect.EventKind]bool{
-		effect.EventSpanStarted: true,
-		effect.EventSpanEnded:   true,
-	})
 }
 
 func TestCheckoutShortCircuitsWithoutRunningLaterSteps(t *testing.T) {
-	exit := effect.Run(context.Background(), catalog(),
-		checkout.Program("absent", []string{"widget"}))
+	for style, program := range checkout.Styles() {
+		exit := effect.Run(context.Background(), catalog(), program("absent", []string{"widget"}))
 
-	cause, failed := exit.Cause()
-	if !failed {
-		t.Fatalf("expected an unknown customer to fail, got %v", exit)
-	}
-	failure, isLeaf := cause.Failure()
-	if !isLeaf || failure.Step != "load-customer" {
-		t.Fatalf("expected the first step to fail, got %v", cause)
+		cause, failed := exit.Cause()
+		if !failed {
+			t.Fatalf("%s: expected an unknown customer to fail, got %v", style, exit)
+		}
+		failure, isLeaf := cause.Failure()
+		if !isLeaf || failure.Step != "load-customer" {
+			t.Fatalf("%s: expected the first step to fail, got %v", style, cause)
+		}
 	}
 }
 
 func TestCheckoutFailsOnAnUnpricedItemAfterTheEarlierStepsSucceeded(t *testing.T) {
-	exit := effect.Run(context.Background(), catalog(),
-		checkout.Program("c-2", []string{"widget", "flywheel"}))
+	for style, program := range checkout.Styles() {
+		exit := effect.Run(context.Background(), catalog(), program("c-2", []string{"widget", "flywheel"}))
 
-	cause, failed := exit.Cause()
-	if !failed {
-		t.Fatalf("expected an unpriced item to fail, got %v", exit)
-	}
-	failure, _ := cause.Failure()
-	if failure.Step != "price" {
-		t.Fatalf("expected the pricing step to fail, got %#v", failure)
+		cause, failed := exit.Cause()
+		if !failed {
+			t.Fatalf("%s: expected an unpriced item to fail, got %v", style, exit)
+		}
+		failure, _ := cause.Failure()
+		if failure.Step != "price" {
+			t.Fatalf("%s: expected the pricing step to fail, got %#v", style, failure)
+		}
 	}
 }
 
 func TestCheckoutIsLazyAndSharesNoStateBetweenRuns(t *testing.T) {
 	const runners = 16
-	program := checkout.Program("c-1", []string{"widget", "gasket"})
 
-	var runs sync.WaitGroup
-	totals := make([]int, runners)
-	for index := range runners {
-		runs.Go(func() {
-			exit := effect.Run(context.Background(), catalog(), program)
-			quote, _ := exit.Value()
-			totals[index] = quote.Total
-		})
-	}
-	runs.Wait()
+	for style, build := range checkout.Styles() {
+		program := build("c-1", []string{"widget", "gasket"})
 
-	for index, total := range totals {
-		if total != 338 {
-			t.Fatalf("run %d observed another run's state: total %d", index, total)
+		var runs sync.WaitGroup
+		totals := make([]int, runners)
+		for index := range runners {
+			runs.Go(func() {
+				exit := effect.Run(context.Background(), catalog(), program)
+				quote, _ := exit.Value()
+				totals[index] = quote.Total
+			})
+		}
+		runs.Wait()
+
+		for index, total := range totals {
+			if total != 338 {
+				t.Fatalf("%s: run %d observed another run's state: total %d", style, index, total)
+			}
 		}
 	}
 }
 
 func TestCheckoutStopsBeforeTheFirstStepWhenAlreadyCanceled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	for style, program := range checkout.Styles() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
 
-	exit := effect.Run(ctx, catalog(), checkout.Program("c-1", []string{"widget"}))
-	cause, failed := exit.Cause()
-	if !failed || !cause.IsInterruptedOnly() {
-		t.Fatalf("expected an interruption-only cause, got %v", exit)
+		exit := effect.Run(ctx, catalog(), program("c-1", []string{"widget"}))
+		cause, failed := exit.Cause()
+		if !failed || !cause.IsInterruptedOnly() {
+			t.Fatalf("%s: expected an interruption-only cause, got %v", style, exit)
+		}
+	}
+}
+
+func TestBothCheckoutStylesProduceIdenticalOutcomes(t *testing.T) {
+	// Not the same assertions run twice: the same inputs compared against each
+	// other, so a divergence in any path shows up as a mismatch rather than as
+	// two separately plausible results.
+	cases := map[string]struct {
+		customer string
+		items    []string
+	}{
+		"priced":           {"c-1", []string{"widget", "gasket"}},
+		"no discount":      {"c-2", []string{"widget"}},
+		"unknown customer": {"absent", []string{"widget"}},
+		"empty basket":     {"c-1", nil},
+		"unpriced item":    {"c-1", []string{"flywheel"}},
+	}
+
+	for name, input := range cases {
+		builder := effect.Run(context.Background(), catalog(),
+			checkout.Program(input.customer, input.items))
+		direct := effect.Run(context.Background(), catalog(),
+			checkout.DirectProgram(input.customer, input.items))
+
+		if builder.String() != direct.String() {
+			t.Fatalf("%s: the styles disagree\n  workflow: %s\n  direct:   %s",
+				name, builder, direct)
+		}
 	}
 }

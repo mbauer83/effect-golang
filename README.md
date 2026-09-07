@@ -137,6 +137,7 @@ construction. That directory does not have to be the module root, and it is not.
 - [Hub](docs/reference/hub.md)
 - [Deferred](docs/reference/deferred.md)
 - [Stream](docs/reference/stream.md)
+- [Direct style](docs/reference/direct.md)
 - [Schedule](docs/reference/schedule.md)
 - [Retry](docs/reference/retry.md)
 - [Observability](docs/reference/observability.md)
@@ -153,10 +154,11 @@ construction. That directory does not have to be the module root, and it is not.
 ### Experimental
 
 `experimental/direct` offers a direct-style alternative to `Workflow`, built on
-the public API and short-circuiting through a contained panic sentinel. Its
-costs are measured in
-[sequencing in Go](docs/explanation/sequencing-in-go.md#what-it-measures);
-prefer `Workflow`, for the reasons given there.
+the public API and short-circuiting through a contained panic sentinel. See the
+[direct style reference](docs/reference/direct.md) for its exact semantics and
+its two hazards, and
+[sequencing in Go](docs/explanation/sequencing-in-go.md#what-it-measures) for
+what it costs. Prefer `Workflow`, for the reasons given there.
 
 ## Examples
 
@@ -169,7 +171,7 @@ cannot drift apart.
 | [`filecopy`](examples/filecopy/program.go) | filesystem, clock, schedules, retry, structured logging, spans |
 | [`parallelimport`](examples/parallelimport/program.go) | scope, acquire/release, bounded parallel traversal, cancellation |
 | [`diagnostics`](examples/diagnostics/program.go) | typed failure, panic defect, `Then`/`Both`, cause rendering |
-| [`checkout`](examples/checkout/program.go) | dependent sequential workflow, typed state builder |
+| [`checkout`](examples/checkout/program.go) | dependent sequential workflow, written with the typed state builder and again in direct style |
 | [`pipeline`](examples/pipeline/program.go) | `Send`, `Recv`, fiber `Done`, producer-owned closure |
 | [`fanout`](examples/fanout/program.go) | `Stream`, bounded `Queue`, `Hub`, `Deferred`, bounded parallel workers |
 
