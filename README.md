@@ -171,8 +171,9 @@ cannot drift apart.
 | [`diagnostics`](examples/diagnostics/program.go) | typed failure, panic defect, `Then`/`Both`, cause rendering |
 | [`checkout`](examples/checkout/program.go) | dependent sequential workflow, typed state builder |
 | [`pipeline`](examples/pipeline/program.go) | `Send`, `Recv`, fiber `Done`, producer-owned closure |
+| [`fanout`](examples/fanout/program.go) | `Stream`, bounded `Queue`, `Hub`, `Deferred`, bounded parallel workers |
 
-`go run ./examples/cmd/effectdemo` runs all five against live capabilities.
+`go run ./examples/cmd/effectdemo` runs all six against live capabilities.
 
 ## Scope of the project
 

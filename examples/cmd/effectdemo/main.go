@@ -15,6 +15,7 @@ import (
 	"github.com/mbauer83/effect-golang/effect"
 	"github.com/mbauer83/effect-golang/examples/checkout"
 	"github.com/mbauer83/effect-golang/examples/diagnostics"
+	"github.com/mbauer83/effect-golang/examples/fanout"
 	"github.com/mbauer83/effect-golang/examples/filecopy"
 	"github.com/mbauer83/effect-golang/examples/parallelimport"
 	"github.com/mbauer83/effect-golang/examples/pipeline"
@@ -40,6 +41,7 @@ func main() {
 	runFileCopy(runtime, ctx, workspace)
 	runParallelImport(runtime, ctx, workspace)
 	runPipeline(runtime, ctx, workspace)
+	runFanout(runtime, ctx, workspace)
 	runCheckout(runtime, ctx)
 	runDiagnostics(runtime, ctx)
 }
@@ -49,6 +51,7 @@ func seed(workspace string) error {
 		"alpha.txt":   "alpha source\n",
 		"beta.txt":    "beta source with more words\n",
 		"records.txt": "first record\nsecond record here\nthird\n",
+		"events.log":  "INFO started\nWARN slow response\nINFO handled\nWARN retrying\nINFO done\n",
 	}
 	for name, content := range sources {
 		if err := os.WriteFile(filepath.Join(workspace, name), []byte(content), 0o600); err != nil {
@@ -93,6 +96,16 @@ func runPipeline(runtime *effect.Runtime, ctx context.Context, workspace string)
 		return
 	}
 	report("native channel bridge", exit)
+}
+
+func runFanout(runtime *effect.Runtime, ctx context.Context, workspace string) {
+	exit := runtime.Run(ctx, effect.Unit{}, fanout.Program(filepath.Join(workspace, "events.log"), 3))
+	if report, ok := exit.Value(); ok {
+		fmt.Printf("fan-out pipeline: %s, %d records, %d warnings\n",
+			report.Label, report.Records, report.Warnings)
+		return
+	}
+	report("fan-out pipeline", exit)
 }
 
 func runCheckout(runtime *effect.Runtime, ctx context.Context) {
