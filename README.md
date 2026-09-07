@@ -41,6 +41,10 @@ Go 1.27 is required because the public API relies on generic methods.
   discarded is still running or finalizing.
 - **Native channels.** `Send`, `Recv` and `RecvOrFail` over ordinary Go
   channels, with Go's own closure and ownership semantics intact.
+- **Streams.** Pull-based and chunked, so backpressure is inherent and no
+  buffer or scheduler is needed to provide it. A stream's sources are acquired
+  in its consumer's scope, so a file or a subscription is released when the
+  consumer is finished with it.
 - **Queue, Hub and Deferred.** Only where a channel genuinely cannot serve:
   shutdown that is safe from any side, a required choice of what a full queue
   does, batched taking, broadcasting to a changing set of subscribers, and a
@@ -132,6 +136,7 @@ construction. That directory does not have to be the module root, and it is not.
 - [Queue](docs/reference/queue.md)
 - [Hub](docs/reference/hub.md)
 - [Deferred](docs/reference/deferred.md)
+- [Stream](docs/reference/stream.md)
 - [Schedule](docs/reference/schedule.md)
 - [Retry](docs/reference/retry.md)
 - [Observability](docs/reference/observability.md)
@@ -170,5 +175,10 @@ adoption, usability, security, documentation, maintenance and long-term
 compatibility.
 
 An effect-specific abstraction is introduced only where it adds semantics native
-Go channels genuinely lack. `Queue`, `Hub` and `Deferred` clear that bar and are
-present. `Stream` does too and is not built yet.
+Go channels genuinely lack. `Queue`, `Hub`, `Deferred` and `Stream` clear that
+bar and are present.
+
+Stream merging, broadcasting, windowing, concurrent per-element effects and
+first-class pipes are deliberately absent: each is expressible on the current
+representation, and building one before it has a caller would fossilise a guess
+about its shape.

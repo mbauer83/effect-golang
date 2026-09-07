@@ -2409,6 +2409,99 @@ formatted text.
 
 ---
 
+# 25.2 Queue, Hub, Deferred and Stream
+
+ADDED. Section 15 deferred these deliberately, on the rule that an
+effect-specific abstraction is introduced only where it adds semantics native Go
+channels genuinely lack. Three of the four now exist because they clear that
+bar; this section records what the bar was and what the fourth requires.
+
+## What each one adds that a channel cannot
+
+```text
+Deferred   one value every waiter observes, rather than the first receiver
+           consuming it
+Queue      shutdown safe from any side, a choice of what a full queue does,
+           and batched taking
+Hub        broadcast to a changing set of subscribers, which a channel cannot
+           do at all
+```
+
+`Deferred` reuses fiber completion's mechanism rather than reimplementing it: a
+write-once result, a closed channel as the broadcast, observation any number of
+readers may repeat.
+
+`Queue` keeps every other channel semantic on purpose. Values come out in the
+order they went in, and shutdown keeps the backlog so a consumer drains before
+it learns the producer is finished, which is the signal a closed channel already
+gives. What a full queue does is a required argument, not a default, because the
+wrong answer is the usual cause of a stalled or lossy pipeline. The three
+answers are separate strategy types, so neither the API nor the implementation
+carries a mode flag.
+
+`Hub` gives each subscriber its own inbox, so a slow subscriber's cost is its
+own under a dropping policy and the publisher's under a suspending one.
+Subscribing is a scoped resource and nothing else: forgetting to unsubscribe is
+a leak, because the hub would keep filling an inbox nobody reads.
+
+Batched taking needs two operations, not one. A blocking form waits for a value,
+so an empty result means finished; a non-blocking form never waits, so an empty
+result means empty right now. Draining a backlog and consuming a stream need
+different answers, and one operation giving both the same answer is a hang
+waiting to happen.
+
+## Stream representation
+
+The representation must be settled before any combinator is written, because
+two of its properties cannot be retrofitted without changing every signature.
+
+**Chunked from the start.** A stream moves `Chunk[A]`, not `A`. Per-value
+plumbing costs an interpretation per element, and adding chunks later changes
+the type of every transform and sink. `Chunk` is a value type rather than a bare
+slice so a source cannot alias a buffer it later reuses, and so the
+representation can change without touching callers.
+
+**Pull-based.** A consumer asks for the next step:
+
+```text
+Stream[R,E,A]  =  open(Scope) -> Effect[R,E, next]
+                  where next : Effect[R,E, Step[A]]
+```
+
+`open` acquires the stream's sources in the consumer's scope, so a file or a
+subscription lives exactly as long as the stream that reads it. It yields the
+effect that produces the next step, and interpreting that effect repeatedly
+walks the stream. That effect closes over per-run state and is therefore created
+per run, which is what keeps one `Stream` value reusable -- the same rule that
+makes a `Schedule` reusable and its driver not.
+
+Pull gives backpressure for free: nothing is produced until a consumer asks.
+Push would need somewhere to put values a consumer is not ready for, which means
+a buffer with a policy, or a scheduler -- and section 1.1 rules the scheduler
+out.
+
+`Step[A]` is a chunk or the end of the stream, and its zero value is the end, so
+a source that forgets to say so cannot produce an infinite stream of nothing.
+
+The run loop is a `FlatMap` recursion, so it inherits the interpreter's stack
+safety: an infinite stream consumed with `Take` adds no frames per element.
+
+## Deliberately outside the first Stream
+
+```text
+merging and interleaving two streams
+broadcasting one stream to several consumers through a Hub
+grouping, windowing and time-based batching
+concurrent per-element effects
+pipes or transducers as first-class composable values
+```
+
+Each of these is expressible on the representation above, and none of them
+constrains it. Building them before there is a consumer would fossilise guesses
+about their shape, which is the same reason section 21.4 holds the generator
+back.
+
+
 # 26. Documentation plan
 
 Continue the existing Diátaxis split.
