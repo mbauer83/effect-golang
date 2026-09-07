@@ -59,8 +59,13 @@ Selecting on `Done()` alongside a data channel is what keeps a producer's
 failure from looking like the end of a short stream. The
 [pipeline example](../../examples/pipeline/program.go) does exactly this.
 
-## No queue or hub yet
+## When a channel is not enough
 
-An effect-specific queue is introduced only where it adds semantics native
-channels genuinely lack. Repeatable broadcast observation is such a case, and it
-is already provided by `Fiber`.
+An effect-specific abstraction is introduced only where it adds semantics native
+channels genuinely lack. Three such cases exist, and they are the whole
+justification for [`Queue` and `Deferred`](queue.md): shutdown that is safe from
+any side, a choice of what a full queue does, and a value that every waiter
+observes rather than the first receiver consuming.
+
+`Hub` is a fourth — channels cannot broadcast to a changing set of subscribers
+at all — and is not built yet.
