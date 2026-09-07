@@ -16,5 +16,37 @@ jobs:
         with:
           go-version: '1.27.1'
           check-latest: true
-      - run: go test ./...
-      - run: go vet ./...
+
+      - name: Formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt would rewrite:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      # Unit, end-to-end and source-size checks. -count=1 defeats the test
+      # result cache so a green run always reflects this commit.
+      - run: go test -count=1 ./...
+
+      # Concurrency correctness is not established by ordinary tests passing.
+      - run: go test -race -count=1 ./...
+
+      # The lifecycle-heavy cases are the ones that fail intermittently, so they
+      # are repeated rather than run once.
+      - name: Concurrency stress
+        run: >
+          go test -race -count=25
+          -run 'Scope|Fiber|Fork|Await|Join|Poll|Interrupt|Ensuring|OnExit|ZipPar|Race|Timeout|ForEach|All|Pipeline|ParallelImport|Channel|Daemon|Capability'
+          .
+
+      # The examples must remain runnable programs, not only test fixtures.
+      - name: Examples
+        run: go run ./examples/cmd/effectdemo
