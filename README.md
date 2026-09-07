@@ -56,6 +56,33 @@ Goroutines remain the execution primitive, the Go scheduler remains the
 scheduler, and `context.Context` remains the cancellation boundary. There is no
 custom scheduler and no CPS runtime.
 
+## Layout
+
+```text
+.                    package effect -- the public domain: the algebra, Cause,
+                     Exit, Scope, Fiber, schedules, retry, the base capability
+                     effects and the Runtime facade
+capability/          the ports: Clock, FileSystem, Logger, Observer, Diagnostics
+internal/outcome/    how a terminated effect is modelled: causes and exits
+internal/lifetime/   what owns work: scopes, fibers, cancellation reasons
+internal/runtime/    interpretation: instructions, the trampoline, runtime state
+internal/platform/   live adapters over os, time and log/slog
+effecttest/          deterministic capabilities and fixtures for tests
+examples/            runnable programs, one per scenario
+test/unit/           behaviour of the public API
+test/acceptance/     the acceptance program and the example scenarios
+test/architecture/   invariants over the shape of the code
+```
+
+The dependency rule points inward: `capability` depends on nothing, `outcome`
+models a result, `lifetime` owns work, `runtime` interprets, and adapters sit
+outside all of it. `test/architecture` asserts that, along with the erasure
+boundary, the composition root, the file-size limits and this index.
+
+`Effect`, `Cause`, `Exit`, `Scope` and `Fiber` share private representation, and
+Go keeps one package in one directory, so the public domain is one directory by
+construction rather than by preference.
+
 ## Documentation
 
 ### Tutorials

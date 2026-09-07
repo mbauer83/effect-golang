@@ -3,6 +3,7 @@ package effect
 import (
 	"context"
 
+	"github.com/mbauer83/effect-golang/internal/outcome"
 	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
 )
 
@@ -69,9 +70,9 @@ func erasedAdapter[R0, R any](adapt func(R0) R) func(any) any {
 
 // erasedFailureTransform lifts a typed failure transform over every Fail leaf,
 // leaving defects and interruption untouched.
-func erasedFailureTransform[E, E2 any](transform func(E) E2) func(runtimecore.Cause) runtimecore.Cause {
-	return func(cause runtimecore.Cause) runtimecore.Cause {
-		return runtimecore.MapCauseFailure(cause, func(failure any) any {
+func erasedFailureTransform[E, E2 any](transform func(E) E2) func(outcome.Cause) outcome.Cause {
+	return func(cause outcome.Cause) outcome.Cause {
+		return outcome.MapCauseFailure(cause, func(failure any) any {
 			return transform(typedFailure[E](failure))
 		})
 	}
@@ -82,16 +83,16 @@ func erasedFailureTransform[E, E2 any](transform func(E) E2) func(runtimecore.Ca
 func erasedWork[R, E, A any](
 	fx Effect[R, E, A],
 	env R,
-) func(context.Context, *runtimecore.State) runtimecore.Exit {
-	return func(ctx context.Context, state *runtimecore.State) runtimecore.Exit {
+) func(context.Context, *runtimecore.State) outcome.Exit {
+	return func(ctx context.Context, state *runtimecore.State) outcome.Exit {
 		return fx.run(ctx, state, env).erased
 	}
 }
 
 // erasedFolder lifts a typed cause folder, so the stack-safe traversal can live
 // once in the runtime while elimination stays typed.
-func erasedFolder[E, A any](folder CauseFolder[E, A]) runtimecore.CauseFolder[A] {
-	return runtimecore.CauseFolder[A]{
+func erasedFolder[E, A any](folder CauseFolder[E, A]) outcome.CauseFolder[A] {
+	return outcome.CauseFolder[A]{
 		Empty: folder.Empty,
 		Failure: func(failure any) A {
 			return folder.Failure(typedFailure[E](failure))
@@ -106,8 +107,8 @@ func erasedFolder[E, A any](folder CauseFolder[E, A]) runtimecore.CauseFolder[A]
 // erasedRecovery lifts a typed cause handler.
 func erasedRecovery[R, E, E2, A any](
 	handler func(Cause[E]) Effect[R, E2, A],
-) func(runtimecore.Cause) runtimecore.Node {
-	return func(cause runtimecore.Cause) runtimecore.Node {
+) func(outcome.Cause) runtimecore.Node {
+	return func(cause outcome.Cause) runtimecore.Node {
 		return handler(Cause[E]{node: cause}).instructions()
 	}
 }
@@ -122,7 +123,7 @@ func (fx Effect[R, E, A]) instructions() runtimecore.Node {
 	return fx.node
 }
 
-func missingInstructions(runtimecore.Interpretation) runtimecore.Exit {
+func missingInstructions(runtimecore.Interpretation) outcome.Exit {
 	panic("effect: zero Effect has no instructions")
 }
 
@@ -136,7 +137,7 @@ func fromInstructions[R, E, A any](node runtimecore.Node) Effect[R, E, A] {
 // and observer without those services entering the R channel.
 func fromRuntime[R, E, A any](eval func(context.Context, *runtimecore.State, R) Exit[E, A]) Effect[R, E, A] {
 	return fromInstructions[R, E, A](&runtimecore.Eval{
-		Run: func(interpretation runtimecore.Interpretation) runtimecore.Exit {
+		Run: func(interpretation runtimecore.Interpretation) outcome.Exit {
 			environment := typedEnvironment[R](interpretation.Environment)
 			return eval(interpretation.Context, interpretation.State, environment).erased
 		},

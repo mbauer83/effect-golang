@@ -3,7 +3,7 @@ package effect
 import (
 	"context"
 
-	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
 )
 
 // Receive is the result of a channel receive, preserving Go's own two-value
@@ -34,7 +34,7 @@ func Send[R, A any](ch chan<- A, value A) Effect[R, Never, Unit] {
 		case ch <- value:
 			return ExitSuccess[Never](Unit{})
 		case <-ctx.Done():
-			return exitInterrupted[Never, Unit](runtimecore.CancellationReason(ctx))
+			return exitInterrupted[Never, Unit](lifetime.CancellationReason(ctx))
 		}
 	})
 }
@@ -47,7 +47,7 @@ func Recv[R, A any](ch <-chan A) Effect[R, Never, Receive[A]] {
 		case value, open := <-ch:
 			return ExitSuccess[Never](Receive[A]{Value: value, OK: open})
 		case <-ctx.Done():
-			return exitInterrupted[Never, Receive[A]](runtimecore.CancellationReason(ctx))
+			return exitInterrupted[Never, Receive[A]](lifetime.CancellationReason(ctx))
 		}
 	})
 }
@@ -64,7 +64,7 @@ func RecvOrFail[R, E, A any](ch <-chan A, onClosed E) Effect[R, E, A] {
 			}
 			return ExitSuccess[E](value)
 		case <-ctx.Done():
-			return exitInterrupted[E, A](runtimecore.CancellationReason(ctx))
+			return exitInterrupted[E, A](lifetime.CancellationReason(ctx))
 		}
 	})
 }

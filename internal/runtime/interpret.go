@@ -3,6 +3,8 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 )
 
 // Interpret evaluates an erased instruction tree iteratively.
@@ -11,7 +13,7 @@ import (
 // Go stack frames, so an arbitrarily deep program neither overflows nor grows
 // the goroutine stack. No goroutine is created and no scheduling decision is
 // made here: the Go runtime remains the only scheduler.
-func Interpret(ctx context.Context, state *State, environment any, node Node) Exit {
+func Interpret(ctx context.Context, state *State, environment any, node Node) outcome.Exit {
 	machine := interpreter{ctx: ctx, state: state, environment: environment}
 	return machine.run(node)
 }
@@ -29,13 +31,15 @@ type frame interface {
 
 type transformFrame struct{ apply func(any) any }
 type bindFrame struct{ continueWith func(any) Node }
-type transformCauseFrame struct{ apply func(Cause) Cause }
-type recoverFrame struct{ handle func(Cause) Node }
+type transformCauseFrame struct {
+	apply func(outcome.Cause) outcome.Cause
+}
+type recoverFrame struct{ handle func(outcome.Cause) Node }
 type environmentFrame struct{ environment any }
 type stateFrame struct{ state *State }
 type contextFrame struct{ ctx context.Context }
 type exitHookFrame struct {
-	observe func(Interpretation, Exit) Exit
+	observe func(Interpretation, outcome.Exit) outcome.Exit
 }
 
 func (transformFrame) continuation()      {}
@@ -47,7 +51,7 @@ func (stateFrame) continuation()          {}
 func (contextFrame) continuation()        {}
 func (exitHookFrame) continuation()       {}
 
-func (machine *interpreter) run(node Node) Exit {
+func (machine *interpreter) run(node Node) outcome.Exit {
 	current := node
 	for {
 		exit := machine.evaluate(current)
@@ -61,7 +65,7 @@ func (machine *interpreter) run(node Node) Exit {
 
 // evaluate descends through composition instructions, recording one
 // continuation frame per level, until it reaches an instruction that settles.
-func (machine *interpreter) evaluate(node Node) Exit {
+func (machine *interpreter) evaluate(node Node) outcome.Exit {
 	for {
 		switch instruction := node.(type) {
 		case *Transform:
@@ -83,7 +87,7 @@ func (machine *interpreter) evaluate(node Node) Exit {
 			machine.push(environmentFrame{environment: machine.environment})
 			adapted, defect := adaptedEnvironment(instruction.Adapt, machine.environment)
 			if defect != nil {
-				return Failure(DieCause(*defect))
+				return outcome.Failure(outcome.DieCause(*defect))
 			}
 			machine.environment = adapted
 			node = instruction.Source
@@ -91,7 +95,7 @@ func (machine *interpreter) evaluate(node Node) Exit {
 			machine.push(contextFrame{ctx: machine.ctx})
 			derived, defect := derivedContext(instruction.Derive, machine.ctx)
 			if defect != nil {
-				return Failure(DieCause(*defect))
+				return outcome.Failure(outcome.DieCause(*defect))
 			}
 			machine.ctx = derived
 			node = instruction.Source
@@ -99,14 +103,14 @@ func (machine *interpreter) evaluate(node Node) Exit {
 			machine.push(stateFrame{state: machine.state})
 			derived, defect := derivedState(instruction.Derive, machine.state)
 			if defect != nil {
-				return Failure(DieCause(*defect))
+				return outcome.Failure(outcome.DieCause(*defect))
 			}
 			machine.state = derived
 			node = instruction.Source
 		case *Suspend:
 			created, defect := suspendedNode(instruction, machine.interpretation())
 			if defect != nil {
-				return Failure(DieCause(*defect))
+				return outcome.Failure(outcome.DieCause(*defect))
 			}
 			node = created
 		default:
@@ -118,25 +122,25 @@ func (machine *interpreter) evaluate(node Node) Exit {
 // settle evaluates an instruction that performs no further composition. Every
 // value a program produces passes through exactly one settling instruction, so
 // this is also the runtime's cooperative interruption checkpoint.
-func (machine *interpreter) settle(node Node) Exit {
+func (machine *interpreter) settle(node Node) outcome.Exit {
 	if cause, interrupted := machine.interrupted(); interrupted {
-		return Failure(cause)
+		return outcome.Failure(cause)
 	}
 	switch instruction := node.(type) {
 	case *Succeed:
-		return Success(instruction.Value)
+		return outcome.Success(instruction.Value)
 	case *Fail:
-		return Failure(instruction.Cause)
+		return outcome.Failure(instruction.Cause)
 	case *Eval:
 		return evaluatedLeaf(instruction, machine.interpretation())
 	default:
-		return Failure(DieCause(Defect{Value: fmt.Errorf("effect: unsupported instruction %T", node)}))
+		return outcome.Failure(outcome.DieCause(outcome.Defect{Value: fmt.Errorf("effect: unsupported instruction %T", node)}))
 	}
 }
 
 // resume applies pending continuations to exit until one of them produces
 // another instruction to evaluate.
-func (machine *interpreter) resume(exit Exit) (Node, Exit, bool) {
+func (machine *interpreter) resume(exit outcome.Exit) (Node, outcome.Exit, bool) {
 	for len(machine.frames) > 0 {
 		switch continuation := machine.pop().(type) {
 		case environmentFrame:
@@ -161,7 +165,7 @@ func (machine *interpreter) resume(exit Exit) (Node, Exit, bool) {
 			}
 			node, defect := continuedNode(continuation.continueWith, exit.Value())
 			if defect != nil {
-				exit = Failure(DieCause(*defect))
+				exit = outcome.Failure(outcome.DieCause(*defect))
 				continue
 			}
 			return node, exit, true
@@ -171,7 +175,7 @@ func (machine *interpreter) resume(exit Exit) (Node, Exit, bool) {
 			}
 			node, defect := recoveredNode(continuation.handle, exit.Cause())
 			if defect != nil {
-				exit = Failure(exit.Cause().Then(DieCause(*defect)))
+				exit = outcome.Failure(exit.Cause().Then(outcome.DieCause(*defect)))
 				continue
 			}
 			return node, exit, true
@@ -200,18 +204,9 @@ func (machine *interpreter) pop() frame {
 	return continuation
 }
 
-func (machine *interpreter) interrupted() (Cause, bool) {
+func (machine *interpreter) interrupted() (outcome.Cause, bool) {
 	if machine.ctx.Err() == nil {
-		return Cause{}, false
+		return outcome.Cause{}, false
 	}
-	return InterruptCause(CancellationReason(machine.ctx)), true
-}
-
-// CancellationReason prefers an explicit cancellation cause so the reason a
-// caller supplied survives instead of a generic context.Canceled.
-func CancellationReason(ctx context.Context) error {
-	if reason := context.Cause(ctx); reason != nil {
-		return reason
-	}
-	return ctx.Err()
+	return outcome.InterruptCause(lifetime.CancellationReason(machine.ctx)), true
 }

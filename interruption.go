@@ -3,7 +3,7 @@ package effect
 import (
 	"context"
 
-	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
 )
 
 // The runtime attaches one of these reasons whenever it cancels work, so an
@@ -11,18 +11,18 @@ import (
 // context.Canceled. Compare them with errors.Is on an Interruption's Cause.
 var (
 	// ErrScopeClosed reports that the scope owning the work was closed.
-	ErrScopeClosed = runtimecore.ErrScopeClosed
+	ErrScopeClosed = lifetime.ErrScopeClosed
 	// ErrFiberInterrupted reports an explicit request to interrupt a fiber.
-	ErrFiberInterrupted = runtimecore.ErrFiberInterrupted
+	ErrFiberInterrupted = lifetime.ErrFiberInterrupted
 	// ErrSiblingFailed reports that a parallel sibling failed, which made this
 	// branch's result unnecessary.
-	ErrSiblingFailed = runtimecore.ErrSiblingFailed
+	ErrSiblingFailed = lifetime.ErrSiblingFailed
 	// ErrRaceLost reports that another branch of a race completed first.
-	ErrRaceLost = runtimecore.ErrRaceLost
+	ErrRaceLost = lifetime.ErrRaceLost
 	// ErrTimedOut reports that a timeout elapsed before the work completed.
-	ErrTimedOut = runtimecore.ErrTimedOut
+	ErrTimedOut = lifetime.ErrTimedOut
 	// ErrRuntimeClosed reports that the owning Runtime was closed.
-	ErrRuntimeClosed = runtimecore.ErrRuntimeClosed
+	ErrRuntimeClosed = lifetime.ErrRuntimeClosed
 )
 
 // interruptionReason reports why the current context was canceled, or nil when
@@ -32,7 +32,7 @@ func interruptionReason(ctx context.Context) error {
 	if ctx.Err() == nil {
 		return nil
 	}
-	return runtimecore.CancellationReason(ctx)
+	return lifetime.CancellationReason(ctx)
 }
 
 // interruptedExit reports an interruption exit when ctx is already canceled.

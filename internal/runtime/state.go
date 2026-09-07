@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
 	"log/slog"
 	"slices"
 	"sync/atomic"
@@ -16,9 +17,9 @@ type State struct {
 	capabilities capability.Set
 	identifiers  *identifiers
 	metadata     Metadata
-	scope        *Scope
-	root         *Scope
-	ledger       *Ledger
+	scope        *lifetime.Scope
+	root         *lifetime.Scope
+	ledger       *lifetime.Ledger
 }
 
 // Metadata is inherited by nested effect evaluation.
@@ -41,7 +42,7 @@ type identifiers struct {
 
 // NewState constructs runtime state from a complete capability set and the
 // runtime's root scope. A nil ledger disables debug tracking.
-func NewState(capabilities capability.Set, root *Scope, ledger *Ledger) *State {
+func NewState(capabilities capability.Set, root *lifetime.Scope, ledger *lifetime.Ledger) *State {
 	return &State{
 		capabilities: capabilities,
 		identifiers:  &identifiers{},
@@ -53,7 +54,7 @@ func NewState(capabilities capability.Set, root *Scope, ledger *Ledger) *State {
 
 // Ledger returns the runtime's debug work ledger, which is nil unless the
 // runtime enabled tracking. Its methods tolerate that nil.
-func (state *State) Ledger() *Ledger {
+func (state *State) Ledger() *lifetime.Ledger {
 	return state.ledger
 }
 
@@ -64,18 +65,18 @@ func (state *State) Capabilities() capability.Set {
 
 // Scope returns the lifetime boundary that currently owns forked work and
 // acquired resources.
-func (state *State) Scope() *Scope {
+func (state *State) Scope() *lifetime.Scope {
 	return state.scope
 }
 
 // Root returns the runtime's outermost lifetime boundary, which bounds work
 // that was deliberately detached from its creator's scope.
-func (state *State) Root() *Scope {
+func (state *State) Root() *lifetime.Scope {
 	return state.root
 }
 
 // WithScope derives state whose nested work is owned by scope.
-func (state *State) WithScope(scope *Scope) *State {
+func (state *State) WithScope(scope *lifetime.Scope) *State {
 	derived := *state
 	derived.scope = scope
 	return &derived
@@ -123,7 +124,7 @@ func (state *State) Spanned(boundary SpanBoundary) *State {
 
 // Forked derives state for a child fiber: it inherits names, annotations and
 // span identity, and records the identity reserved for it plus its parent's.
-func (state *State) Forked(scope *Scope, fiberID uint64) *State {
+func (state *State) Forked(scope *lifetime.Scope, fiberID uint64) *State {
 	derived := *state
 	derived.scope = scope
 	derived.metadata.ParentFiber = state.metadata.FiberID

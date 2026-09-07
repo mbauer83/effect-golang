@@ -1,6 +1,9 @@
 package effect
 
-import runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+import (
+	"github.com/mbauer83/effect-golang/internal/outcome"
+	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+)
 
 // CatchCause handles the complete cause, including composite failures, defects
 // and interruption. It is intentionally more powerful than CatchAll; recovering
@@ -64,8 +67,8 @@ func ExitOf[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, Exit[E, A]] {
 	})
 }
 
-func reifyExit[E, A any](_ runtimecore.Interpretation, exit runtimecore.Exit) runtimecore.Exit {
-	return runtimecore.Success(Exit[E, A]{erased: exit})
+func reifyExit[E, A any](_ runtimecore.Interpretation, exit outcome.Exit) outcome.Exit {
+	return outcome.Success(Exit[E, A]{erased: exit})
 }
 
 // Fold eliminates both of an effect's failure and success channels into one
@@ -96,6 +99,6 @@ func Fold[R, E, A, B any](
 func FailuresAsDefects[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, A] {
 	return fromInstructions[R, Never, A](&runtimecore.TransformCause{
 		Source: fx.instructions(),
-		Apply:  runtimecore.FailuresAsDefects,
+		Apply:  outcome.FailuresAsDefects,
 	})
 }

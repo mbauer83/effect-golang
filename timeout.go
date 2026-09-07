@@ -3,7 +3,8 @@ package effect
 import (
 	"time"
 
-	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 )
 
 // Timeout races fx against the runtime clock and reports whether it completed.
@@ -42,7 +43,7 @@ func timing[R, E, A any](fx Effect[R, E, A], duration time.Duration, elapsed Exi
 		fx,
 		Sleep[R, E](duration),
 		settleAlways,
-		runtimecore.ErrTimedOut,
+		lifetime.ErrTimedOut,
 		timedResult(elapsed),
 	)
 }
@@ -52,16 +53,16 @@ func timing[R, E, A any](fx Effect[R, E, A], duration time.Duration, elapsed Exi
 // finalizer defect, for instance -- is still composed into the result, because
 // a timeout must not hide a cleanup failure.
 func timedResult[E, A any](elapsed Exit[E, A]) pairResolver[E, A] {
-	return func(outcome runtimecore.PairOutcome, induced error) Exit[E, A] {
-		clockWon := outcome.First == runtimecore.RightSide && outcome.Right.Succeeded()
+	return func(pair outcome.PairOutcome, induced error) Exit[E, A] {
+		clockWon := pair.First == outcome.RightSide && pair.Right.Succeeded()
 		if !clockWon {
-			return Exit[E, A]{erased: outcome.Left}
+			return Exit[E, A]{erased: pair.Left}
 		}
 
-		abandoned := outcome.Left.Cause()
-		if abandoned.IsEmpty() || runtimecore.WasInduced(abandoned, induced) {
+		abandoned := pair.Left.Cause()
+		if abandoned.IsEmpty() || outcome.WasInduced(abandoned, induced) {
 			return elapsed
 		}
-		return Exit[E, A]{erased: runtimecore.Failure(elapsed.erased.Cause().Then(abandoned))}
+		return Exit[E, A]{erased: outcome.Failure(elapsed.erased.Cause().Then(abandoned))}
 	}
 }

@@ -3,6 +3,8 @@ package effect
 import (
 	"context"
 
+	"github.com/mbauer83/effect-golang/internal/lifetime"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
 )
 
@@ -51,7 +53,7 @@ func ForEachParN[R, E, A, B any](inputs []A, limit int, f func(A) Effect[R, E, B
 			runtimecore.Interpretation{Context: ctx, State: state, Environment: env},
 			parallelBranches(inputs, f, env),
 			limit,
-			runtimecore.ErrSiblingFailed,
+			lifetime.ErrSiblingFailed,
 		)
 		return composeCleanup(collectedResults[E, B](exits), cleanup)
 	})
@@ -84,12 +86,12 @@ func parallelBranches[R, E, A, B any](
 	return branches
 }
 
-func collectedResults[E, B any](exits []runtimecore.Exit) Exit[E, []B] {
+func collectedResults[E, B any](exits []outcome.Exit) Exit[E, []B] {
 	results := make([]B, 0, len(exits))
 	for _, exit := range exits {
 		if !exit.Succeeded() {
-			return Exit[E, []B]{erased: runtimecore.Failure(
-				runtimecore.CombineBranchCauses(exits, runtimecore.ErrSiblingFailed),
+			return Exit[E, []B]{erased: outcome.Failure(
+				outcome.CombineBranchCauses(exits, lifetime.ErrSiblingFailed),
 			)}
 		}
 		results = append(results, typedValue[B](exit.Value()))

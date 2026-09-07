@@ -7,6 +7,8 @@ import (
 	"log/slog"
 
 	"github.com/mbauer83/effect-golang/capability"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 	"github.com/mbauer83/effect-golang/internal/platform"
 	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
 )
@@ -20,8 +22,8 @@ import (
 // interfere with each other.
 type Runtime struct {
 	state  *runtimecore.State
-	root   *runtimecore.Scope
-	ledger *runtimecore.Ledger
+	root   *lifetime.Scope
+	ledger *lifetime.Ledger
 }
 
 // NewRuntime constructs an interpreter with live defaults and local overrides.
@@ -43,7 +45,7 @@ func NewRuntime(options ...RuntimeOption) (*Runtime, error) {
 		}
 	}
 
-	root := runtimecore.NewScope(context.Background())
+	root := lifetime.NewScope(context.Background())
 	return &Runtime{
 		state:  runtimecore.NewState(configured.capabilities, root, configured.ledger),
 		root:   root,
@@ -74,9 +76,9 @@ func (runtime *Runtime) Run[R, E, A any](ctx context.Context, env R, fx Effect[R
 		panic("effect: nil Runtime")
 	}
 
-	scope := runtimecore.NewScope(ctx)
+	scope := lifetime.NewScope(ctx)
 	exit := fx.run(scope.Context(), runtime.state.WithScope(scope), env)
-	cleanup := scope.Close(ctx, exit.erased, runtimecore.ErrScopeClosed)
+	cleanup := scope.Close(ctx, exit.erased, lifetime.ErrScopeClosed)
 	return composeCleanup(exit, cleanup)
 }
 
@@ -105,13 +107,13 @@ func (runtime *Runtime) LiveWork() LiveWork {
 func (runtime *Runtime) close(ctx context.Context) Cause[Never] {
 	runtime.reportRemainingWork(ctx)
 	closingAt := runtime.state.EmitStart(ctx, capability.EventRuntimeClosing)
-	cleanup := runtime.root.Close(ctx, runtimecore.Success(Unit{}), runtimecore.ErrRuntimeClosed)
+	cleanup := runtime.root.Close(ctx, outcome.Success(Unit{}), lifetime.ErrRuntimeClosed)
 	cleanup = cleanup.Then(flushCapabilities(ctx, runtime.state))
 	runtime.state.EmitEnd(
 		ctx,
 		capability.EventRuntimeClosed,
 		closingAt,
-		runtimecore.CleanupStatus(cleanup),
+		outcome.CleanupStatus(cleanup),
 	)
 	return Cause[Never]{node: cleanup}
 }
@@ -137,30 +139,30 @@ func (runtime *Runtime) reportRemainingWork(ctx context.Context) {
 
 // composeCleanup appends a lifetime's cleanup cause to an exit. Cleanup causes
 // carry no typed failure, so retyping them to E cannot lose information.
-func composeCleanup[E, A any](exit Exit[E, A], cleanup runtimecore.Cause) Exit[E, A] {
+func composeCleanup[E, A any](exit Exit[E, A], cleanup outcome.Cause) Exit[E, A] {
 	if cleanup.IsEmpty() {
 		return exit
 	}
-	return Exit[E, A]{erased: runtimecore.Failure(exit.erased.Cause().Then(cleanup))}
+	return Exit[E, A]{erased: outcome.Failure(exit.erased.Cause().Then(cleanup))}
 }
 
-func flushCapabilities(ctx context.Context, state *runtimecore.State) runtimecore.Cause {
+func flushCapabilities(ctx context.Context, state *runtimecore.State) outcome.Cause {
 	capabilities := state.Capabilities()
 	cause := flushOne(ctx, capabilities.Observer, capability.FaultObserver)
 	return cause.Then(flushOne(ctx, capabilities.Logger, capability.FaultLogger))
 }
 
-func flushOne(ctx context.Context, subject any, component capability.FaultComponent) runtimecore.Cause {
+func flushOne(ctx context.Context, subject any, component capability.FaultComponent) outcome.Cause {
 	flusher, buffers := subject.(capability.Flusher)
 	if !buffers {
-		return runtimecore.Cause{}
+		return outcome.Cause{}
 	}
 	if err := flusher.Flush(ctx); err != nil {
-		return runtimecore.DieCause(runtimecore.CapturedDefect(capability.RuntimeFault{
+		return outcome.DieCause(outcome.CapturedDefect(capability.RuntimeFault{
 			Component: component,
 			Operation: "flush",
 			Err:       err,
 		}))
 	}
-	return runtimecore.Cause{}
+	return outcome.Cause{}
 }

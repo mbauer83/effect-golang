@@ -1,6 +1,9 @@
 package runtime
 
-import "context"
+import (
+	"context"
+	"github.com/mbauer83/effect-golang/internal/outcome"
+)
 
 // Interpretation is the ambient state an instruction runs with. Passing it as
 // one value keeps instruction callbacks narrow and makes it explicit that the
@@ -28,12 +31,12 @@ type Succeed struct {
 
 // Fail terminates with a complete cause.
 type Fail struct {
-	Cause Cause
+	Cause outcome.Cause
 }
 
 // Eval is an opaque leaf that performs work.
 type Eval struct {
-	Run func(Interpretation) Exit
+	Run func(Interpretation) outcome.Exit
 }
 
 // Suspend defers instruction construction until interpretation.
@@ -56,13 +59,13 @@ type Bind struct {
 // TransformCause rewrites an unsuccessful cause.
 type TransformCause struct {
 	Source Node
-	Apply  func(Cause) Cause
+	Apply  func(outcome.Cause) outcome.Cause
 }
 
 // Recover continues with another instruction derived from a cause.
 type Recover struct {
 	Source Node
-	Handle func(Cause) Node
+	Handle func(outcome.Cause) Node
 }
 
 // WithEnvironment adapts the environment supplied to Source.
@@ -90,7 +93,7 @@ type WithContext struct {
 // cancellation that arrived while Source was running.
 type OnExit struct {
 	Source  Node
-	Observe func(Interpretation, Exit) Exit
+	Observe func(Interpretation, outcome.Exit) outcome.Exit
 }
 
 func (*Succeed) instruction()         {}

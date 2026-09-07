@@ -3,6 +3,7 @@ package effect
 import (
 	"context"
 
+	"github.com/mbauer83/effect-golang/internal/outcome"
 	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
 )
 
@@ -24,13 +25,13 @@ func (fx Effect[R, E, A]) Ensuring(finalize Effect[R, Never, Unit]) Effect[R, E,
 func (fx Effect[R, E, A]) OnExit(finalize func(Exit[E, A]) Effect[R, Never, Unit]) Effect[R, E, A] {
 	return fx.withExitObserver(func(
 		interpretation runtimecore.Interpretation,
-		exit runtimecore.Exit,
-	) runtimecore.Exit {
+		exit outcome.Exit,
+	) outcome.Exit {
 		cleanup := finalizeExit(interpretation, finalize, Exit[E, A]{erased: exit})
 		if cleanup.IsEmpty() {
 			return exit
 		}
-		return runtimecore.Failure(exit.Cause().Then(cleanup))
+		return outcome.Failure(exit.Cause().Then(cleanup))
 	})
 }
 
@@ -38,7 +39,7 @@ func finalizeExit[R, E, A any](
 	interpretation runtimecore.Interpretation,
 	finalize func(Exit[E, A]) Effect[R, Never, Unit],
 	exit Exit[E, A],
-) runtimecore.Cause {
+) outcome.Cause {
 	environment := typedEnvironment[R](interpretation.Environment)
 	cleanup := context.WithoutCancel(interpretation.Context)
 	released := finalize(exit).run(cleanup, interpretation.State, environment)

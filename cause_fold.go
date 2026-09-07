@@ -1,6 +1,8 @@
 package effect
 
-import runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+import (
+	"github.com/mbauer83/effect-golang/internal/outcome"
+)
 
 // CauseFolder defines how Fold evaluates each cause node. Keeping the handlers
 // in one value makes call sites readable and allows the fold to remain total.
@@ -15,7 +17,7 @@ type CauseFolder[E, A any] struct {
 
 // Fold eliminates a cause without recursively growing the Go call stack.
 func (c Cause[E]) Fold[A any](folder CauseFolder[E, A]) A {
-	return runtimecore.FoldCause(c.node, erasedFolder(folder))
+	return outcome.FoldCause(c.node, erasedFolder(folder))
 }
 
 // Failures returns every typed failure from left to right.
@@ -93,7 +95,7 @@ func isCompositeKind(kind CauseKind) bool {
 }
 
 func (c Cause[E]) visit(visitor func(Cause[E]) bool) {
-	runtimecore.VisitCause(c.node, func(node runtimecore.Cause) bool {
+	outcome.VisitCause(c.node, func(node outcome.Cause) bool {
 		return visitor(Cause[E]{node: node})
 	})
 }

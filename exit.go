@@ -3,7 +3,7 @@ package effect
 import (
 	"fmt"
 
-	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 )
 
 // Exit is the complete result of running an Effect: either a Cause[E] or a
@@ -11,12 +11,12 @@ import (
 //
 // Its zero value is an unsuccessful termination with the empty cause.
 type Exit[E, A any] struct {
-	erased runtimecore.Exit
+	erased outcome.Exit
 }
 
 // ExitSuccess constructs a successful Exit.
 func ExitSuccess[E, A any](value A) Exit[E, A] {
-	return Exit[E, A]{erased: runtimecore.Success(value)}
+	return Exit[E, A]{erased: outcome.Success(value)}
 }
 
 // ExitFailure constructs an Exit with an expected typed failure.
@@ -26,7 +26,7 @@ func ExitFailure[E, A any](failure E) Exit[E, A] {
 
 // ExitCause constructs an Exit with a complete failure cause.
 func ExitCause[E, A any](cause Cause[E]) Exit[E, A] {
-	return Exit[E, A]{erased: runtimecore.Failure(cause.node)}
+	return Exit[E, A]{erased: outcome.Failure(cause.node)}
 }
 
 func exitInterrupted[E, A any](reason error) Exit[E, A] {

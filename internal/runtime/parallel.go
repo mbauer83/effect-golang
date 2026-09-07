@@ -2,32 +2,14 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 )
-
-// Side names one branch of a two-branch concurrent composition.
-type Side uint8
-
-const (
-	// NeitherSide means no branch had completed when the composition settled.
-	NeitherSide Side = iota
-	LeftSide
-	RightSide
-)
-
-// PairOutcome holds both branches' terminal exits in positional order, so a
-// composed cause can preserve which side failed, plus which branch completed
-// first for the compositions that care.
-type PairOutcome struct {
-	Left  Exit
-	Right Exit
-	First Side
-}
 
 // SettlePolicy decides whether one branch's terminal exit already settles the
 // whole composition, making the other branch's result unnecessary.
-type SettlePolicy func(Exit) bool
+type SettlePolicy func(outcome.Exit) bool
 
 // RunPair evaluates two branches concurrently inside a private scope.
 //
@@ -39,44 +21,44 @@ type SettlePolicy func(Exit) bool
 // abandoning a running branch is exactly what this must not do.
 func RunPair(
 	interpretation Interpretation,
-	left func(context.Context, *State) Exit,
-	right func(context.Context, *State) Exit,
+	left func(context.Context, *State) outcome.Exit,
+	right func(context.Context, *State) outcome.Exit,
 	settle SettlePolicy,
 	reason error,
-) (PairOutcome, Cause) {
-	scope := NewScope(interpretation.Context)
+) (outcome.PairOutcome, outcome.Cause) {
+	scope := lifetime.NewScope(interpretation.Context)
 	runner, unavailable := startPair(scope, interpretation.State, left, right)
 	if unavailable != nil {
-		return PairOutcome{}, *unavailable
+		return outcome.PairOutcome{}, *unavailable
 	}
 
 	runner.reason = reason
 	runner.wait(settle)
-	cleanup := scope.Close(interpretation.Context, Success(runner.outcome), reason)
+	cleanup := scope.Close(interpretation.Context, outcome.Success(runner.outcome), reason)
 	return runner.outcome, cleanup
 }
 
 type pairRunner struct {
-	left      *Fiber
-	right     *Fiber
+	left      *lifetime.Fiber
+	right     *lifetime.Fiber
 	leftDone  <-chan struct{}
 	rightDone <-chan struct{}
-	outcome   PairOutcome
+	outcome   outcome.PairOutcome
 	reason    error
 }
 
 func startPair(
-	scope *Scope,
+	scope *lifetime.Scope,
 	state *State,
-	left func(context.Context, *State) Exit,
-	right func(context.Context, *State) Exit,
-) (*pairRunner, *Cause) {
+	left func(context.Context, *State) outcome.Exit,
+	right func(context.Context, *State) outcome.Exit,
+) (*pairRunner, *outcome.Cause) {
 	leftFiber, leftStarted := StartFiber(scope, scope.Context(), state, left)
 	rightFiber, rightStarted := StartFiber(scope, scope.Context(), state, right)
 	if !leftStarted || !rightStarted {
 		// A freshly opened scope always accepts work, so this is unreachable
 		// unless the runtime itself is inconsistent.
-		failure := DieCause(Defect{Value: fmt.Errorf("effect: fresh scope rejected a parallel branch")})
+		failure := outcome.DieCause(outcome.Defect{Value: fmt.Errorf("effect: fresh scope rejected a parallel branch")})
 		return nil, &failure
 	}
 	return &pairRunner{
@@ -110,17 +92,17 @@ func (runner *pairRunner) wait(settle SettlePolicy) {
 func (runner *pairRunner) collectLeft() {
 	runner.leftDone = nil
 	runner.outcome.Left, _ = runner.left.Poll()
-	runner.recordFirst(LeftSide)
+	runner.recordFirst(outcome.LeftSide)
 }
 
 func (runner *pairRunner) collectRight() {
 	runner.rightDone = nil
 	runner.outcome.Right, _ = runner.right.Poll()
-	runner.recordFirst(RightSide)
+	runner.recordFirst(outcome.RightSide)
 }
 
-func (runner *pairRunner) recordFirst(side Side) {
-	if runner.outcome.First == NeitherSide {
+func (runner *pairRunner) recordFirst(side outcome.Side) {
+	if runner.outcome.First == outcome.NeitherSide {
 		runner.outcome.First = side
 	}
 }
@@ -141,41 +123,4 @@ func (runner *pairRunner) discardLeft() {
 	}
 	runner.leftDone = nil
 	runner.outcome.Left = runner.left.Interrupt(runner.reason)
-}
-
-// CombineParallelCauses composes two branch causes without inventing an
-// independent failure.
-//
-// A branch that stopped only because this composition canceled it did not fail
-// on its own account, so its induced interruption is dropped. Two genuinely
-// independent failures are preserved with Both, in positional order.
-func CombineParallelCauses(outcome PairOutcome, induced error) Cause {
-	left, right := outcome.Left.Cause(), outcome.Right.Cause()
-	if WasInduced(right, induced) {
-		return left
-	}
-	if WasInduced(left, induced) {
-		return right
-	}
-	return left.Both(right)
-}
-
-// WasInduced reports whether a cause consists only of interruptions this
-// composition requested.
-func WasInduced(cause Cause, reason error) bool {
-	if cause.IsEmpty() || reason == nil {
-		return false
-	}
-	induced := true
-	VisitCause(cause, func(node Cause) bool {
-		switch node.Kind {
-		case CauseThen, CauseBoth:
-		case CauseInterrupted:
-			induced = induced && errors.Is(node.Interruption.Cause, reason)
-		default:
-			induced = false
-		}
-		return induced
-	})
-	return induced
 }

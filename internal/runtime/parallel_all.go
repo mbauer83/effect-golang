@@ -3,10 +3,12 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 )
 
 // Branch is one unit of concurrent work in a collection composition.
-type Branch func(context.Context, *State) Exit
+type Branch func(context.Context, *State) outcome.Exit
 
 // RunAll evaluates every branch concurrently inside a private scope and
 // returns their terminal exits in input order.
@@ -24,12 +26,12 @@ func RunAll(
 	branches []Branch,
 	limit int,
 	reason error,
-) ([]Exit, Cause) {
+) ([]outcome.Exit, outcome.Cause) {
 	if len(branches) == 0 {
-		return nil, Cause{}
+		return nil, outcome.Cause{}
 	}
 
-	scope := NewScope(interpretation.Context)
+	scope := lifetime.NewScope(interpretation.Context)
 	group, unavailable := startAll(scope, interpretation.State, branches, limit)
 	if unavailable != nil {
 		return nil, *unavailable
@@ -37,7 +39,7 @@ func RunAll(
 
 	group.awaitFirstFailure(scope, reason)
 	exits := group.collect()
-	return exits, scope.Close(interpretation.Context, Success(exits), reason)
+	return exits, scope.Close(interpretation.Context, outcome.Success(exits), reason)
 }
 
 // completion reports a branch's own exit as soon as its body finishes, before
@@ -46,17 +48,17 @@ func RunAll(
 // the fiber afterwards.
 type completion struct {
 	index int
-	exit  Exit
+	exit  outcome.Exit
 }
 
 type branchGroup struct {
-	fibers      []*Fiber
+	fibers      []*lifetime.Fiber
 	completions chan completion
 }
 
-func startAll(scope *Scope, state *State, branches []Branch, limit int) (*branchGroup, *Cause) {
+func startAll(scope *lifetime.Scope, state *State, branches []Branch, limit int) (*branchGroup, *outcome.Cause) {
 	group := &branchGroup{
-		fibers:      make([]*Fiber, len(branches)),
+		fibers:      make([]*lifetime.Fiber, len(branches)),
 		completions: make(chan completion, len(branches)),
 	}
 	permits := permitsFor(limit, len(branches))
@@ -66,7 +68,7 @@ func startAll(scope *Scope, state *State, branches []Branch, limit int) (*branch
 			group.reporting(index, gated(permits, work)),
 		)
 		if !started {
-			failure := DieCause(Defect{
+			failure := outcome.DieCause(outcome.Defect{
 				Value: fmt.Errorf("effect: fresh scope rejected parallel branch %d", index),
 			})
 			return nil, &failure
@@ -89,19 +91,19 @@ func gated(permits chan struct{}, work Branch) Branch {
 	if permits == nil {
 		return work
 	}
-	return func(ctx context.Context, state *State) Exit {
+	return func(ctx context.Context, state *State) outcome.Exit {
 		select {
 		case permits <- struct{}{}:
 			defer func() { <-permits }()
 		case <-ctx.Done():
-			return Failure(InterruptCause(CancellationReason(ctx)))
+			return outcome.Failure(outcome.InterruptCause(lifetime.CancellationReason(ctx)))
 		}
 		return work(ctx, state)
 	}
 }
 
 func (group *branchGroup) reporting(index int, work Branch) Branch {
-	return func(ctx context.Context, state *State) Exit {
+	return func(ctx context.Context, state *State) outcome.Exit {
 		exit := work(ctx, state)
 		group.completions <- completion{index: index, exit: exit}
 		return exit
@@ -110,7 +112,7 @@ func (group *branchGroup) reporting(index int, work Branch) Branch {
 
 // awaitFirstFailure watches branch completions and cancels the scope once one
 // branch has failed, so the remaining work stops promptly.
-func (group *branchGroup) awaitFirstFailure(scope *Scope, reason error) {
+func (group *branchGroup) awaitFirstFailure(scope *lifetime.Scope, reason error) {
 	abandoned := false
 	for range group.fibers {
 		reported := <-group.completions
@@ -122,25 +124,10 @@ func (group *branchGroup) awaitFirstFailure(scope *Scope, reason error) {
 	}
 }
 
-func (group *branchGroup) collect() []Exit {
-	exits := make([]Exit, len(group.fibers))
+func (group *branchGroup) collect() []outcome.Exit {
+	exits := make([]outcome.Exit, len(group.fibers))
 	for index, fiber := range group.fibers {
 		exits[index] = fiber.Wait()
 	}
 	return exits
-}
-
-// CombineBranchCauses composes the causes of a collection composition in input
-// order. A branch canceled only because a sibling failed did not fail on its
-// own account, so its induced interruption is dropped.
-func CombineBranchCauses(exits []Exit, induced error) Cause {
-	combined := Cause{}
-	for _, exit := range exits {
-		cause := exit.Cause()
-		if WasInduced(cause, induced) {
-			continue
-		}
-		combined = combined.Both(cause)
-	}
-	return combined
 }

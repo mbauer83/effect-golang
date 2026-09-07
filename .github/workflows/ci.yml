@@ -32,20 +32,26 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      # Unit, end-to-end and source-size checks. -count=1 defeats the test
-      # result cache so a green run always reflects this commit.
-      - run: go test -count=1 ./...
+      # Unit, acceptance and architecture suites. -count=1 defeats the test
+      # result cache, so a green run always reflects the commit it ran on.
+      # -coverpkg is needed because the suites live outside the packages they
+      # exercise.
+      - name: Test
+        run: go test -count=1 -coverpkg=./... ./...
 
       # Concurrency correctness is not established by ordinary tests passing.
-      - run: go test -race -count=1 ./...
+      - name: Race
+        run: go test -race -count=1 ./...
 
       # The lifecycle-heavy cases are the ones that fail intermittently, so they
       # are repeated rather than run once.
       - name: Concurrency stress
         run: >
           go test -race -count=25
-          -run 'Scope|Fiber|Fork|Await|Join|Poll|Interrupt|Ensuring|OnExit|ZipPar|Race|Timeout|ForEach|All|Pipeline|ParallelImport|Channel|Daemon|Capability'
-          .
+          -run 'Scope|Fiber|Fork|Await|Join|Poll|Interrupt|Ensuring|OnExit|ZipPar|Race|Timeout|ForEach|All|Channel|Daemon|Capability|Ownership'
+          ./test/unit/
+      - name: Acceptance stress
+        run: go test -race -count=10 ./test/acceptance/
 
       # The examples must remain runnable programs, not only test fixtures.
       - name: Examples

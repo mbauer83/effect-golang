@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/mbauer83/effect-golang/capability"
-	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 )
 
 // CauseReport is a structured view of a cause tree, suitable for structured
@@ -60,5 +60,5 @@ func composedReport(kind CauseKind) func(CauseReport, CauseReport) CauseReport {
 // metric labels may carry. A defect outranks an interruption, because it
 // indicates a program error rather than a requested stop.
 func (c Cause[E]) Status() capability.EventStatus {
-	return runtimecore.CauseStatus(c.node)
+	return outcome.CauseStatus(c.node)
 }

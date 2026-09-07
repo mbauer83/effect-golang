@@ -162,12 +162,33 @@ Use this topology as the implementation grows:
 
 ```text
 module root (package effect)       public domain algebra and narrow facade
-internal/runtime/                  interpretation, scopes, fibers, schedules
+capability/                        the ports the core defines
+internal/outcome/                  causes and exits: how a result is modelled
+internal/lifetime/                 scopes, fibers, cancellation reasons
+internal/runtime/                  interpretation and runtime state
 internal/platform/                 live clock/filesystem/logger adapters
 effecttest/                        public deterministic test capabilities
 examples/<scenario>/               runnable, end-to-end-tested programs
+test/unit/                         behaviour of the public API
+test/acceptance/                   acceptance program and example scenarios
+test/architecture/                 invariants over the shape of the code
 integration/<ecosystem>/           optional slog/OpenTelemetry/etc. adapters
 ```
+
+CORRECTED: the single `internal/runtime` package above was split once its
+contents had three distinct owners. `outcome` models a terminated effect,
+`lifetime` owns work, and `runtime` interprets; the layering is acyclic in that
+order and is asserted rather than assumed.
+
+ADDED: Go keeps one package in one directory, and `Effect`, `Exit`, `Cause`,
+`Scope` and `Fiber` share private representation, so the public domain is
+necessarily one directory. What can be separated is the machinery beneath it and
+the tests above it, and both are. Exactly one production-package test remains at
+the root, because schedule driver laws are stated over the private driver.
+
+ADDED: exactly one file in the domain package may name a live adapter. That file
+is the composition root, and a test enforces it, so the domain cannot acquire an
+infrastructure dependency one convenience at a time.
 
 The dependency rule points inward:
 

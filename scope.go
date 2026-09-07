@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/mbauer83/effect-golang/capability"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
 )
 
@@ -15,7 +17,7 @@ import (
 // A Scope exposes no Close. The code that created the scope owns its closure,
 // so no component can destroy a lifetime boundary that belongs to someone else.
 type Scope struct {
-	state *runtimecore.Scope
+	state *lifetime.Scope
 }
 
 // Scoped creates a lexical lifetime boundary and hands it to use.
@@ -31,7 +33,7 @@ type Scope struct {
 // unusable.
 func Scoped[R, E, A any](use func(Scope) Effect[R, E, A]) Effect[R, E, A] {
 	return suspendRuntime(func(ctx context.Context, state *runtimecore.State, _ R) Effect[R, E, A] {
-		scope := runtimecore.NewScope(ctx)
+		scope := lifetime.NewScope(ctx)
 		openedAt := state.EmitStart(ctx, capability.EventScopeOpened)
 
 		// use runs inside the subtree that already carries the closing hook, so
@@ -48,22 +50,22 @@ func Scoped[R, E, A any](use func(Scope) Effect[R, E, A]) Effect[R, E, A] {
 
 // closeScope ends the scope's lifetime once the body it owns has settled, and
 // composes any release failure after the body's own cause.
-func closeScope(scope *runtimecore.Scope, openedAt time.Time) exitObserver {
-	return func(interpretation runtimecore.Interpretation, exit runtimecore.Exit) runtimecore.Exit {
+func closeScope(scope *lifetime.Scope, openedAt time.Time) exitObserver {
+	return func(interpretation runtimecore.Interpretation, exit outcome.Exit) outcome.Exit {
 		ctx, state := interpretation.Context, interpretation.State
 		state.EmitMark(ctx, capability.EventScopeClosing)
-		cleanup := scope.Close(ctx, exit, runtimecore.ErrScopeClosed)
+		cleanup := scope.Close(ctx, exit, lifetime.ErrScopeClosed)
 		state.EmitEnd(
 			ctx,
 			capability.EventScopeClosed,
 			openedAt,
-			runtimecore.CleanupStatus(cleanup),
+			outcome.CleanupStatus(cleanup),
 		)
 
 		if cleanup.IsEmpty() {
 			return exit
 		}
-		return runtimecore.Failure(exit.Cause().Then(cleanup))
+		return outcome.Failure(exit.Cause().Then(cleanup))
 	}
 }
 
@@ -103,10 +105,10 @@ func Release[R any](release func(context.Context) error) Effect[R, Never, Unit] 
 }
 
 func registerRelease[R, A any](
-	scope *runtimecore.Scope,
+	scope *lifetime.Scope,
 	release func(A) Effect[R, Never, Unit],
 ) exitObserver {
-	return func(interpretation runtimecore.Interpretation, exit runtimecore.Exit) runtimecore.Exit {
+	return func(interpretation runtimecore.Interpretation, exit outcome.Exit) outcome.Exit {
 		if !exit.Succeeded() {
 			return exit
 		}
@@ -125,8 +127,8 @@ func registerRelease[R, A any](
 		// The scope had already begun closing, so the resource was released
 		// immediately. Reporting the closed lifetime keeps the caller from
 		// using a resource that no longer exists.
-		return runtimecore.Failure(
-			runtimecore.InterruptCause(runtimecore.ErrScopeClosed).Then(cleanup),
+		return outcome.Failure(
+			outcome.InterruptCause(lifetime.ErrScopeClosed).Then(cleanup),
 		)
 	}
 }
@@ -135,10 +137,10 @@ func releaseFinalizer[R, A any](
 	interpretation runtimecore.Interpretation,
 	release func(A) Effect[R, Never, Unit],
 	resource A,
-) runtimecore.Finalizer {
+) lifetime.Finalizer {
 	environment := typedEnvironment[R](interpretation.Environment)
 	state := interpretation.State
-	return func(ctx context.Context, _ runtimecore.Exit) runtimecore.Cause {
+	return func(ctx context.Context, _ outcome.Exit) outcome.Cause {
 		released := release(resource).run(ctx, state, environment)
 		state.Ledger().ResourceReleased()
 		state.EmitMark(ctx, capability.EventResourceReleased)

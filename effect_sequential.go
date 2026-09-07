@@ -1,6 +1,8 @@
 package effect
 
-import runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+import (
+	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+)
 
 // FlatMap is the monadic bind for a fixed R and E. Keeping the channels fixed
 // avoids accumulating redundant Product[R,R] and Either[E,E] nodes.

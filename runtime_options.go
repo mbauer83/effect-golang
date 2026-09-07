@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/mbauer83/effect-golang/capability"
-	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
+	"github.com/mbauer83/effect-golang/internal/lifetime"
 )
 
 // Clock is the runtime timekeeping port.
@@ -32,7 +32,7 @@ type FaultComponent = capability.FaultComponent
 type Flusher = capability.Flusher
 
 // LiveWork counts the fibers and scoped resources a Runtime still owns.
-type LiveWork = runtimecore.LiveWork
+type LiveWork = lifetime.LiveWork
 
 type EventKind = capability.EventKind
 type EventStatus = capability.EventStatus
@@ -74,7 +74,7 @@ const (
 // tracking has nothing to count with.
 type runtimeConfig struct {
 	capabilities capability.Set
-	ledger       *runtimecore.Ledger
+	ledger       *lifetime.Ledger
 }
 
 // RuntimeOption applies one validated runtime override.
@@ -146,7 +146,7 @@ func WithDebugTracking() RuntimeOption {
 }
 
 func (debugTracking) apply(config *runtimeConfig) error {
-	config.ledger = &runtimecore.Ledger{}
+	config.ledger = &lifetime.Ledger{}
 	return nil
 }
 

@@ -1,5 +1,11 @@
 package effect
 
+// This is the module's only test inside a production package.
+//
+// Schedule driver laws are stated over the private driver directly, because
+// asserting them through Retry would test the retry loop as much as the policy.
+// Everything that can be stated over the public API lives under test/ instead.
+
 import (
 	"testing"
 	"time"

@@ -3,6 +3,7 @@ package effect
 import (
 	"context"
 
+	"github.com/mbauer83/effect-golang/internal/lifetime"
 	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
 )
 
@@ -25,7 +26,7 @@ func Fork[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, Fiber[E, A]] {
 // for the advanced case where a child must deliberately have a different
 // lifetime from its creator.
 func (scope Scope) Fork[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, Fiber[E, A]] {
-	return forking(fx, func(*runtimecore.State) *runtimecore.Scope {
+	return forking(fx, func(*runtimecore.State) *lifetime.Scope {
 		return scope.state
 	})
 }
@@ -38,9 +39,9 @@ func ForkDaemon[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, Fiber[E, A]] {
 }
 
 // scopeSelector chooses which lifetime owns a newly forked fiber.
-type scopeSelector func(*runtimecore.State) *runtimecore.Scope
+type scopeSelector func(*runtimecore.State) *lifetime.Scope
 
-func currentScope(state *runtimecore.State) *runtimecore.Scope {
+func currentScope(state *runtimecore.State) *lifetime.Scope {
 	return state.Scope()
 }
 
@@ -54,7 +55,7 @@ func forking[R, E, A any](fx Effect[R, E, A], selectOwner scopeSelector) Effect[
 			erasedWork(fx, env),
 		)
 		if !accepted {
-			return exitInterrupted[Never, Fiber[E, A]](runtimecore.ErrScopeClosed)
+			return exitInterrupted[Never, Fiber[E, A]](lifetime.ErrScopeClosed)
 		}
 		return ExitSuccess[Never](Fiber[E, A]{state: started})
 	})

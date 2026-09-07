@@ -51,14 +51,6 @@ func (state *State) EmitMark(ctx context.Context, kind capability.EventKind) {
 	state.Emit(ctx, state.Event(kind))
 }
 
-// CleanupStatus classifies a lifetime's release outcome.
-func CleanupStatus(cleanup Cause) capability.EventStatus {
-	if cleanup.IsEmpty() {
-		return capability.EventStatusSuccess
-	}
-	return CauseStatus(cleanup)
-}
-
 // nonNegative guards against a clock that appears to move backwards, which a
 // test clock or a coarse platform timer can both produce.
 func nonNegative(duration time.Duration) time.Duration {

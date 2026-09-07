@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/mbauer83/effect-golang/capability"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
 )
 
@@ -102,7 +103,7 @@ func repeatRun[R, E, A, Out any](
 }
 
 func reportRetryOutcome(progress *attemptProgress) exitObserver {
-	return func(interpretation runtimecore.Interpretation, exit runtimecore.Exit) runtimecore.Exit {
+	return func(interpretation runtimecore.Interpretation, exit outcome.Exit) outcome.Exit {
 		if exit.Succeeded() && progress.repeated {
 			emitAttempt(interpretation.Context, interpretation.State, retrySucceededEvent(progress.number))
 		}

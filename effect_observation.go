@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mbauer83/effect-golang/capability"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 	runtimecore "github.com/mbauer83/effect-golang/internal/runtime"
 )
 
@@ -93,15 +94,15 @@ func replaceState(state *runtimecore.State) func(*runtimecore.State) *runtimecor
 
 // exitObserver is the erased hook shape shared by spans, finalizers and exit
 // reification.
-type exitObserver = func(runtimecore.Interpretation, runtimecore.Exit) runtimecore.Exit
+type exitObserver = func(runtimecore.Interpretation, outcome.Exit) outcome.Exit
 
 func endSpan(startedAt time.Time) exitObserver {
-	return func(interpretation runtimecore.Interpretation, exit runtimecore.Exit) runtimecore.Exit {
+	return func(interpretation runtimecore.Interpretation, exit outcome.Exit) outcome.Exit {
 		interpretation.State.EmitEnd(
 			interpretation.Context,
 			capability.EventSpanEnded,
 			startedAt,
-			runtimecore.ExitStatus(exit),
+			outcome.ExitStatus(exit),
 		)
 		return exit
 	}

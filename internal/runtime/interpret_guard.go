@@ -2,7 +2,7 @@ package runtime
 
 import (
 	"context"
-	"runtime/debug"
+	"github.com/mbauer83/effect-golang/internal/outcome"
 )
 
 // This file contains every point at which the interpreter calls back into
@@ -10,35 +10,30 @@ import (
 // the surrounding cause instead of unwinding the interpreter and abandoning
 // pending continuation frames.
 
-// CapturedDefect records a recovered panic value together with its stack.
-func CapturedDefect(recovered any) Defect {
-	return Defect{Value: recovered, Stack: string(debug.Stack())}
-}
-
-func captureExitDefect(exit *Exit) {
+func captureExitDefect(exit *outcome.Exit) {
 	if recovered := recover(); recovered != nil {
-		*exit = Failure(DieCause(CapturedDefect(recovered)))
+		*exit = outcome.Failure(outcome.DieCause(outcome.CapturedDefect(recovered)))
 	}
 }
 
-func captureDefect(defect **Defect) {
+func captureDefect(defect **outcome.Defect) {
 	if recovered := recover(); recovered != nil {
-		captured := CapturedDefect(recovered)
+		captured := outcome.CapturedDefect(recovered)
 		*defect = &captured
 	}
 }
 
-func transformedExit(apply func(any) any, value any) (exit Exit) {
+func transformedExit(apply func(any) any, value any) (exit outcome.Exit) {
 	defer captureExitDefect(&exit)
-	return Success(apply(value))
+	return outcome.Success(apply(value))
 }
 
-func transformedCause(apply func(Cause) Cause, cause Cause) (exit Exit) {
+func transformedCause(apply func(outcome.Cause) outcome.Cause, cause outcome.Cause) (exit outcome.Exit) {
 	defer captureExitDefect(&exit)
-	return Failure(apply(cause))
+	return outcome.Failure(apply(cause))
 }
 
-func evaluatedLeaf(instruction *Eval, interpretation Interpretation) (exit Exit) {
+func evaluatedLeaf(instruction *Eval, interpretation Interpretation) (exit outcome.Exit) {
 	defer captureExitDefect(&exit)
 	return instruction.Run(interpretation)
 }
@@ -46,44 +41,44 @@ func evaluatedLeaf(instruction *Eval, interpretation Interpretation) (exit Exit)
 // observedExit preserves the observed exit when a hook panics: instrumentation
 // must never replace an application's result, and a cleanup defect is appended
 // to the original cause rather than hiding it.
-func observedExit(observe func(Interpretation, Exit) Exit, interpretation Interpretation, exit Exit) Exit {
+func observedExit(observe func(Interpretation, outcome.Exit) outcome.Exit, interpretation Interpretation, exit outcome.Exit) outcome.Exit {
 	observed, defect := hookedExit(observe, interpretation, exit)
 	if defect == nil {
 		return observed
 	}
-	return Failure(exit.Cause().Then(DieCause(*defect)))
+	return outcome.Failure(exit.Cause().Then(outcome.DieCause(*defect)))
 }
 
 func hookedExit(
-	observe func(Interpretation, Exit) Exit,
+	observe func(Interpretation, outcome.Exit) outcome.Exit,
 	interpretation Interpretation,
-	exit Exit,
-) (observed Exit, defect *Defect) {
+	exit outcome.Exit,
+) (observed outcome.Exit, defect *outcome.Defect) {
 	defer captureDefect(&defect)
 	return observe(interpretation, exit), nil
 }
 
-func continuedNode(continueWith func(any) Node, value any) (node Node, defect *Defect) {
+func continuedNode(continueWith func(any) Node, value any) (node Node, defect *outcome.Defect) {
 	defer captureDefect(&defect)
 	return continueWith(value), nil
 }
 
-func recoveredNode(handle func(Cause) Node, cause Cause) (node Node, defect *Defect) {
+func recoveredNode(handle func(outcome.Cause) Node, cause outcome.Cause) (node Node, defect *outcome.Defect) {
 	defer captureDefect(&defect)
 	return handle(cause), nil
 }
 
-func suspendedNode(instruction *Suspend, interpretation Interpretation) (node Node, defect *Defect) {
+func suspendedNode(instruction *Suspend, interpretation Interpretation) (node Node, defect *outcome.Defect) {
 	defer captureDefect(&defect)
 	return instruction.Create(interpretation), nil
 }
 
-func adaptedEnvironment(adapt func(any) any, environment any) (adapted any, defect *Defect) {
+func adaptedEnvironment(adapt func(any) any, environment any) (adapted any, defect *outcome.Defect) {
 	defer captureDefect(&defect)
 	return adapt(environment), nil
 }
 
-func derivedState(derive func(*State) *State, state *State) (derived *State, defect *Defect) {
+func derivedState(derive func(*State) *State, state *State) (derived *State, defect *outcome.Defect) {
 	defer captureDefect(&defect)
 	return derive(state), nil
 }
@@ -91,7 +86,7 @@ func derivedState(derive func(*State) *State, state *State) (derived *State, def
 func derivedContext(
 	derive func(context.Context) context.Context,
 	ctx context.Context,
-) (derived context.Context, defect *Defect) {
+) (derived context.Context, defect *outcome.Defect) {
 	defer captureDefect(&defect)
 	return derive(ctx), nil
 }
