@@ -103,9 +103,46 @@ prefer `Workflow`** — the two hazards above are.
 
 ## Choosing
 
-Prefer `Workflow`. Reach for direct style when the explicit state type is the
-thing making a workflow hard to read, and when the body contains no `defer` you
-would be surprised to see run on a failure.
+**Use direct style for a dependent sequence, unless one of the three below
+applies.** That is the working convention, and it is stronger than what this
+section said at first — which was to prefer `Workflow` and reach for direct
+style only when the state type had become the problem. Writing the transports,
+the database layer and their examples settled it the other way: a sequence of
+three or four steps written as `FlatMap`s nests each step inside the one before
+it, so the last thing to happen is indented deepest and the reading order is the
+reverse of the doing order. Nothing about the domain is clearer for it.
+
+Three cases where it is the wrong tool, and they are the same three every time:
+
+- **A `defer` in the body.** It runs on an ordinary domain failure and not only
+  on a panic, so a body whose cleanup assumes an exception will do it on a
+  refusal too.
+- **A broad `recover()` in the body.** It can swallow the short-circuit. That is
+  detected and reported as a defect, but after the fact.
+- **Recovery part-way through.** `Bind` *abandons* the body, so there is no way
+  to catch a failure and carry on inside one — a sequence that has to fall back
+  needs `FlatMap` and `CatchAll`, and reads perfectly well that way because the
+  branch is the point.
+
+And two cases where `FlatMap` is simply shorter: a single step passed
+point-free — `open(…).FlatMap(await)` — and a `Map` over one value.
+
+Failing inside a body is binding a failure:
+
+```go
+direct.Run(func(bind *direct.Binder[Env, Refusal]) Book {
+    held := direct.Bind(bind, store.All())
+    index := slices.IndexFunc(held, sameTitle(title))
+    if index < 0 {
+        direct.Bind(bind, operations.Fail[Book](Refusal{Kind: NotFound}))
+    }
+    return held[index]
+})
+```
+
+Binding a failed effect short-circuits, which is what a refusal means — so the
+refusal reads as a statement rather than as a branch returning a different
+effect.
 
 [`examples/checkout`](../../examples/checkout/program.go) is written both ways,
 and an end-to-end test asserts the two agree on every path.
