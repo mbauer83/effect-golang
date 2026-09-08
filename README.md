@@ -178,6 +178,20 @@ cannot drift apart.
 
 `go run ./examples/cmd/effectdemo` runs all six against live capabilities.
 
+## The modules beside this one
+
+This module is the runtime. Three build on it, in their own repositories:
+[effect-golang-schema](https://github.com/mbauer83/effect-golang-schema)
+describes values,
+[effect-golang-sql](https://github.com/mbauer83/effect-golang-sql) puts them in
+tables and migrates them, and
+[effect-golang-web](https://github.com/mbauer83/effect-golang-web) carries them
+over HTTP, gRPC, WebSockets and AMQP.
+
+All four are versioned together and tagged in dependency order:
+[RELEASING.md](RELEASING.md) says how, and how to work on several at once
+without a `replace`.
+
 ## Scope of the project
 
 The project is intentionally focused on the core algebra and runtime semantics
