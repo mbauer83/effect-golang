@@ -114,3 +114,22 @@ graph, and that traversal follows requirement *edges*, which name a version. An
 edge naming an unpushed tag fails there, and the failure is reported against
 whichever import triggered it. Once the tags are pushed the lines stop
 mattering.
+
+## Moving a local tag leaves two stale caches
+
+Only relevant before a tag is pushed, and then it bites. Go assumes a published
+version's content never changes, and two caches are keyed on that assumption.
+
+The loud one is a **checksum mismatch**, which says exactly what happened. The
+quiet one is a **stale module index in `GOCACHE`**, which reports a package that
+plainly exists as `no required module provides package …` — a message that
+reads like a missing dependency and is a cache.
+
+Purge the module from `GOMODCACHE`, including `cache/download` and `cache/vcs`,
+and run the check with a fresh `GOCACHE`. The module cache is read-only by
+design, so `chmod -R u+w` comes first:
+
+```sh
+chmod -R u+w "$(go env GOMODCACHE)/github.com/mbauer83" || true
+rm -rf "$(go env GOMODCACHE)"/github.com/mbauer83/<module>@<version>        "$(go env GOMODCACHE)"/cache/download/github.com/mbauer83/<module>        "$(go env GOMODCACHE)"/cache/vcs
+```
