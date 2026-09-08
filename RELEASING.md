@@ -9,9 +9,16 @@ github.com/mbauer83/effect-golang-sql     tables and migrations, on both
 github.com/mbauer83/effect-golang-web     transports, on the first two
 ```
 
-They are versioned together: one version number, the same in all four, so that
-"which schema does this transport agree with" has an answer a person can read
-off a `go.mod`.
+Each carries its own version, and a module's `go.mod` records which versions of
+the others it was built against — so "which schema does this transport agree
+with" has an answer a person can read off a file.
+
+That is a correction. This said at first that all four share one version number,
+which reads well and costs three empty releases every time one module gains
+something: adding an HTTP client to the transports does not make the runtime a
+new version, and tagging it as one says something untrue about the runtime. What
+the shared number was for was answering the agreement question, and a
+requirement already answers it.
 
 ## Publishing is pushing a tag
 
@@ -28,6 +35,9 @@ Dependency order, one module fully released before the next begins:
 2. `effect-golang-schema`
 3. `effect-golang-sql`
 4. `effect-golang-web`
+
+Only the modules that changed need releasing; the order is the order among
+those.
 
 Each module's `go.mod` requires the ones above it **by version**. A commit whose
 `go.mod` names `v0.1.0` of the runtime cannot be built by anyone — CI included —
@@ -52,18 +62,22 @@ is the thing being checked.
 
 ## Bumping to the next version
 
-Tag the runtime first, then raise the requirement in each dependent module and
-tag that:
+Bump the module that changed. A dependent module follows only when it wants
+what changed:
 
 ```sh
 cd effect-golang-schema
 go get github.com/mbauer83/effect-golang@v0.2.0
 go mod tidy
+go build ./... && go vet ./... && go test -count=1 ./...
 ```
 
-A dependent module's requirement is never left behind on an older version. The
-whole point of one version number is that `v0.2.0` of the transports was built
-against `v0.2.0` of everything below it.
+Then tag `effect-golang-schema` itself — a new requirement is a change to it,
+so it earns a version of its own.
+
+Dependency order still governs: a requirement must exist before the module that
+names it can be built by anyone. So raising a requirement and tagging the
+module that raised it are two pushes in that order, never one.
 
 ## Working on several at once
 
