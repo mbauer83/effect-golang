@@ -50,6 +50,23 @@ func MapStreamEffect[R, E, A, B any](
 	})
 }
 
+// MapStreamError transforms a stream's typed failure, which is what lets a
+// stream produced by one layer be consumed by another whose failure channel is
+// its own.
+//
+// It maps the acquisition and the pull alike, because either can fail: a source
+// that could not be opened and a source that stopped mid-way are both failures
+// of the stream, and a consumer that only saw one of them would be surprised by
+// the other.
+func MapStreamError[R, E, E2, A any](stream Stream[R, E, A], transform func(E) E2) Stream[R, E2, A] {
+	return streaming(func(scope Scope) Effect[R, E2, pull[R, E2, A]] {
+		return stream.open(scope).MapError(transform).
+			Map(func(next pull[R, E, A]) pull[R, E2, A] {
+				return next.MapError(transform)
+			})
+	})
+}
+
 // FilterStream keeps the values predicate accepts. A chunk that loses every
 // value becomes an empty chunk rather than the end of the stream.
 func (stream Stream[R, E, A]) FilterStream(keep func(A) bool) Stream[R, E, A] {
