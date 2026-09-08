@@ -65,6 +65,21 @@ func sourced[R, E, A any](create func() pull[R, E, A]) Stream[R, E, A] {
 	})
 }
 
+// StreamFromSteps builds a stream from a source that produces its own steps.
+//
+// It is the seam for a source this package does not provide: a socket, a
+// database cursor, a driver that reads one batch at a time. Emit and
+// EndOfStream are the whole protocol, and a source that can end needs this
+// because every other constructor here either knows its values in advance or
+// never finishes.
+//
+// newStep is called once per run, so the state it closes over is per run and
+// one Stream value stays reusable -- the same rule that makes a Schedule
+// reusable and its driver not.
+func StreamFromSteps[R, E, A any](newStep func() Effect[R, E, Step[A]]) Stream[R, E, A] {
+	return sourced[R, E, A](func() pull[R, E, A] { return newStep() })
+}
+
 // EmptyStream produces nothing.
 func EmptyStream[R, E, A any]() Stream[R, E, A] {
 	return sourced[R, E, A](func() pull[R, E, A] {

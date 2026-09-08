@@ -93,6 +93,13 @@ released when the consumer is finished with it.
 A stream built over a `Queue` does not shut that queue down. Whoever created it
 owns that, which is the same ownership rule a channel's producer follows.
 
+`StreamFromSteps` is the seam for a source this package does not provide: a
+socket, a database cursor, a driver that reads one batch at a time. `Emit` and
+`EndOfStream` are the whole protocol, and a source that can *end* needs it,
+because every other constructor here either knows its values in advance or never
+finishes. Its `newStep` is called once per run, so the state it closes over is
+per run and one `Stream` value stays reusable.
+
 `Operations[R, E]` carries the channels for the sources whose arguments cannot
 imply them: `operations.StreamOf`, `StreamFromChunks`, `EmptyStream`,
 `StreamFromQueue`, `StreamFromSubscription`.

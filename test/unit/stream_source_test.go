@@ -186,3 +186,33 @@ func TestTheInterpreterSeamLetsACallerWriteItsOwnCombinator(t *testing.T) {
 		t.Fatalf("unexpected exit: %v", exit)
 	}
 }
+
+func TestAHandWrittenSourceCanEnd(t *testing.T) {
+	// Every other constructor either knows its values in advance or never
+	// finishes, so a source that reads until something closes -- a socket, a
+	// cursor -- needs this seam. Emit and EndOfStream are the whole protocol.
+	reading := func(available []int) effect.Stream[effect.Unit, string, int] {
+		return effect.StreamFromSteps(func() effect.Effect[effect.Unit, string, effect.Step[int]] {
+			remaining := available
+			return streamOperations.From(
+				func(context.Context, effect.Unit) effect.Exit[string, effect.Step[int]] {
+					if len(remaining) == 0 {
+						return effect.ExitSuccess[string](effect.EndOfStream[int]())
+					}
+					next := remaining[0]
+					remaining = remaining[1:]
+					return effect.ExitSuccess[string](effect.Emit(effect.ChunkOf(next)))
+				})
+		})
+	}
+
+	stream := reading([]int{1, 2, 3})
+	if got := collect(t, stream); !reflect.DeepEqual(got, []int{1, 2, 3}) {
+		t.Fatalf("unexpected values: %v", got)
+	}
+	// Per-run state, so one Stream value stays reusable: a second run reads the
+	// same values rather than finding the source spent.
+	if got := collect(t, stream); !reflect.DeepEqual(got, []int{1, 2, 3}) {
+		t.Fatalf("a second run saw %v", got)
+	}
+}
