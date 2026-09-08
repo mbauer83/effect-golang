@@ -133,6 +133,7 @@ construction. That directory does not have to be the module root, and it is not.
 - [Cause](docs/reference/cause.md)
 - [Interruption](docs/reference/interruption.md)
 - [Channels](docs/reference/channels.md)
+- [Ref](docs/reference/ref.md)
 - [Queue](docs/reference/queue.md)
 - [Hub](docs/reference/hub.md)
 - [Deferred](docs/reference/deferred.md)
