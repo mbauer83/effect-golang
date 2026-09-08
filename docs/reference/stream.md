@@ -110,6 +110,7 @@ imply them: `operations.StreamOf`, `StreamFromChunks`, `EmptyStream`,
 func MapStream[R, E, A, B any](s Stream[R, E, A], transform func(A) B) Stream[R, E, B]
 func MapStreamChunks[R, E, A, B any](s Stream[R, E, A], transform func(Chunk[A]) Chunk[B]) Stream[R, E, B]
 func MapStreamEffect[R, E, A, B any](s Stream[R, E, A], transform func(A) Effect[R, E, B]) Stream[R, E, B]
+func CollectStreamEffect[R, E, A, B any](s Stream[R, E, A], transform func(A) Effect[R, E, Chunk[B]]) Stream[R, E, B]
 func MapStreamError[R, E, E2, A any](s Stream[R, E, A], transform func(E) E2) Stream[R, E2, A]
 func ConcatStreams[R, E, A any](first Stream[R, E, A], second Stream[R, E, A]) Stream[R, E, A]
 
@@ -132,6 +133,14 @@ must not evaluate it a fourth time.
 
 `MapStreamEffect` evaluates in order. Concurrent per-element work is not here;
 fork it explicitly when that is what you want.
+
+`CollectStreamEffect` is the transform `MapStreamEffect` is not. Mapping is
+one-for-one, so a consumer that has to decide *effectfully* whether a value
+survives -- a queue discarding a message it cannot read, a parser skipping a
+line it cannot parse -- has nowhere to put the decision. An empty chunk drops
+the value, a chunk of one replaces it, a longer one expands it. A chunk that
+loses every value becomes an empty chunk rather than the end of the stream, so a
+batch nothing survived does not terminate the stream.
 
 `MapStreamError` is what lets a stream produced by one layer be consumed by
 another whose failure channel is its own: a transport's stream fails with the

@@ -11,7 +11,10 @@ import (
 
 var streamOperations = effect.For[effect.Unit, string]()
 
-func collect(t *testing.T, stream effect.Stream[effect.Unit, string, int]) []int {
+// collect runs a stream and returns its values. Generic over the element,
+// because a helper fixed to one element type is a helper the next stream test
+// cannot use.
+func collect[A any](t *testing.T, stream effect.Stream[effect.Unit, string, A]) []A {
 	t.Helper()
 	exit := effect.Run(context.Background(), effect.Unit{}, effect.RunCollect(stream))
 	values, ok := exit.Value()

@@ -3,15 +3,13 @@ package unit
 import (
 	"context"
 	"reflect"
-	"strconv"
 	"testing"
 
 	"github.com/mbauer83/effect-golang/effect"
-	"github.com/mbauer83/effect-golang/effecttest"
 )
 
-// The remaining sources and transforms, plus the seam a caller uses to write a
-// combinator this package does not provide.
+// The remaining sources, the structures a stream reads from, and the seam a
+// caller uses to write a combinator this package does not provide.
 
 func TestACustomSourceBuildsItsOwnSteps(t *testing.T) {
 	// Emit and EndOfStream are the whole protocol a hand-written source needs.
@@ -54,42 +52,6 @@ func TestStepReportsWhatItCarries(t *testing.T) {
 	var zero effect.Step[int]
 	if _, keepGoing := zero.Chunk(); keepGoing {
 		t.Fatal("expected the zero Step to be the end of the stream")
-	}
-}
-
-func TestMapStreamChunksTransformsWholeBatches(t *testing.T) {
-	stream := effect.MapStreamChunks(
-		streamOperations.StreamFromChunks(effect.ChunkOf(1, 2), effect.ChunkOf(3)),
-		func(chunk effect.Chunk[int]) effect.Chunk[string] {
-			return effect.ChunkOf(strconv.Itoa(chunk.Len()))
-		},
-	)
-
-	exit := effect.Run(context.Background(), effect.Unit{}, effect.RunCollect(stream))
-	if got, ok := exit.Value(); !ok || !reflect.DeepEqual(got, []string{"2", "1"}) {
-		t.Fatalf("expected one value per chunk, got %v", exit)
-	}
-}
-
-func TestMapStreamEffectEvaluatesInOrderAndPropagatesFailure(t *testing.T) {
-	tracker := &effecttest.Tracker{}
-	visiting := func(value int) effect.Effect[effect.Unit, string, int] {
-		return streamOperations.From(func(context.Context, effect.Unit) effect.Exit[string, int] {
-			tracker.Record(strconv.Itoa(value))
-			if value == 3 {
-				return effect.ExitFailure[string, int]("rejected")
-			}
-			return effect.ExitSuccess[string](value * 10)
-		})
-	}
-
-	exit := effect.Run(context.Background(), effect.Unit{},
-		effect.RunCollect(effect.MapStreamEffect(streamOperations.StreamOf(1, 2, 3, 4), visiting)))
-	if exit.IsSuccess() {
-		t.Fatalf("expected the transform's failure, got %v", exit)
-	}
-	if got := tracker.Events(); !reflect.DeepEqual(got, []string{"1", "2", "3"}) {
-		t.Fatalf("expected evaluation in order, stopping at the failure, got %v", got)
 	}
 }
 

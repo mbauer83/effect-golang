@@ -50,6 +50,32 @@ func MapStreamEffect[R, E, A, B any](
 	})
 }
 
+// CollectStreamEffect transforms every value with an effect that produces some
+// number of values, so a value can be dropped or expanded rather than only
+// replaced.
+//
+// It is the transform MapStreamEffect is not: mapping is one-for-one, and a
+// consumer that has to decide effectfully whether a value survives -- a queue
+// discarding a message it cannot read, a parser skipping a line it cannot
+// parse -- has nowhere to put the decision. An empty chunk drops the value; a
+// chunk of one replaces it; a longer one expands it.
+//
+// The values are collected into the chunk the source produced, so a chunk that
+// loses every value becomes an empty chunk rather than the end of the stream.
+func CollectStreamEffect[R, E, A, B any](
+	stream Stream[R, E, A],
+	transform func(A) Effect[R, E, Chunk[B]],
+) Stream[R, E, B] {
+	return MapStreamChunks(MapStreamEffect(stream, transform),
+		func(chunk Chunk[Chunk[B]]) Chunk[B] {
+			collected := make([]B, 0, chunk.Len())
+			for _, held := range chunk.Values() {
+				collected = append(collected, held.Values()...)
+			}
+			return Chunk[B]{values: collected}
+		})
+}
+
 // MapStreamError transforms a stream's typed failure, which is what lets a
 // stream produced by one layer be consumed by another whose failure channel is
 // its own.
