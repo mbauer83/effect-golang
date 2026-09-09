@@ -24,11 +24,11 @@ type attemptProgress struct {
 	repeated bool
 }
 
-// retrying interprets a retry policy as ordinary sequential effect evaluation
+// retryLoop interprets a retry policy as ordinary sequential effect evaluation
 // plus interruptible clock waits. Each attempt replaces the previous one in the
 // interpreter's instruction stream instead of nesting inside it, so an
 // unbounded policy adds no continuation frames and no Go stack frames.
-func retrying[R, E, A, In, Out any](
+func retryLoop[R, E, A, In, Out any](
 	fx Effect[R, E, A],
 	policy Schedule[In, Out],
 	eligible retryEligibility[E, In],

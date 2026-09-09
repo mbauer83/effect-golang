@@ -62,9 +62,9 @@ func Setting[S, A any](of Config[A], assign func(*S, A)) Field[S] {
 // The value is built into a fresh S and returned only if every field
 // succeeded, so a half-assembled settings type never escapes.
 func Struct[S any](fields ...Field[S]) Config[S] {
-	held := slices.Clone(fields)
+	heldValue := slices.Clone(fields)
 	expects := []Expectation{}
-	for _, field := range held {
+	for _, field := range heldValue {
 		expects = append(expects, field.expects...)
 	}
 	return Config[S]{
@@ -72,7 +72,7 @@ func Struct[S any](fields ...Field[S]) Config[S] {
 		read: func(at reading) (S, Error) {
 			var built S
 			failure := Error{}
-			for _, field := range held {
+			for _, field := range heldValue {
 				if field.read == nil {
 					failure = failure.And(errZeroDescription)
 					continue

@@ -13,13 +13,13 @@ func (fx Effect[R, E, A]) Delay(duration time.Duration) Effect[R, E, A] {
 // reduced to one of its failures. When the policy is exhausted the last typed
 // failure is preserved, which keeps the error channel stable.
 func (fx Effect[R, E, A]) Retry[Out any](policy Schedule[E, Out]) Effect[R, E, A] {
-	return retrying(fx, policy, exactFailure[E], preserveLastFailure[R, E, A, E, Out])
+	return retryLoop(fx, policy, exactFailure[E], preserveLastFailure[R, E, A, E, Out])
 }
 
 // RetryCause repeats fx for composite causes containing only typed failures.
 // Any cause tree holding a defect or an interruption is still never retried.
 func (fx Effect[R, E, A]) RetryCause[Out any](policy Schedule[Cause[E], Out]) Effect[R, E, A] {
-	return retrying(fx, policy, allTypedFailures[E], preserveLastFailure[R, E, A, Cause[E], Out])
+	return retryLoop(fx, policy, allTypedFailures[E], preserveLastFailure[R, E, A, Cause[E], Out])
 }
 
 // RetryN retries at most count times after the initial execution, so
@@ -34,7 +34,7 @@ func (fx Effect[R, E, A]) RetryOrElse[Out any](
 	policy Schedule[E, Out],
 	fallback func(E, Out) Effect[R, E, A],
 ) Effect[R, E, A] {
-	return retrying(fx, policy, exactFailure[E],
+	return retryLoop(fx, policy, exactFailure[E],
 		func(_ Cause[E], failure E, output Out) Effect[R, E, A] {
 			return fallback(failure, output)
 		},

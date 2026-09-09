@@ -27,7 +27,7 @@ func turned(t *testing.T, limiter rate.Limiter, allowance rate.Allowance) time.D
 }
 
 func TestTheBurstAnAllowanceToleratesGoesAtOnce(t *testing.T) {
-	limiter := rate.Holding(ticking().now)
+	limiter := rate.NewHeld(ticking().now)
 
 	for turn := range 3 {
 		if wait := turned(t, limiter, thrice()); wait != 0 {
@@ -40,7 +40,7 @@ func TestPastTheBurstEveryTurnIsSpaced(t *testing.T) {
 	// What "three every three seconds" means to whoever is being asked: the
 	// fourth waits a spacing and the fifth two, and nothing is exceeded and
 	// then apologised for.
-	limiter := rate.Holding(ticking().now)
+	limiter := rate.NewHeld(ticking().now)
 	for range 3 {
 		_ = turned(t, limiter, thrice())
 	}
@@ -57,7 +57,7 @@ func TestASpentAllowanceComesBackOneTurnAtATime(t *testing.T) {
 	// Not a window that empties all at once, which is what keeps a burst from
 	// arriving on every boundary.
 	clock := ticking()
-	limiter := rate.Holding(clock.now)
+	limiter := rate.NewHeld(clock.now)
 	for range 4 {
 		_ = turned(t, limiter, thrice())
 	}
@@ -72,7 +72,7 @@ func TestASpentAllowanceComesBackOneTurnAtATime(t *testing.T) {
 func TestTwoAllowancesAreCountedApart(t *testing.T) {
 	// Two services counted by one limiter must not be confused for one, which
 	// is why the allowance carries its own name.
-	limiter := rate.Holding(ticking().now)
+	limiter := rate.NewHeld(ticking().now)
 	other := rate.Allowance{Name: "another service", Most: 3, Every: 3 * time.Second}
 	for range 4 {
 		_ = turned(t, limiter, thrice())
@@ -84,7 +84,7 @@ func TestTwoAllowancesAreCountedApart(t *testing.T) {
 }
 
 func TestAnUnstatedAllowanceIsRefusedRatherThanTreatedAsUnlimited(t *testing.T) {
-	limiter := rate.Holding(ticking().now)
+	limiter := rate.NewHeld(ticking().now)
 
 	_, err := limiter.Turn(context.Background(), rate.Allowance{Name: "a service"})
 

@@ -18,9 +18,9 @@ type Secret struct {
 	value string
 }
 
-// Keeping wraps a value a program already has, so a secret from somewhere
+// NewSecret wraps a value a program already has, so a secret from somewhere
 // other than a config source travels the same way.
-func Keeping(value string) Secret {
+func NewSecret(value string) Secret {
 	return Secret{value: value}
 }
 

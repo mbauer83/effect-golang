@@ -35,7 +35,7 @@ func MapStreamEffect[R, E, A, B any](
 	stream Stream[R, E, A],
 	transform func(A) Effect[R, E, B],
 ) Stream[R, E, B] {
-	return streaming(func(scope Scope) Effect[R, E, pull[R, E, B]] {
+	return streamFromOpen(func(scope Scope) Effect[R, E, pull[R, E, B]] {
 		return stream.open(scope).Map(func(next pull[R, E, A]) pull[R, E, B] {
 			return next.FlatMap(func(step Step[A]) pull[R, E, B] {
 				chunk, more := step.Chunk()
@@ -69,8 +69,8 @@ func CollectStreamEffect[R, E, A, B any](
 	return MapStreamChunks(MapStreamEffect(stream, transform),
 		func(chunk Chunk[Chunk[B]]) Chunk[B] {
 			collected := make([]B, 0, chunk.Len())
-			for _, held := range chunk.Values() {
-				collected = append(collected, held.Values()...)
+			for _, values := range chunk.Values() {
+				collected = append(collected, values.Values()...)
 			}
 			return Chunk[B]{values: collected}
 		})
@@ -85,7 +85,7 @@ func CollectStreamEffect[R, E, A, B any](
 // of the stream, and a consumer that only saw one of them would be surprised by
 // the other.
 func MapStreamError[R, E, E2, A any](stream Stream[R, E, A], transform func(E) E2) Stream[R, E2, A] {
-	return streaming(func(scope Scope) Effect[R, E2, pull[R, E2, A]] {
+	return streamFromOpen(func(scope Scope) Effect[R, E2, pull[R, E2, A]] {
 		return stream.open(scope).MapError(transform).
 			Map(func(next pull[R, E, A]) pull[R, E2, A] {
 				return next.MapError(transform)
@@ -132,15 +132,15 @@ func (stream Stream[R, E, A]) DropStream(count int) Stream[R, E, A] {
 	return stagedStream(stream, func() streamStage[A] {
 		remaining := count
 		return streamStage[A]{
-			Ended: neverEnded,
+			Ended: withoutEnd,
 			Rewrite: func(step Step[A]) Step[A] {
 				chunk, more := step.Chunk()
 				if !more || remaining < 1 {
 					return step
 				}
-				kept := chunk.DropFirst(remaining)
-				remaining -= chunk.Len() - kept.Len()
-				return Emit(kept)
+				keptValue := chunk.DropFirst(remaining)
+				remaining -= chunk.Len() - keptValue.Len()
+				return Emit(keptValue)
 			},
 		}
 	})
@@ -157,9 +157,9 @@ func (stream Stream[R, E, A]) TakeStreamWhile(keep func(A) bool) Stream[R, E, A]
 				if !more || ended {
 					return EndOfStream[A]()
 				}
-				kept, rejected := chunk.TakeWhile(keep)
+				keptValue, rejected := chunk.TakeWhile(keep)
 				ended = rejected
-				return Emit(kept)
+				return Emit(keptValue)
 			},
 		}
 	})
@@ -168,16 +168,16 @@ func (stream Stream[R, E, A]) TakeStreamWhile(keep func(A) bool) Stream[R, E, A]
 // ConcatStreams produces the second stream's values after the first ends. Both
 // streams' sources are acquired in the consumer's scope, so neither outlives it.
 func ConcatStreams[R, E, A any](first Stream[R, E, A], second Stream[R, E, A]) Stream[R, E, A] {
-	return streaming(func(scope Scope) Effect[R, E, pull[R, E, A]] {
+	return streamFromOpen(func(scope Scope) Effect[R, E, pull[R, E, A]] {
 		return Zip(first.open(scope), second.open(scope)).Map(
 			func(pulls Product[pull[R, E, A], pull[R, E, A]]) pull[R, E, A] {
-				return concatenated(pulls.First, pulls.Second)
+				return concatPulls(pulls.First, pulls.Second)
 			},
 		)
 	})
 }
 
-func concatenated[R, E, A any](first pull[R, E, A], second pull[R, E, A]) pull[R, E, A] {
+func concatPulls[R, E, A any](first pull[R, E, A], second pull[R, E, A]) pull[R, E, A] {
 	drained := false
 	return Suspend(func() pull[R, E, A] {
 		if drained {
@@ -198,7 +198,7 @@ func steppingStream[R, E, A, B any](
 	stream Stream[R, E, A],
 	rewrite func(Step[A]) Step[B],
 ) Stream[R, E, B] {
-	return streaming(func(scope Scope) Effect[R, E, pull[R, E, B]] {
+	return streamFromOpen(func(scope Scope) Effect[R, E, pull[R, E, B]] {
 		return stream.open(scope).Map(func(next pull[R, E, A]) pull[R, E, B] {
 			return next.Map(rewrite)
 		})
@@ -216,7 +216,7 @@ type streamStage[A any] struct {
 	Rewrite func(Step[A]) Step[A]
 }
 
-func neverEnded() bool {
+func withoutEnd() bool {
 	return false
 }
 
@@ -226,7 +226,7 @@ func stagedStream[R, E, A any](
 	stream Stream[R, E, A],
 	newStage func() streamStage[A],
 ) Stream[R, E, A] {
-	return streaming(func(scope Scope) Effect[R, E, pull[R, E, A]] {
+	return streamFromOpen(func(scope Scope) Effect[R, E, pull[R, E, A]] {
 		return stream.open(scope).Map(func(next pull[R, E, A]) pull[R, E, A] {
 			stage := newStage()
 			return Suspend(func() pull[R, E, A] {

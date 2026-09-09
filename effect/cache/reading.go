@@ -28,7 +28,7 @@ func Read[R any](store Store, key string) effect.Effect[R, Fault, Cached] {
 		func(ctx context.Context, _ R) (Cached, error) {
 			return store.Get(ctx, key)
 		},
-		faulted("reading", key),
+		faultOf("reading", key),
 	).Named("cache read")
 }
 
@@ -43,7 +43,7 @@ func Write[R any](store Store, entry Entry) effect.Effect[R, Fault, effect.Unit]
 		func(ctx context.Context, _ R) (effect.Unit, error) {
 			return effect.Unit{}, store.Put(ctx, entry)
 		},
-		faulted("keeping", entry.Key),
+		faultOf("keeping", entry.Key),
 	).Named("cache write")
 }
 
@@ -54,13 +54,13 @@ func Drop[R any](store Store, about string) effect.Effect[R, Fault, effect.Unit]
 		func(ctx context.Context, _ R) (effect.Unit, error) {
 			return effect.Unit{}, store.Invalidate(ctx, about)
 		},
-		faulted("forgetting", about),
+		faultOf("forgetting", about),
 	).Named("cache drop")
 }
 
-// faulted keeps a store's own error reachable rather than wrapping a Fault in
+// faultOf keeps a store's own error reachable rather than wrapping a Fault in
 // a Fault, so a caller reading Doing sees what actually failed.
-func faulted(doing string, key string) func(error) Fault {
+func faultOf(doing string, key string) func(error) Fault {
 	return func(err error) Fault {
 		var already Fault
 		if errors.As(err, &already) {

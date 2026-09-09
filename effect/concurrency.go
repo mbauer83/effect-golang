@@ -20,7 +20,7 @@ import (
 // It is a package function because its success channel is built from the
 // branches' own channels (golang/go#80172).
 func ZipPar[R, E, A, B any](fx Effect[R, E, A], that Effect[R, E, B]) Effect[R, E, Product[A, B]] {
-	return pairing(fx, that, settleOnFailure, lifetime.ErrSiblingFailed, bothResults[E, A, B])
+	return pairResults(fx, that, settleOnFailure, lifetime.ErrSiblingFailed, bothResults[E, A, B])
 }
 
 // ZipParChannels evaluates effects with different R and E channels concurrently
@@ -40,14 +40,14 @@ func ZipParChannels[R, E, A, R2, E2, B any](
 // completes. Use RaceFirst when the first completion should win regardless of
 // its outcome.
 func Race[R, E, A any](fx Effect[R, E, A], that Effect[R, E, A]) Effect[R, E, A] {
-	return pairing(fx, that, settleOnSuccess, lifetime.ErrRaceLost, firstSuccess[E, A])
+	return pairResults(fx, that, settleOnSuccess, lifetime.ErrRaceLost, firstSuccess[E, A])
 }
 
 // RaceFirst returns the first branch to complete, whether it succeeded or
 // failed. It is the direct analogue of selecting on two completion channels.
 // The loser is canceled and awaited before RaceFirst completes.
 func RaceFirst[R, E, A any](fx Effect[R, E, A], that Effect[R, E, A]) Effect[R, E, A] {
-	return pairing(fx, that, settleAlways, lifetime.ErrRaceLost, firstCompletion[E, A])
+	return pairResults(fx, that, settleAlways, lifetime.ErrRaceLost, firstCompletion[E, A])
 }
 
 func settleOnFailure(exit outcome.Exit) bool {
@@ -67,7 +67,7 @@ func settleAlways(outcome.Exit) bool {
 // branch, so a resolver can tell an induced interruption from a real failure.
 type pairResolver[E, A any] func(pair outcome.PairOutcome, induced error) Exit[E, A]
 
-func pairing[R, E, A, B, C any](
+func pairResults[R, E, A, B, C any](
 	fx Effect[R, E, A],
 	that Effect[R, E, B],
 	settle runtimecore.SettlePolicy,

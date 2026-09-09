@@ -91,7 +91,7 @@ func TestEverythingAboutOneSubjectIsForgottenAtOnce(t *testing.T) {
 }
 
 func TestAFilingWithNoLifetimeIsRefusedRatherThanKeptForever(t *testing.T) {
-	store := cache.Holding(8, ticking().now)
+	store := cache.NewHeld(8, ticking().now)
 
 	err := store.Put(context.Background(), cache.Entry{Key: "film:603", Entity: []byte("x")})
 
@@ -106,7 +106,7 @@ func TestAFilingWithNoLifetimeIsRefusedRatherThanKeptForever(t *testing.T) {
 func TestAMissIsAnAnswerAndNotAFailure(t *testing.T) {
 	// The ordinary state of a key nobody has asked for yet: a store that
 	// failed on a miss would make every first request an error to handle.
-	store := cache.Holding(8, ticking().now)
+	store := cache.NewHeld(8, ticking().now)
 
 	kept, err := store.Get(context.Background(), "film:nobody-asked")
 
@@ -119,7 +119,7 @@ func TestAMissIsAnAnswerAndNotAFailure(t *testing.T) {
 }
 
 func TestForgettingWhatWasNeverKeptIsNotAFailure(t *testing.T) {
-	store := cache.Holding(8, ticking().now)
+	store := cache.NewHeld(8, ticking().now)
 
 	if err := store.Invalidate(context.Background(), "tmdb:999"); err != nil {
 		t.Fatalf("expected forgetting nothing to be no failure, got %v", err)

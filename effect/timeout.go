@@ -18,7 +18,7 @@ import (
 // wall-clock sleep. It is a package function because its success channel is
 // built from fx's own channels (golang/go#80172).
 func Timeout[R, E, A any](fx Effect[R, E, A], duration time.Duration) Effect[R, E, Either[Unit, A]] {
-	return timing(
+	return raceTheClock(
 		fx.Map(Right[Unit, A]),
 		duration,
 		ExitSuccess[E](Left[Unit, A](Unit{})),
@@ -29,17 +29,17 @@ func Timeout[R, E, A any](fx Effect[R, E, A], duration time.Duration) Effect[R, 
 // the duration elapses first, which keeps the timeout in the caller's own
 // error vocabulary instead of smuggling a generic timeout error into every E.
 func (fx Effect[R, E, A]) TimeoutFail(duration time.Duration, onTimeout E) Effect[R, E, A] {
-	return timing(fx, duration, ExitFailure[E, A](onTimeout))
+	return raceTheClock(fx, duration, ExitFailure[E, A](onTimeout))
 }
 
 // TimeoutTo races fx against the runtime clock and substitutes fallback when
 // the duration elapses first.
 func (fx Effect[R, E, A]) TimeoutTo(duration time.Duration, fallback A) Effect[R, E, A] {
-	return timing(fx, duration, ExitSuccess[E](fallback))
+	return raceTheClock(fx, duration, ExitSuccess[E](fallback))
 }
 
-func timing[R, E, A any](fx Effect[R, E, A], duration time.Duration, elapsed Exit[E, A]) Effect[R, E, A] {
-	return pairing(
+func raceTheClock[R, E, A any](fx Effect[R, E, A], duration time.Duration, elapsed Exit[E, A]) Effect[R, E, A] {
+	return pairResults(
 		fx,
 		Sleep[R, E](duration),
 		settleAlways,

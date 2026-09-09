@@ -65,7 +65,7 @@ func startAll(scope *lifetime.Scope, state *State, branches []Branch, limit int)
 
 	for index, work := range branches {
 		fiber, started := StartFiber(scope, scope.Context(), state,
-			group.reporting(index, gated(permits, work)),
+			group.recordOutcome(index, withPermit(permits, work)),
 		)
 		if !started {
 			failure := outcome.DieCause(outcome.Defect{
@@ -85,9 +85,9 @@ func permitsFor(limit int, total int) chan struct{} {
 	return make(chan struct{}, limit)
 }
 
-// gated makes a branch wait for a permit before it runs. Waiting selects on the
+// withPermit makes a branch wait for a permit before it runs. Waiting selects on the
 // branch's own context, so a bounded traversal stays cancelable while queued.
-func gated(permits chan struct{}, work Branch) Branch {
+func withPermit(permits chan struct{}, work Branch) Branch {
 	if permits == nil {
 		return work
 	}
@@ -102,7 +102,7 @@ func gated(permits chan struct{}, work Branch) Branch {
 	}
 }
 
-func (group *branchGroup) reporting(index int, work Branch) Branch {
+func (group *branchGroup) recordOutcome(index int, work Branch) Branch {
 	return func(ctx context.Context, state *State) outcome.Exit {
 		exit := work(ctx, state)
 		group.completions <- completion{index: index, exit: exit}

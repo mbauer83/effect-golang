@@ -57,16 +57,16 @@ func All[A any](descriptions ...Config[A]) Config[[]A] {
 	for _, description := range descriptions {
 		expects = append(expects, description.expects...)
 	}
-	held := make([]func(reading) (A, Error), 0, len(descriptions))
+	makeed := make([]func(reading) (A, Error), 0, len(descriptions))
 	for _, description := range descriptions {
-		held = append(held, description.reader())
+		makeed = append(makeed, description.reader())
 	}
 	return Config[[]A]{
 		expects: expects,
 		read: func(at reading) ([]A, Error) {
-			values := make([]A, 0, len(held))
+			values := make([]A, 0, len(makeed))
 			failure := Error{}
-			for _, read := range held {
+			for _, read := range makeed {
 				value, refused := read(at)
 				failure = failure.And(refused)
 				values = append(values, value)
@@ -91,11 +91,11 @@ func All[A any](descriptions ...Config[A]) Config[[]A] {
 // source happens to hold -- and the two compose: a table of groups is a Table
 // whose entry is a Nested description.
 func Nested[A any](name string, of Config[A]) Config[A] {
-	held := of.reader()
+	reader := of.reader()
 	return Config[A]{
 		expects: nestedExpectations(name, of.expects),
 		read: func(at reading) (A, Error) {
-			value, failure := held(at.under(name))
+			value, failure := reader(at.under(name))
 			return value, failure
 		},
 	}
@@ -109,7 +109,7 @@ func Nested[A any](name string, of Config[A]) Config[A] {
 // unreachable secret store becomes a service that started without its
 // credentials.
 func (description Config[A]) WithDefault(value A) Config[A] {
-	held := description.reader()
+	reader := description.reader()
 	stood := slices.Clone(description.expects)
 	for at := range stood {
 		if stood[at].Default == "" {
@@ -119,7 +119,7 @@ func (description Config[A]) WithDefault(value A) Config[A] {
 	return Config[A]{
 		expects: stood,
 		read: func(at reading) (A, Error) {
-			read, failure := held(at)
+			read, failure := reader(at)
 			if failure.MissingOnly() {
 				return value, Error{}
 			}
@@ -139,7 +139,7 @@ func (description Config[A]) WithDefault(value A) Config[A] {
 // Sources, which puts the whole description over several sources rather than
 // naming two descriptions per value.
 func (description Config[A]) OrElse(that Config[A]) Config[A] {
-	held := description.reader()
+	reader := description.reader()
 	other := that.reader()
 	optional := slices.Clone(description.expects)
 	for at := range optional {
@@ -148,7 +148,7 @@ func (description Config[A]) OrElse(that Config[A]) Config[A] {
 	return Config[A]{
 		expects: append(optional, that.expects...),
 		read: func(at reading) (A, Error) {
-			value, failure := held(at)
+			value, failure := reader(at)
 			if failure.IsEmpty() {
 				return value, Error{}
 			}
@@ -180,7 +180,7 @@ func Optional[A, B any](
 	supplied func(A) B,
 	absent func() B,
 ) Config[B] {
-	held := of.reader()
+	reader := of.reader()
 	optional := slices.Clone(of.expects)
 	for at := range optional {
 		optional[at].Optional = true
@@ -188,7 +188,7 @@ func Optional[A, B any](
 	return Config[B]{
 		expects: optional,
 		read: func(at reading) (B, Error) {
-			value, failure := held(at)
+			value, failure := reader(at)
 			switch {
 			case failure.MissingOnly():
 				return absent(), Error{}

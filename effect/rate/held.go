@@ -20,12 +20,12 @@ type Held struct {
 	arriving map[string]time.Time
 }
 
-// Holding is a limiter on this clock.
+// NewHeld is a limiter on this clock.
 //
 // The clock is a parameter because a rate is a thing a test has to be able to
 // move: waiting out a minute's allowance is not a test. Pass time.Now unless
 // you are one.
-func Holding(now func() time.Time) *Held {
+func NewHeld(now func() time.Time) *Held {
 	if now == nil {
 		now = time.Now
 	}

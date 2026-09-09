@@ -63,10 +63,10 @@ func (scope Scope) Hub[R, A any](capacity int, whenFull WhenFull) Effect[R, Neve
 // one is a leak: the hub would keep filling an inbox nobody reads, and under a
 // suspending policy that eventually stops the publisher.
 func (scope Scope) Subscribe[R, A any](hub Hub[A]) Effect[R, Never, Subscription[A]] {
-	return scope.AcquireRelease(subscribing[R](hub), unsubscribing[R, A])
+	return scope.AcquireRelease(subscribe[R](hub), unsubscribe[R, A])
 }
 
-func subscribing[R, A any](hub Hub[A]) Effect[R, Never, Subscription[A]] {
+func subscribe[R, A any](hub Hub[A]) Effect[R, Never, Subscription[A]] {
 	return From(func(context.Context, R) Exit[Never, Subscription[A]] {
 		inbox, token, subscribed := hub.state.Subscribe()
 		if !subscribed {
@@ -76,10 +76,10 @@ func subscribing[R, A any](hub Hub[A]) Effect[R, Never, Subscription[A]] {
 	})
 }
 
-// unsubscribing removes the subscriber from the hub and shuts its inbox down,
+// unsubscribe removes the subscriber from the hub and shuts its inbox down,
 // so the hub stops filling an inbox nobody will read and anything still taking
 // from it learns that the subscription has ended.
-func unsubscribing[R, A any](subscription Subscription[A]) Effect[R, Never, Unit] {
+func unsubscribe[R, A any](subscription Subscription[A]) Effect[R, Never, Unit] {
 	return From(func(context.Context, R) Exit[Never, Unit] {
 		subscription.hub.Unsubscribe(subscription.token)
 		return ExitSuccess[Never](Unit{})

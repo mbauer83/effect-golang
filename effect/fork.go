@@ -19,14 +19,14 @@ import (
 // It is a package function because its success channel is built from fx's own
 // channels (golang/go#80172).
 func Fork[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, Fiber[E, A]] {
-	return forking(fx, currentScope)
+	return forkFiber(fx, currentScope)
 }
 
 // Fork starts fx owned by this scope rather than by the current dynamic one,
 // for the advanced case where a child must deliberately have a different
 // lifetime from its creator.
 func (scope Scope) Fork[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, Fiber[E, A]] {
-	return forking(fx, func(*runtimecore.State) *lifetime.Scope {
+	return forkFiber(fx, func(*runtimecore.State) *lifetime.Scope {
 		return scope.state
 	})
 }
@@ -35,7 +35,7 @@ func (scope Scope) Fork[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, Fiber[
 // Run that created it. Detached work is still owned: Runtime.Close interrupts
 // and awaits it.
 func ForkDaemon[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, Fiber[E, A]] {
-	return forking(fx, (*runtimecore.State).Root)
+	return forkFiber(fx, (*runtimecore.State).Root)
 }
 
 // scopeSelector chooses which lifetime owns a newly forked fiber.
@@ -45,7 +45,7 @@ func currentScope(state *runtimecore.State) *lifetime.Scope {
 	return state.Scope()
 }
 
-func forking[R, E, A any](fx Effect[R, E, A], selectOwner scopeSelector) Effect[R, Never, Fiber[E, A]] {
+func forkFiber[R, E, A any](fx Effect[R, E, A], selectOwner scopeSelector) Effect[R, Never, Fiber[E, A]] {
 	return fromRuntime(func(
 		ctx context.Context,
 		state *runtimecore.State,

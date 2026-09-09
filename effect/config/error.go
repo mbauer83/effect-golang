@@ -135,21 +135,21 @@ func (failure Error) Failures() []Failure {
 	return appendLeaves(nil, failure.node)
 }
 
-func appendLeaves(into []Failure, held *node) []Failure {
-	if held == nil {
+func appendLeaves(into []Failure, failure *node) []Failure {
+	if failure == nil {
 		return into
 	}
-	switch held.kind {
+	switch failure.kind {
 	case KindEmpty:
 		return into
 	case KindAnd, KindOr:
-		return appendLeaves(appendLeaves(into, held.left), held.right)
+		return appendLeaves(appendLeaves(into, failure.left), failure.right)
 	default:
 		return append(into, Failure{
-			Kind:    held.kind,
-			Path:    slices.Clone(held.path),
-			Message: held.message,
-			Err:     held.err,
+			Kind:    failure.kind,
+			Path:    slices.Clone(failure.path),
+			Message: failure.message,
+			Err:     failure.err,
 		})
 	}
 }
@@ -179,22 +179,22 @@ func (failure Error) Prefixed(path ...string) Error {
 	if failure.IsEmpty() || len(path) == 0 {
 		return failure
 	}
-	return Error{node: prefixed(failure.node, path)}
+	return Error{node: withPrefix(failure.node, path)}
 }
 
-func prefixed(held *node, path []string) *node {
-	if held == nil {
+func withPrefix(failure *node, path []string) *node {
+	if failure == nil {
 		return nil
 	}
-	if held.kind == KindAnd || held.kind == KindOr {
+	if failure.kind == KindAnd || failure.kind == KindOr {
 		return &node{
-			kind:  held.kind,
-			left:  prefixed(held.left, path),
-			right: prefixed(held.right, path),
+			kind:  failure.kind,
+			left:  withPrefix(failure.left, path),
+			right: withPrefix(failure.right, path),
 		}
 	}
-	moved := *held
-	moved.path = append(slices.Clone(path), held.path...)
+	moved := *failure
+	moved.path = append(slices.Clone(path), failure.path...)
 	return &moved
 }
 
@@ -207,18 +207,18 @@ func (failure Error) Error() string {
 	return render(failure.node)
 }
 
-func render(held *node) string {
-	switch held.kind {
+func render(failure *node) string {
+	switch failure.kind {
 	case KindAnd:
-		return render(held.left) + " and " + render(held.right)
+		return render(failure.left) + " and " + render(failure.right)
 	case KindOr:
-		return render(held.left) + " or " + render(held.right)
+		return render(failure.left) + " or " + render(failure.right)
 	case KindMissing:
-		return "no value at " + Render(held.path)
+		return "no value at " + Render(failure.path)
 	case KindInvalid:
-		return Render(held.path) + " is not " + held.message
+		return Render(failure.path) + " is not " + failure.message
 	case KindUnavailable:
-		return Render(held.path) + " could not be read: " + held.err.Error()
+		return Render(failure.path) + " could not be read: " + failure.err.Error()
 	default:
 		return "no configuration failure"
 	}

@@ -50,15 +50,15 @@ func (step Step[A]) Chunk() (Chunk[A], bool) {
 	return step.chunk, step.more
 }
 
-// streaming builds a stream from a function that prepares one run.
-func streaming[R, E, A any](open func(Scope) Effect[R, E, pull[R, E, A]]) Stream[R, E, A] {
+// streamFromOpen builds a stream from a function that prepares one run.
+func streamFromOpen[R, E, A any](open func(Scope) Effect[R, E, pull[R, E, A]]) Stream[R, E, A] {
 	return Stream[R, E, A]{open: open}
 }
 
-// sourced builds a stream whose per-run state is prepared without a scope,
+// streamFromPull builds a stream whose per-run state is prepared without a scope,
 // which is the common case for a source that owns no resources.
-func sourced[R, E, A any](create func() pull[R, E, A]) Stream[R, E, A] {
-	return streaming(func(Scope) Effect[R, E, pull[R, E, A]] {
+func streamFromPull[R, E, A any](create func() pull[R, E, A]) Stream[R, E, A] {
+	return streamFromOpen(func(Scope) Effect[R, E, pull[R, E, A]] {
 		return Suspend(func() Effect[R, E, pull[R, E, A]] {
 			return Succeed[R, E](create())
 		})
@@ -77,19 +77,19 @@ func sourced[R, E, A any](create func() pull[R, E, A]) Stream[R, E, A] {
 // one Stream value stays reusable -- the same rule that makes a Schedule
 // reusable and its driver not.
 func StreamFromSteps[R, E, A any](newStep func() Effect[R, E, Step[A]]) Stream[R, E, A] {
-	return sourced[R, E, A](func() pull[R, E, A] { return newStep() })
+	return streamFromPull[R, E, A](func() pull[R, E, A] { return newStep() })
 }
 
 // EmptyStream produces nothing.
 func EmptyStream[R, E, A any]() Stream[R, E, A] {
-	return sourced[R, E, A](func() pull[R, E, A] {
+	return streamFromPull[R, E, A](func() pull[R, E, A] {
 		return Succeed[R, E](EndOfStream[A]())
 	})
 }
 
 // StreamFail produces nothing and fails.
 func StreamFail[R, A, E any](failure E) Stream[R, E, A] {
-	return sourced[R, E, A](func() pull[R, E, A] {
+	return streamFromPull[R, E, A](func() pull[R, E, A] {
 		return Fail[R, Step[A]](failure)
 	})
 }
@@ -102,7 +102,7 @@ func StreamOf[R, E, A any](values ...A) Stream[R, E, A] {
 // StreamFromChunks produces the given chunks in order.
 func StreamFromChunks[R, E, A any](chunks ...Chunk[A]) Stream[R, E, A] {
 	owned := slices.Clone(chunks)
-	return sourced[R, E, A](func() pull[R, E, A] {
+	return streamFromPull[R, E, A](func() pull[R, E, A] {
 		remaining := owned
 		return From(func(context.Context, R) Exit[E, Step[A]] {
 			if len(remaining) == 0 {
@@ -126,7 +126,7 @@ func StreamFromResource[R, E, A, S any](
 	acquire func(Scope) Effect[R, E, S],
 	read func(S) Stream[R, E, A],
 ) Stream[R, E, A] {
-	return streaming(func(scope Scope) Effect[R, E, pull[R, E, A]] {
+	return streamFromOpen(func(scope Scope) Effect[R, E, pull[R, E, A]] {
 		return acquire(scope).FlatMap(func(source S) Effect[R, E, pull[R, E, A]] {
 			return read(source).open(scope)
 		})
@@ -135,7 +135,7 @@ func StreamFromResource[R, E, A, S any](
 
 // StreamFromEffect produces exactly one value, from one evaluation.
 func StreamFromEffect[R, E, A any](fx Effect[R, E, A]) Stream[R, E, A] {
-	return sourced[R, E, A](func() pull[R, E, A] {
+	return streamFromPull[R, E, A](func() pull[R, E, A] {
 		spent := false
 		return Suspend(func() pull[R, E, A] {
 			if spent {
@@ -152,7 +152,7 @@ func StreamFromEffect[R, E, A any](fx Effect[R, E, A]) Stream[R, E, A] {
 // StreamRepeatEffect evaluates fx forever, producing one value per evaluation.
 // Pair it with TakeStream or a predicate; on its own it never ends.
 func StreamRepeatEffect[R, E, A any](fx Effect[R, E, A]) Stream[R, E, A] {
-	return sourced[R, E, A](func() pull[R, E, A] {
+	return streamFromPull[R, E, A](func() pull[R, E, A] {
 		return fx.Map(func(value A) Step[A] {
 			return Emit(ChunkOf(value))
 		})
@@ -165,7 +165,7 @@ func StreamRepeatEffect[R, E, A any](fx Effect[R, E, A]) Stream[R, E, A] {
 // The queue is not shut down by the stream: whoever created it owns that, which
 // is the same ownership rule a channel's producer follows.
 func StreamFromQueue[R, E, A any](queue Queue[A], chunkSize int) Stream[R, E, A] {
-	return sourced[R, E, A](func() pull[R, E, A] {
+	return streamFromPull[R, E, A](func() pull[R, E, A] {
 		return WidenError[E](queue.TakeUpTo[R](chunkSize)).Map(batchStep[A])
 	})
 }
@@ -173,7 +173,7 @@ func StreamFromQueue[R, E, A any](queue Queue[A], chunkSize int) Stream[R, E, A]
 // StreamFromSubscription produces a hub subscription's values in batches of at
 // most chunkSize, ending when the subscription has ended and drained.
 func StreamFromSubscription[R, E, A any](subscription Subscription[A], chunkSize int) Stream[R, E, A] {
-	return sourced[R, E, A](func() pull[R, E, A] {
+	return streamFromPull[R, E, A](func() pull[R, E, A] {
 		return WidenError[E](subscription.TakeUpTo[R](chunkSize)).Map(batchStep[A])
 	})
 }

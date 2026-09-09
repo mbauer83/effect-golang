@@ -19,11 +19,11 @@ import (
 // its own flags or a document into a flat map hands over. Paths are spelled
 // with dots: "db.host", "limits.read".
 func Fixed(values map[string]string) Source {
-	held := make(map[string]string, len(values))
+	mapEntry := make(map[string]string, len(values))
 	for key, value := range values {
-		held[key] = value
+		mapEntry[key] = value
 	}
-	return fixed{values: held}
+	return fixed{values: mapEntry}
 }
 
 type fixed struct {
@@ -54,16 +54,16 @@ func (source fixed) Children(_ context.Context, path []string) ([]string, error)
 // table whose entries are spread across a file and the environment is one
 // table.
 func Sources(sources ...Source) Source {
-	held := make([]Source, 0, len(sources))
+	makeed := make([]Source, 0, len(sources))
 	for _, source := range sources {
 		if source != nil {
-			held = append(held, source)
+			makeed = append(makeed, source)
 		}
 	}
-	if len(held) == 1 {
-		return held[0]
+	if len(makeed) == 1 {
+		return makeed[0]
 	}
-	return fallback{sources: held}
+	return fallback{sources: makeed}
 }
 
 type fallback struct {
@@ -71,8 +71,8 @@ type fallback struct {
 }
 
 func (source fallback) Value(ctx context.Context, path []string) (string, bool, error) {
-	for _, held := range source.sources {
-		value, found, err := held.Value(ctx, path)
+	for _, heldValue := range source.sources {
+		value, found, err := heldValue.Value(ctx, path)
 		if err != nil {
 			return "", false, err
 		}
@@ -86,8 +86,8 @@ func (source fallback) Value(ctx context.Context, path []string) (string, bool, 
 func (source fallback) Children(ctx context.Context, path []string) ([]string, error) {
 	gathered := []string{}
 	seen := map[string]bool{}
-	for _, held := range source.sources {
-		children, err := held.Children(ctx, path)
+	for _, heldValue := range source.sources {
+		children, err := heldValue.Children(ctx, path)
 		if err != nil {
 			return nil, err
 		}
@@ -149,19 +149,19 @@ type renamed struct {
 }
 
 func (source renamed) Value(ctx context.Context, path []string) (string, bool, error) {
-	return source.source.Value(ctx, source.spelled(path))
+	return source.source.Value(ctx, source.renamePath(path))
 }
 
 func (source renamed) Children(ctx context.Context, path []string) ([]string, error) {
-	return source.source.Children(ctx, source.spelled(path))
+	return source.source.Children(ctx, source.renamePath(path))
 }
 
-func (source renamed) spelled(path []string) []string {
-	spelled := make([]string, 0, len(path))
+func (source renamed) renamePath(path []string) []string {
+	makeed := make([]string, 0, len(path))
 	for _, segment := range path {
-		spelled = append(spelled, source.spell(segment))
+		makeed = append(makeed, source.spell(segment))
 	}
-	return spelled
+	return makeed
 }
 
 // one is a source over a single piece of text, which is how a separated list

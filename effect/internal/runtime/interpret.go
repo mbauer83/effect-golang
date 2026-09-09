@@ -123,7 +123,7 @@ func (machine *interpreter) evaluate(node Node) outcome.Exit {
 // value a program produces passes through exactly one settling instruction, so
 // this is also the runtime's cooperative interruption checkpoint.
 func (machine *interpreter) settle(node Node) outcome.Exit {
-	if cause, interrupted := machine.interrupted(); interrupted {
+	if cause, interrupted := machine.interruptCause(); interrupted {
 		return outcome.Failure(cause)
 	}
 	switch instruction := node.(type) {
@@ -204,7 +204,7 @@ func (machine *interpreter) pop() frame {
 	return continuation
 }
 
-func (machine *interpreter) interrupted() (outcome.Cause, bool) {
+func (machine *interpreter) interruptCause() (outcome.Cause, bool) {
 	if machine.ctx.Err() == nil {
 		return outcome.Cause{}, false
 	}

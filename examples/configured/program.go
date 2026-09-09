@@ -127,18 +127,18 @@ func Needed() string {
 	return config.Document(Described().Expects())
 }
 
-func limits(held map[string]int) string {
-	if len(held) == 0 {
+func limits(entries map[string]int) string {
+	if len(entries) == 0 {
 		return "none configured"
 	}
-	named := make([]string, 0, len(held))
-	for name := range held {
-		named = append(named, name)
+	makeed := make([]string, 0, len(entries))
+	for name := range entries {
+		makeed = append(makeed, name)
 	}
-	slices.Sort(named)
-	described := make([]string, 0, len(named))
-	for _, name := range named {
-		described = append(described, name+"="+itoa(held[name]))
+	slices.Sort(makeed)
+	described := make([]string, 0, len(makeed))
+	for _, name := range makeed {
+		described = append(described, name+"="+itoa(entries[name]))
 	}
 	return strings.Join(described, " ")
 }

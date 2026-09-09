@@ -115,11 +115,11 @@ func (description Config[A]) Expects() []Expectation {
 
 // Map transforms a value that was read.
 func (description Config[A]) Map[B any](transform func(A) B) Config[B] {
-	held := description.reader()
+	reader := description.reader()
 	return Config[B]{
 		expects: description.expects,
 		read: func(at reading) (B, Error) {
-			value, failure := held(at)
+			value, failure := reader(at)
 			if !failure.IsEmpty() {
 				var missing B
 				return missing, failure
@@ -137,13 +137,13 @@ func (description Config[A]) Map[B any](transform func(A) B) Config[B] {
 // a port and then finding it outside the range a listener accepts is the same
 // kind of mistake as reading "eight" where a number was wanted.
 func (description Config[A]) MapOrFail[B any](transform func(A) (B, error)) Config[B] {
-	held := description.reader()
+	reader := description.reader()
 	subject := description.subject()
 	return Config[B]{
 		expects: description.expects,
 		read: func(at reading) (B, Error) {
 			var missing B
-			value, failure := held(at)
+			value, failure := reader(at)
 			if !failure.IsEmpty() {
 				return missing, failure
 			}
@@ -204,12 +204,12 @@ func (description Config[A]) subject() []string {
 }
 
 // nestedExpectations returns expectations with name in front of each path.
-func nestedExpectations(name string, held []Expectation) []Expectation {
+func nestedExpectations(name string, expectation []Expectation) []Expectation {
 	if name == "" {
-		return held
+		return expectation
 	}
-	moved := make([]Expectation, 0, len(held))
-	for _, expectation := range held {
+	moved := make([]Expectation, 0, len(expectation))
+	for _, expectation := range expectation {
 		expectation.Path = append([]string{name}, expectation.Path...)
 		moved = append(moved, expectation)
 	}

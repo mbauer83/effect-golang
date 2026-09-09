@@ -20,14 +20,14 @@ var (
 	ErrQueued = errors.New("the queue is longer than this program will wait")
 )
 
-// Waiting is this program's turn, waited for.
+// AwaitTurn is this program's turn, waited for.
 //
 // The whole of what a caller wants: reserve a moment, and be interpreted at
 // it. Failing rather than sleeping when the queue is longer than the caller
 // will wait, because a request that would wait four minutes for its turn is
 // one whose caller has long since gone, and a refusal somebody can be shown
 // beats a page that never arrives.
-func Waiting[R any](
+func AwaitTurn[R any](
 	limiter Limiter,
 	allowance Allowance,
 	longest time.Duration,
@@ -35,7 +35,7 @@ func Waiting[R any](
 	if !allowance.IsStated() {
 		return effect.Fail[R, effect.Unit](Fault{Allowance: allowance.Name, Err: ErrUnstated})
 	}
-	return reserving[R](limiter, allowance).
+	return reserveTurn[R](limiter, allowance).
 		FlatMap(func(wait time.Duration) effect.Effect[R, Fault, effect.Unit] {
 			switch {
 			case wait <= 0:
@@ -51,12 +51,12 @@ func Waiting[R any](
 		Named("rate wait")
 }
 
-// reserving is the turn itself, without the waiting.
+// reserveTurn is the turn itself, without the waiting.
 //
 // Exported nowhere, because a caller that took a turn and did not wait for it
 // would have spent an allowance it then exceeded. Waiting is the only way to
 // take one.
-func reserving[R any](limiter Limiter, allowance Allowance) effect.Effect[R, Fault, time.Duration] {
+func reserveTurn[R any](limiter Limiter, allowance Allowance) effect.Effect[R, Fault, time.Duration] {
 	return effect.Try(
 		func(ctx context.Context, _ R) (time.Duration, error) {
 			return limiter.Turn(ctx, allowance)

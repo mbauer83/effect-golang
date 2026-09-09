@@ -65,13 +65,13 @@ func FoldChunk[A, S any](chunk Chunk[A], state S, combine func(S, A) S) S {
 
 // Filter keeps the values predicate accepts.
 func (chunk Chunk[A]) Filter(keep func(A) bool) Chunk[A] {
-	kept := make([]A, 0, len(chunk.values))
+	makeed := make([]A, 0, len(chunk.values))
 	for _, value := range chunk.values {
 		if keep(value) {
-			kept = append(kept, value)
+			makeed = append(makeed, value)
 		}
 	}
-	return Chunk[A]{values: kept}
+	return Chunk[A]{values: makeed}
 }
 
 // TakeFirst returns at most count values from the front.

@@ -186,7 +186,7 @@ func runConfigured(ctx context.Context) {
 		report("described settings", exit)
 		return
 	}
-	fmt.Printf("described settings:\n%s\n", indented(said))
+	fmt.Printf("described settings:\n%s\n", indent(said))
 
 	// The same program, with nothing supplied: every setting that has no
 	// default is reported at once rather than one restart at a time.
@@ -204,7 +204,7 @@ func runConfigured(ctx context.Context) {
 	fmt.Printf("what it needs:\n%s", configured.Needed())
 }
 
-func indented(said string) string {
+func indent(said string) string {
 	lines := strings.Split(said, "\n")
 	for at, line := range lines {
 		lines[at] = "  " + line

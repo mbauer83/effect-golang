@@ -20,12 +20,12 @@ import (
 // Values are shared with whoever put them in and whoever takes them out, so
 // what goes in should be a value rather than something with a pointer into it.
 type LRU[A any] struct {
-	mutex sync.Mutex
-	most  int
-	now   func() time.Time
-	held  map[string]*list.Element
-	order *list.List
-	about map[string]map[string]struct{}
+	mutex    sync.Mutex
+	most     int
+	now      func() time.Time
+	elements map[string]*list.Element
+	order    *list.List
+	about    map[string]map[string]struct{}
 }
 
 // recalled is one entry: what it holds, what it is about, and when it stops
@@ -33,7 +33,7 @@ type LRU[A any] struct {
 type recalled[A any] struct {
 	key   string
 	about string
-	held  A
+	value A
 	until time.Time
 }
 
@@ -50,11 +50,11 @@ func NewLRU[A any](most int, now func() time.Time) *LRU[A] {
 		now = time.Now
 	}
 	return &LRU[A]{
-		most:  most,
-		now:   now,
-		held:  make(map[string]*list.Element, most),
-		order: list.New(),
-		about: map[string]map[string]struct{}{},
+		most:     most,
+		now:      now,
+		elements: make(map[string]*list.Element, most),
+		order:    list.New(),
+		about:    map[string]map[string]struct{}{},
 	}
 }
 
@@ -64,85 +64,85 @@ func NewLRU[A any](most int, now func() time.Time) *LRU[A] {
 // A read counts as use, which is what makes this least-recently-used rather
 // than least-recently-written: the forty films being looked at all afternoon
 // stay, and the one somebody opened once does not.
-func (memory *LRU[A]) Get(key string) (A, bool) {
-	memory.mutex.Lock()
-	defer memory.mutex.Unlock()
+func (cache *LRU[A]) Get(key string) (A, bool) {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
 
-	element, found := memory.held[key]
+	element, found := cache.elements[key]
 	if !found {
 		var nothing A
 		return nothing, false
 	}
 	entry := element.Value.(*recalled[A])
-	if memory.now().After(entry.until) {
-		memory.drop(element)
+	if cache.now().After(entry.until) {
+		cache.drop(element)
 		var nothing A
 		return nothing, false
 	}
-	memory.order.MoveToFront(element)
-	return entry.held, true
+	cache.order.MoveToFront(element)
+	return entry.value, true
 }
 
 // Put stores a value under a key, notes what it is about, and evicts the
 // least recently used if that puts it over its bound.
-func (memory *LRU[A]) Put(key string, about string, held A, fresh time.Duration) {
+func (cache *LRU[A]) Put(key string, about string, a A, fresh time.Duration) {
 	if key == "" || fresh <= 0 {
 		return
 	}
-	memory.mutex.Lock()
-	defer memory.mutex.Unlock()
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
 
-	if element, found := memory.held[key]; found {
-		memory.drop(element)
+	if element, found := cache.elements[key]; found {
+		cache.drop(element)
 	}
-	entry := &recalled[A]{key: key, about: about, held: held, until: memory.now().Add(fresh)}
-	memory.held[key] = memory.order.PushFront(entry)
+	entry := &recalled[A]{key: key, about: about, value: a, until: cache.now().Add(fresh)}
+	cache.elements[key] = cache.order.PushFront(entry)
 	if about != "" {
-		keys, listed := memory.about[about]
+		keys, listed := cache.about[about]
 		if !listed {
 			keys = map[string]struct{}{}
-			memory.about[about] = keys
+			cache.about[about] = keys
 		}
 		keys[key] = struct{}{}
 	}
-	for memory.order.Len() > memory.most {
-		memory.drop(memory.order.Back())
+	for cache.order.Len() > cache.most {
+		cache.drop(cache.order.Back())
 	}
 }
 
 // Invalidate drops every entry about one subject.
-func (memory *LRU[A]) Invalidate(subject string) {
-	memory.mutex.Lock()
-	defer memory.mutex.Unlock()
+func (cache *LRU[A]) Invalidate(subject string) {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
 
-	for key := range memory.about[subject] {
-		if element, found := memory.held[key]; found {
-			memory.drop(element)
+	for key := range cache.about[subject] {
+		if element, found := cache.elements[key]; found {
+			cache.drop(element)
 		}
 	}
-	delete(memory.about, subject)
+	delete(cache.about, subject)
 }
 
 // Len is how many entries are held, which is what a metric reports. Entries
 // past their date are counted until something asks for them, because this
 // sweeps nothing: an entry nobody asks for costs a map slot and its eviction
 // is the bound's business.
-func (memory *LRU[A]) Len() int {
-	memory.mutex.Lock()
-	defer memory.mutex.Unlock()
-	return memory.order.Len()
+func (cache *LRU[A]) Len() int {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
+	return cache.order.Len()
 }
 
 // drop removes one entry and forgets that its subject had it. Called with the
 // lock held.
-func (memory *LRU[A]) drop(element *list.Element) {
+func (cache *LRU[A]) drop(element *list.Element) {
 	entry := element.Value.(*recalled[A])
-	memory.order.Remove(element)
-	delete(memory.held, entry.key)
-	if keys, listed := memory.about[entry.about]; listed {
+	cache.order.Remove(element)
+	delete(cache.elements, entry.key)
+	if keys, listed := cache.about[entry.about]; listed {
 		delete(keys, entry.key)
 		if len(keys) == 0 {
-			delete(memory.about, entry.about)
+			delete(cache.about, entry.about)
 		}
 	}
 }

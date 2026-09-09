@@ -51,13 +51,13 @@ func produce(io effect.IOOperations[effect.Unit], inputPath string, records chan
 				return io.Send(records, record)
 			}).As(effect.Unit{})
 		}).
-		Ensuring(closing(records)).
+		Ensuring(closeRecords(records)).
 		Named("produce")
 }
 
-// closing runs in every outcome, so a failing producer still releases a
+// closeRecords runs in every outcome, so a failing producer still releases a
 // consumer that is blocked on a receive.
-func closing(records chan string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
+func closeRecords(records chan string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
 	return effect.AddFinalizer[effect.Unit](func(context.Context) error {
 		close(records)
 		return nil

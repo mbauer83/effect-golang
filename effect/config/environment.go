@@ -47,16 +47,16 @@ type environment struct {
 }
 
 func (source environment) Value(_ context.Context, path []string) (string, bool, error) {
-	value, found := source.values[shouted(path)]
+	value, found := source.values[environmentKey(path)]
 	return value, found, nil
 }
 
 func (source environment) Children(_ context.Context, path []string) ([]string, error) {
-	return lowered(childrenOf(source.keys, shouted(path), "_")), nil
+	return lowerCase(childrenOf(source.keys, environmentKey(path), "_")), nil
 }
 
-// shouted spells a path the way the environment does.
-func shouted(path []string) string {
+// environmentKey spells a path the way the environment does.
+func environmentKey(path []string) string {
 	segments := make([]string, 0, len(path))
 	for _, segment := range path {
 		segments = append(segments, strings.ToUpper(segment))
@@ -64,15 +64,15 @@ func shouted(path []string) string {
 	return strings.Join(segments, "_")
 }
 
-// lowered gives a table's keys back in the spelling a program reads them in.
+// lowerCase gives a table's keys back in the spelling a program reads them in.
 //
 // A description that enumerates LIMITS gets read and write, not READ and
 // WRITE: the shouting is the environment's convention, and a map a program
 // indexes should not carry it.
-func lowered(children []string) []string {
-	named := make([]string, 0, len(children))
+func lowerCase(children []string) []string {
+	makeed := make([]string, 0, len(children))
 	for _, child := range children {
-		named = append(named, strings.ToLower(child))
+		makeed = append(makeed, strings.ToLower(child))
 	}
-	return named
+	return makeed
 }

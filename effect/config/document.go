@@ -66,16 +66,16 @@ func rowsOf(expects []Expectation) [][]string {
 		rows = append(rows, []string{
 			Render(expectation.Path),
 			expectation.Type,
-			standing(expectation),
+			expectationText(expectation),
 			expectation.Doc,
 		})
 	}
 	return rows
 }
 
-// standing says what happens when nobody supplies the value, which is the
+// expectationText says what happens when nobody supplies the value, which is the
 // column a deployment reads first.
-func standing(expectation Expectation) string {
+func expectationText(expectation Expectation) string {
 	switch {
 	case expectation.Default != "":
 		return expectation.Default
@@ -102,7 +102,7 @@ func widthsOf(rows [][]string) []int {
 // value.
 func (expectation Expectation) String() string {
 	described := fmt.Sprintf("%s (%s, %s)",
-		Render(expectation.Path), expectation.Type, standing(expectation))
+		Render(expectation.Path), expectation.Type, expectationText(expectation))
 	if expectation.Doc == "" {
 		return described
 	}
