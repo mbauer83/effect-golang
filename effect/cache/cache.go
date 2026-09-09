@@ -3,7 +3,7 @@
 //
 // Two faces of one idea, because two different things are wanted from it.
 // Within one process a caller wants the value it already had, typed, with no
-// encoding and no failure to handle -- Recalling is that. Between processes a
+// encoding and no failure to handle -- NewLRU is that. Between processes a
 // caller wants an answer some other instance already got, which means bytes,
 // a network, and something that can go wrong -- Store is that, and it is the
 // port Redis, Valkey, a file or a table sits behind.
@@ -27,24 +27,24 @@ import (
 	"time"
 )
 
-// Filing is a value to be kept: its key, what it is about, what it holds, and
+// Entry is a value to be kept: its key, what it is about, what it holds, and
 // how long that is worth keeping.
 //
 // The subject is what makes a cache clearable by somebody who does not know
 // what is in it. A person asking a page to be read again means "find out about
 // this thing again", not "drop these four keys" -- so what is kept says what
 // it is about, and everything about one thing can be dropped together.
-type Filing struct {
+type Entry struct {
 	Key    string
 	About  string
 	Entity []byte
 	Fresh  time.Duration
 }
 
-// IsWorthKeeping reports whether this is a filing at all: something to keep it
-// under, and some time worth keeping it for.
-func (filing Filing) IsWorthKeeping() bool {
-	return filing.Key != "" && filing.Fresh > 0
+// IsStorable reports whether this is an entry at all: a key to store it
+// under, and a lifetime worth storing it for.
+func (entry Entry) IsStorable() bool {
+	return entry.Key != "" && entry.Fresh > 0
 }
 
 // Kept is what a store had, and whether it had anything still worth having.
@@ -53,7 +53,7 @@ func (filing Filing) IsWorthKeeping() bool {
 // failure, because a miss is the ordinary state of a key nobody has asked for
 // yet. A store that failed on a miss would make every first request an error
 // to handle.
-type Kept struct {
+type Cached struct {
 	Entity []byte
 	Found  bool
 }
@@ -65,17 +65,17 @@ type Kept struct {
 // in an adapter has to know about effects, and everything effectful is in the
 // three functions in this package that wrap one.
 type Store interface {
-	// Kept is what is held under a key, and whether anything is.
-	Kept(ctx context.Context, key string) (Kept, error)
-	// Keep files a value for as long as it is worth keeping, under what it is
+	// Get is what is held under a key, and whether anything is.
+	Get(ctx context.Context, key string) (Cached, error)
+	// Put stores a value for as long as it is worth serving, under what it is
 	// about as well as under its own key.
-	Keep(ctx context.Context, filing Filing) error
-	// Forget drops everything kept about one subject.
+	Put(ctx context.Context, entry Entry) error
+	// Invalidate drops every entry about one subject.
 	//
 	// A subject nothing was kept about is not a failure: somebody asking for
 	// a thing nobody has read yet to be read again is asking for something
 	// reasonable, and the answer is that there was nothing to drop.
-	Forget(ctx context.Context, about string) error
+	Invalidate(ctx context.Context, subject string) error
 }
 
 // Fault is why a store could not answer.

@@ -15,35 +15,35 @@ import (
 	"github.com/mbauer83/effect-golang/effect"
 )
 
-// ErrUnworthy is a filing with nothing to keep it under, or no time worth
+// ErrUnworthy is a entry with nothing to keep it under, or no time worth
 // keeping it for.
-var ErrUnworthy = errors.New("a filing has a key and a lifetime")
+var ErrUnworthy = errors.New("a entry has a key and a lifetime")
 
 // Read is what a store has under a key.
 //
-// A miss is a Kept saying so rather than a failure, so the ordinary shape of a
+// A miss is a Cached saying so rather than a failure, so the ordinary shape of a
 // caller is one branch on Found and not an error to recover from.
-func Read[R any](store Store, key string) effect.Effect[R, Fault, Kept] {
+func Read[R any](store Store, key string) effect.Effect[R, Fault, Cached] {
 	return effect.Try(
-		func(ctx context.Context, _ R) (Kept, error) {
-			return store.Kept(ctx, key)
+		func(ctx context.Context, _ R) (Cached, error) {
+			return store.Get(ctx, key)
 		},
 		faulted("reading", key),
 	).Named("cache read")
 }
 
 // Write keeps a value for as long as it is worth keeping.
-func Write[R any](store Store, filing Filing) effect.Effect[R, Fault, effect.Unit] {
-	if !filing.IsWorthKeeping() {
+func Write[R any](store Store, entry Entry) effect.Effect[R, Fault, effect.Unit] {
+	if !entry.IsStorable() {
 		return effect.Fail[R, effect.Unit](Fault{
-			Doing: "keeping", Key: filing.Key, Err: ErrUnworthy,
+			Doing: "keeping", Key: entry.Key, Err: ErrUnworthy,
 		})
 	}
 	return effect.Try(
 		func(ctx context.Context, _ R) (effect.Unit, error) {
-			return effect.Unit{}, store.Keep(ctx, filing)
+			return effect.Unit{}, store.Put(ctx, entry)
 		},
-		faulted("keeping", filing.Key),
+		faulted("keeping", entry.Key),
 	).Named("cache write")
 }
 
@@ -52,7 +52,7 @@ func Write[R any](store Store, filing Filing) effect.Effect[R, Fault, effect.Uni
 func Drop[R any](store Store, about string) effect.Effect[R, Fault, effect.Unit] {
 	return effect.Try(
 		func(ctx context.Context, _ R) (effect.Unit, error) {
-			return effect.Unit{}, store.Forget(ctx, about)
+			return effect.Unit{}, store.Invalidate(ctx, about)
 		},
 		faulted("forgetting", about),
 	).Named("cache drop")

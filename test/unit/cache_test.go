@@ -25,18 +25,18 @@ func ticking() *moving {
 
 func TestAValueIsKeptUntilItStopsBeingWorthKeeping(t *testing.T) {
 	clock := ticking()
-	memory := cache.Recalling[string](8, clock.now)
+	memory := cache.NewLRU[string](8, clock.now)
 
-	memory.Remember("film:603", "tmdb:603", "The Matrix", time.Hour)
+	memory.Put("film:603", "tmdb:603", "The Matrix", time.Hour)
 
-	held, found := memory.Remembered("film:603")
+	held, found := memory.Get("film:603")
 	if !found || held != "The Matrix" {
 		t.Fatalf("expected the value back, got %q and %v", held, found)
 	}
 
 	clock.past(61 * time.Minute)
 
-	if _, still := memory.Remembered("film:603"); still {
+	if _, still := memory.Get("film:603"); still {
 		t.Fatal("expected the value to have stopped being worth keeping")
 	}
 }
@@ -46,21 +46,21 @@ func TestTheLeastRecentlyUsedGoesFirst(t *testing.T) {
 	// handful being looked at all afternoon stay, and the one somebody opened
 	// once does not.
 	clock := ticking()
-	memory := cache.Recalling[int](2, clock.now)
+	memory := cache.NewLRU[int](2, clock.now)
 
-	memory.Remember("first", "", 1, time.Hour)
-	memory.Remember("second", "", 2, time.Hour)
-	if _, found := memory.Remembered("first"); !found {
+	memory.Put("first", "", 1, time.Hour)
+	memory.Put("second", "", 2, time.Hour)
+	if _, found := memory.Get("first"); !found {
 		t.Fatal("expected the first still to be there to be used")
 	}
 
-	memory.Remember("third", "", 3, time.Hour)
+	memory.Put("third", "", 3, time.Hour)
 
-	if _, evicted := memory.Remembered("second"); evicted {
+	if _, evicted := memory.Get("second"); evicted {
 		t.Fatal("expected the one that was not used to have gone")
 	}
 	for _, key := range []string{"first", "third"} {
-		if _, found := memory.Remembered(key); !found {
+		if _, found := memory.Get(key); !found {
 			t.Fatalf("expected %q to have stayed", key)
 		}
 	}
@@ -70,36 +70,36 @@ func TestEverythingAboutOneSubjectIsForgottenAtOnce(t *testing.T) {
 	// What somebody asking for a thing to be looked up again means: not "drop
 	// these four keys" but "find out about this thing again".
 	clock := ticking()
-	memory := cache.Recalling[string](8, clock.now)
-	memory.Remember("scores:603", "tmdb:603", "83%", time.Hour)
-	memory.Remember("editions:603", "tmdb:603", "4K", time.Hour)
-	memory.Remember("scores:604", "tmdb:604", "73%", time.Hour)
+	memory := cache.NewLRU[string](8, clock.now)
+	memory.Put("scores:603", "tmdb:603", "83%", time.Hour)
+	memory.Put("editions:603", "tmdb:603", "4K", time.Hour)
+	memory.Put("scores:604", "tmdb:604", "73%", time.Hour)
 
-	memory.Forget("tmdb:603")
+	memory.Invalidate("tmdb:603")
 
 	for _, key := range []string{"scores:603", "editions:603"} {
-		if _, still := memory.Remembered(key); still {
+		if _, still := memory.Get(key); still {
 			t.Fatalf("expected %q to have been forgotten", key)
 		}
 	}
-	if _, gone := memory.Remembered("scores:604"); !gone {
+	if _, gone := memory.Get("scores:604"); !gone {
 		t.Fatal("expected what is kept about another subject to stay")
 	}
-	if memory.Held() != 1 {
-		t.Fatalf("expected one value left, got %d", memory.Held())
+	if memory.Len() != 1 {
+		t.Fatalf("expected one value left, got %d", memory.Len())
 	}
 }
 
 func TestAFilingWithNoLifetimeIsRefusedRatherThanKeptForever(t *testing.T) {
 	store := cache.Holding(8, ticking().now)
 
-	err := store.Keep(context.Background(), cache.Filing{Key: "film:603", Entity: []byte("x")})
+	err := store.Put(context.Background(), cache.Entry{Key: "film:603", Entity: []byte("x")})
 
 	if err == nil {
 		t.Fatal("expected a filing with no lifetime to be refused")
 	}
-	if store.Held() != 0 {
-		t.Fatalf("expected nothing kept, got %d", store.Held())
+	if store.Len() != 0 {
+		t.Fatalf("expected nothing kept, got %d", store.Len())
 	}
 }
 
@@ -108,7 +108,7 @@ func TestAMissIsAnAnswerAndNotAFailure(t *testing.T) {
 	// failed on a miss would make every first request an error to handle.
 	store := cache.Holding(8, ticking().now)
 
-	kept, err := store.Kept(context.Background(), "film:nobody-asked")
+	kept, err := store.Get(context.Background(), "film:nobody-asked")
 
 	if err != nil {
 		t.Fatalf("expected a miss to be an answer, got %v", err)
@@ -121,7 +121,7 @@ func TestAMissIsAnAnswerAndNotAFailure(t *testing.T) {
 func TestForgettingWhatWasNeverKeptIsNotAFailure(t *testing.T) {
 	store := cache.Holding(8, ticking().now)
 
-	if err := store.Forget(context.Background(), "tmdb:999"); err != nil {
+	if err := store.Invalidate(context.Background(), "tmdb:999"); err != nil {
 		t.Fatalf("expected forgetting nothing to be no failure, got %v", err)
 	}
 }

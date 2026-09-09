@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Recollection is a bounded, dated set of values one process keeps.
+// LRU is a bounded, dated set of values one process keeps.
 //
 // Bounded and dated, both, and neither alone is enough: bounded so a long
 // afternoon cannot grow it without limit, and dated so nothing is served for
@@ -19,7 +19,7 @@ import (
 // which is the whole reason to have one of these in front of a shared store.
 // Values are shared with whoever put them in and whoever takes them out, so
 // what goes in should be a value rather than something with a pointer into it.
-type Recollection[A any] struct {
+type LRU[A any] struct {
 	mutex sync.Mutex
 	most  int
 	now   func() time.Time
@@ -37,19 +37,19 @@ type recalled[A any] struct {
 	until time.Time
 }
 
-// Recalling is a recollection of at most this many values.
+// NewLRU is a cache of at most this many entries.
 //
 // The clock is a parameter because a thing with a lifetime is a thing a test
 // has to be able to move, and waiting out a twelve-hour lifetime is not a
 // test. Pass time.Now unless you are one.
-func Recalling[A any](most int, now func() time.Time) *Recollection[A] {
+func NewLRU[A any](most int, now func() time.Time) *LRU[A] {
 	if most < 1 {
 		most = 1
 	}
 	if now == nil {
 		now = time.Now
 	}
-	return &Recollection[A]{
+	return &LRU[A]{
 		most:  most,
 		now:   now,
 		held:  make(map[string]*list.Element, most),
@@ -58,13 +58,13 @@ func Recalling[A any](most int, now func() time.Time) *Recollection[A] {
 	}
 }
 
-// Remembered is what is held under a key, and whether anything still worth
-// having is.
+// Get is what is held under a key, and whether anything still worth serving
+// is.
 //
 // A read counts as use, which is what makes this least-recently-used rather
 // than least-recently-written: the forty films being looked at all afternoon
 // stay, and the one somebody opened once does not.
-func (memory *Recollection[A]) Remembered(key string) (A, bool) {
+func (memory *LRU[A]) Get(key string) (A, bool) {
 	memory.mutex.Lock()
 	defer memory.mutex.Unlock()
 
@@ -83,9 +83,9 @@ func (memory *Recollection[A]) Remembered(key string) (A, bool) {
 	return entry.held, true
 }
 
-// Remember keeps a value under a key, notes what it is about, and evicts the
+// Put stores a value under a key, notes what it is about, and evicts the
 // least recently used if that puts it over its bound.
-func (memory *Recollection[A]) Remember(key string, about string, held A, fresh time.Duration) {
+func (memory *LRU[A]) Put(key string, about string, held A, fresh time.Duration) {
 	if key == "" || fresh <= 0 {
 		return
 	}
@@ -110,24 +110,24 @@ func (memory *Recollection[A]) Remember(key string, about string, held A, fresh 
 	}
 }
 
-// Forget drops everything kept about one subject.
-func (memory *Recollection[A]) Forget(about string) {
+// Invalidate drops every entry about one subject.
+func (memory *LRU[A]) Invalidate(subject string) {
 	memory.mutex.Lock()
 	defer memory.mutex.Unlock()
 
-	for key := range memory.about[about] {
+	for key := range memory.about[subject] {
 		if element, found := memory.held[key]; found {
 			memory.drop(element)
 		}
 	}
-	delete(memory.about, about)
+	delete(memory.about, subject)
 }
 
-// Held is how many values are kept, which is what a metric reports. Entries
-// past their date are counted until something asks for them, because a
-// recollection sweeps nothing: an entry nobody asks for costs a map slot and
-// its eviction is the bound's business.
-func (memory *Recollection[A]) Held() int {
+// Len is how many entries are held, which is what a metric reports. Entries
+// past their date are counted until something asks for them, because this
+// sweeps nothing: an entry nobody asks for costs a map slot and its eviction
+// is the bound's business.
+func (memory *LRU[A]) Len() int {
 	memory.mutex.Lock()
 	defer memory.mutex.Unlock()
 	return memory.order.Len()
@@ -135,7 +135,7 @@ func (memory *Recollection[A]) Held() int {
 
 // drop removes one entry and forgets that its subject had it. Called with the
 // lock held.
-func (memory *Recollection[A]) drop(element *list.Element) {
+func (memory *LRU[A]) drop(element *list.Element) {
 	entry := element.Value.(*recalled[A])
 	memory.order.Remove(element)
 	delete(memory.held, entry.key)
