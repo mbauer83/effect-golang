@@ -54,9 +54,14 @@ func Text(name string) Config[string] {
 	})
 }
 
-// Filled reads text that is not empty, because a setting present and blank is
-// almost always a deployment that meant to supply something.
-func Filled(name string) Config[string] {
+// NonEmptyText reads text that is not blank.
+//
+// Its own primitive because "set to the empty string" is the commonest way a
+// deployment supplies nothing while looking like it supplied something: an
+// environment variable assigned from an unset variable, a template that
+// rendered a missing value, a form field left alone. Text accepts it, and a
+// host of "" fails at connect time instead of at start-up.
+func NonEmptyText(name string) Config[string] {
 	return Of(name, "non-empty text", func(raw string) (string, error) {
 		if strings.TrimSpace(raw) == "" {
 			return "", errors.New("non-empty text")

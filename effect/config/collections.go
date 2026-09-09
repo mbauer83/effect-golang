@@ -9,9 +9,13 @@ import (
 
 // Table reads one entry per key beneath a name.
 //
-// The shape a source enumerates rather than one a description knows in
-// advance: limits per queue, credentials per tenant, a rate per route. The
-// entry description is read beneath each key, so a nameless primitive reads
+// The source knows the keys here, which is the whole difference from Nested:
+// Nested moves a description deeper into paths the program named, and this asks
+// the source which keys exist beneath a name and reads the entry description
+// once per key. Limits per queue, credentials per tenant, a rate per route --
+// adding one is a deployment change rather than a release.
+//
+// The entry description is read beneath each key, so a nameless primitive reads
 // the key's own value and a named one reads a field of it.
 //
 //	config.Table("LIMITS", config.Int(""))        // LIMITS_READ, LIMITS_WRITE

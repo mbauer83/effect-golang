@@ -43,7 +43,7 @@ type Mailer struct {
 // and so the component's names cannot collide with another component's.
 func DescribedStore() config.Config[Store] {
 	address := config.ZipWith(
-		config.Filled("host").Documented("the address of the primary"),
+		config.NonEmptyText("host").Documented("the address of the primary"),
 		config.Port("port").WithDefault(5432),
 		func(host string, port int) Store {
 			return Store{Host: host, Port: port}
@@ -82,8 +82,8 @@ func DescribedStore() config.Config[Store] {
 // something tries to connect to it.
 func DescribedMailer() config.Config[Mailer] {
 	senders := config.ZipWith(
-		config.Filled("sender").Documented("the address mail is sent from"),
-		config.Many("relays", ",", config.Filled("")).
+		config.NonEmptyText("sender").Documented("the address mail is sent from"),
+		config.Many("relays", ",", config.NonEmptyText("")).
 			Documented("the relays to try, in order"),
 		func(sender string, relays []string) Mailer {
 			return Mailer{Sender: sender, Relays: relays}

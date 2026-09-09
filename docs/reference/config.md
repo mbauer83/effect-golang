@@ -13,7 +13,7 @@ fx.ReadingConfigFrom(source)                         // one part of a program
 
 ```go
 described := config.ZipWith(
-    config.Filled("host").Documented("the address of the primary"),
+    config.NonEmptyText("host").Documented("the address of the primary"),
     config.Port("port").WithDefault(5432),
     func(host string, port int) Store {
         return Store{Host: host, Port: port}
@@ -104,7 +104,7 @@ without its credentials. `WithDefault` and `Optional` apply to absence only;
 
 ```go
 config.Of[A](name, reads, parse)   // the general primitive, and the seam
-config.Text(name)                  config.Filled(name)
+config.Text(name)                  config.NonEmptyText(name)
 config.Int(name)                   config.Float(name)
 config.Bool(name)                  config.Duration(name)
 config.Port(name)                  config.SecretOf(name)  // a Secret
@@ -116,9 +116,43 @@ their negatives — and refuses anything else rather than reading it as false.
 wants the same range and the same message, and because a port read as a plain
 number fails at bind time instead of at start-up.
 
+`NonEmptyText` is its own primitive because "set to the empty string" is the
+commonest way a deployment supplies nothing while looking like it supplied
+something — a variable assigned from an unset variable, a template that
+rendered a missing value. `Text` accepts it, and a host of `""` then fails at
+connect time instead of at start-up.
+
 **An empty name reads the value where the description stands** rather than at a
 key beneath it. That is one rule, and it is what makes `Table` and `Many` work
 with the same primitives everything else uses.
+
+### Nested and Table are two different questions
+
+`Nested` moves a description one segment deeper: the **program** knows the
+keys. `Table` asks the source which keys exist beneath a name and reads the
+entry description once per key: the **source** knows them.
+
+```go
+config.Nested("db", config.ZipWith(config.Text("host"), config.Port("port"), …))
+// reads db.host and db.port -- named in the code, one value of one type
+
+config.Table("limits", config.Int(""))
+// reads whatever keys exist under limits -- map[string]int, keys from the
+// deployment: LIMITS_READ and LIMITS_WRITE become read and write
+```
+
+So `Nested` never consults `Children` and cannot fail for a key nobody wrote;
+`Table` consults nothing else, and no keys beneath the name is an empty table
+rather than a failure. Adding a limit is a deployment change; adding a field to
+`db` is a release.
+
+They compose, and that is where a nested table earns its shape: the source
+decides the entries, and the description decides what an entry holds.
+
+```go
+config.Table("queues", config.ZipWith(config.Int("depth"), config.Int("workers"), …))
+// QUEUES_JOBS_DEPTH, QUEUES_JOBS_WORKERS, QUEUES_MAIL_DEPTH, …
+```
 
 ```go
 config.ZipWith(first, second, combine)    // both are read; failures accumulate

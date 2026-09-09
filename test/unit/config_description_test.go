@@ -27,7 +27,7 @@ type address struct {
 func describedAddress() config.Config[address] {
 	return config.ZipWith(
 		config.ZipWith(
-			config.Filled("host").Documented("the address to listen on"),
+			config.NonEmptyText("host").Documented("the address to listen on"),
 			config.Port("port").WithDefault(8080),
 			func(host string, port int) address {
 				return address{Host: host, Port: port}
@@ -121,7 +121,7 @@ func TestEveryMissingSettingIsReportedAtOnce(t *testing.T) {
 func TestABlankValueIsNotAValue(t *testing.T) {
 	// Present and empty is a deployment that meant to supply something: an
 	// environment variable set to "" is the classic one.
-	_, failure := read(t, map[string]string{"host": "  "}, config.Filled("host"))
+	_, failure := read(t, map[string]string{"host": "  "}, config.NonEmptyText("host"))
 	if failure.IsEmpty() {
 		t.Fatal("expected blank text to be refused")
 	}
@@ -180,7 +180,7 @@ func TestAnAlternativeIsTriedAndBothFailuresAreKept(t *testing.T) {
 
 func TestAbsenceIsFoldedIntoTheValuesOwnType(t *testing.T) {
 	type security struct{ Certificate string }
-	described := config.Optional(config.Filled("cert"),
+	described := config.Optional(config.NonEmptyText("cert"),
 		func(path string) security { return security{Certificate: path} },
 		func() security { return security{} })
 

@@ -80,6 +80,12 @@ func All[A any](descriptions ...Config[A]) Config[[]A] {
 // What gives a group of settings one place to live, and what lets the same
 // description be read twice under two names -- a primary and a replica sharing
 // one description of what a database connection needs.
+//
+// The program knows the keys here. Nested moves a description one segment
+// deeper and reads exactly what that description names, so it never asks the
+// source what exists. Table is the other question -- one entry per key the
+// source happens to hold -- and the two compose: a table of groups is a Table
+// whose entry is a Nested description.
 func Nested[A any](name string, of Config[A]) Config[A] {
 	held := of.read
 	return Config[A]{
