@@ -148,6 +148,7 @@ construction. That directory does not have to be the module root, and it is not.
 - [Retry](docs/reference/retry.md)
 - [Observability](docs/reference/observability.md)
 - [Configuration](docs/reference/config.md)
+- [Cache and rate](docs/reference/cache.md)
 
 ### Explanation
 
