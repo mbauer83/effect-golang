@@ -133,6 +133,29 @@ func (option loggerOption) apply(config *runtimeConfig) error {
 	return nil
 }
 
+type configSourceOption struct {
+	source ConfigSource
+}
+
+// WithConfigSource replaces where one Runtime reads a program's settings.
+//
+// The default is the process environment, which is the one place every
+// deployment can put a value. A test replaces it with a fixed map and a
+// program with whatever its deployment actually uses -- and because it belongs
+// to one Runtime rather than to a package variable, two tests configured
+// differently cannot interfere.
+func WithConfigSource(source ConfigSource) RuntimeOption {
+	return configSourceOption{source: source}
+}
+
+func (option configSourceOption) apply(config *runtimeConfig) error {
+	if option.source == nil {
+		return errors.New("effect: ConfigSource capability must not be nil")
+	}
+	config.capabilities.ConfigSource = option.source
+	return nil
+}
+
 // debugTracking is the only option that is not a capability replacement: it
 // asks the runtime to count the work it owns.
 type debugTracking struct{}

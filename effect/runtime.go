@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/mbauer83/effect-golang/effect/capability"
+	"github.com/mbauer83/effect-golang/effect/config"
 	"github.com/mbauer83/effect-golang/effect/internal/lifetime"
 	"github.com/mbauer83/effect-golang/effect/internal/outcome"
 	"github.com/mbauer83/effect-golang/effect/internal/platform"
@@ -35,6 +36,11 @@ func NewRuntime(options ...RuntimeOption) (*Runtime, error) {
 		FileSystem:  platform.LiveFileSystem{},
 		Logger:      platform.LiveLogger{Handler: slog.Default().Handler()},
 		Diagnostics: platform.LiveDiagnostics{},
+		// The environment, because it is the one place every deployment can
+		// put a setting and reading it has no effect on anything. A program
+		// that reads from a document or a store says so with
+		// WithConfigSource.
+		ConfigSource: config.Environment(),
 	}}
 	for _, option := range options {
 		if option == nil {

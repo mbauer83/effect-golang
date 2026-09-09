@@ -27,6 +27,35 @@ type FileSystem interface {
 	Rename(context.Context, string, string) error
 }
 
+// ConfigSource supplies configuration values by path.
+//
+// The port a program's settings come through, and the reason config is a
+// runtime capability rather than a library a program calls: what a value is
+// read from -- the environment, a file, a secret store, a fixed map in a test
+// -- is a property of the deployment and not of the code that needs the value.
+//
+// Flat rather than shaped. A source answers for one path at a time and names
+// the keys beneath one path; assembling those into a typed value is the
+// description's business, in effect/config. That keeps a new source small
+// enough to be obviously right: two methods, no parsing, no composition.
+type ConfigSource interface {
+	// Value reads the value at a path.
+	//
+	// A path the source does not carry is reported by the boolean rather than
+	// by an error: absence is an ordinary answer that a default or an
+	// alternative source may satisfy, and an error means the source could not
+	// be consulted at all. Reading those as one fact is how a typo becomes a
+	// default.
+	Value(ctx context.Context, path []string) (string, bool, error)
+
+	// Children names the keys directly beneath a path, in the order the source
+	// holds them, for a description that reads a table of them.
+	//
+	// A path with nothing beneath it is an empty list and not an error, for
+	// the same reason.
+	Children(ctx context.Context, path []string) ([]string, error)
+}
+
 // LogRecord is the structured record delivered to a Logger. Field order is
 // preserved so renderers and golden tests stay deterministic.
 type LogRecord struct {
@@ -138,9 +167,10 @@ type Flusher interface {
 
 // Set is the immutable capability set observed by one runtime interpretation.
 type Set struct {
-	Clock       Clock
-	FileSystem  FileSystem
-	Logger      Logger
-	Observer    Observer
-	Diagnostics Diagnostics
+	Clock        Clock
+	FileSystem   FileSystem
+	Logger       Logger
+	Observer     Observer
+	Diagnostics  Diagnostics
+	ConfigSource ConfigSource
 }

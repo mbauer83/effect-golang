@@ -18,6 +18,15 @@ var forbiddenImports = map[string][]string{
 		"effect-golang/effect/internal",
 		"effect-golang/effect\"",
 	},
+	// config describes what a program must be told and reads it from a
+	// source. It sits beside the runtime rather than inside it: the
+	// description language needs the port and nothing else, and keeping it
+	// out of effect is what stops "read a setting" from acquiring the
+	// interpreter as a dependency.
+	"effect/config": {
+		"effect-golang/effect/internal",
+		"effect-golang/effect\"",
+	},
 	"effect/internal/outcome": {
 		"effect-golang/effect/internal/lifetime",
 		"effect-golang/effect/internal/runtime",

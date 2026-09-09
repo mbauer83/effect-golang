@@ -10,10 +10,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/mbauer83/effect-golang/effect"
+	"github.com/mbauer83/effect-golang/effect/config"
 	"github.com/mbauer83/effect-golang/examples/checkout"
+	"github.com/mbauer83/effect-golang/examples/configured"
 	"github.com/mbauer83/effect-golang/examples/diagnostics"
 	"github.com/mbauer83/effect-golang/examples/fanout"
 	"github.com/mbauer83/effect-golang/examples/filecopy"
@@ -44,6 +47,7 @@ func main() {
 	runFanout(runtime, ctx, workspace)
 	runCheckout(runtime, ctx)
 	runDiagnostics(runtime, ctx)
+	runConfigured(ctx)
 }
 
 func seed(workspace string) error {
@@ -151,4 +155,59 @@ func reportShutdown(runtime *effect.Runtime, ctx context.Context) {
 func fail(err error) {
 	fmt.Fprintln(os.Stderr, "effectdemo:", err)
 	os.Exit(1)
+}
+
+// runConfigured needs a runtime of its own, because what it demonstrates is a
+// runtime told where to read a program's settings.
+//
+// The deployment here is a fixed environment rather than this process's, so
+// the demo says the same thing on every machine. A real program passes
+// config.Environment(), which is also the default.
+func runConfigured(ctx context.Context) {
+	deployment := config.Sources(
+		config.EnvironmentOf(
+			"DB_HOST=primary.internal",
+			"DB_PASSWORD=hunter2",
+			"DB_LIMITS_READ=100",
+			"MAIL_SENDER=service@example.com",
+			"MAIL_RELAYS=relay-one:25,relay-two:25",
+		),
+		configured.Defaults(),
+	)
+	runtime, err := effect.NewRuntime(effect.WithConfigSource(deployment))
+	if err != nil {
+		fail(err)
+	}
+	defer runtime.Close(ctx)
+
+	exit := runtime.Run(ctx, effect.Unit{}, configured.Program())
+	said, ok := exit.Value()
+	if !ok {
+		report("described settings", exit)
+		return
+	}
+	fmt.Printf("described settings:\n%s\n", indented(said))
+
+	// The same program, with nothing supplied: every setting that has no
+	// default is reported at once rather than one restart at a time.
+	bare, err := effect.NewRuntime(effect.WithConfigSource(config.EnvironmentOf()))
+	if err != nil {
+		fail(err)
+	}
+	defer bare.Close(ctx)
+	if cause, failed := bare.Run(ctx, effect.Unit{}, configured.Program()).Cause(); failed {
+		for _, refusal := range cause.Failures() {
+			fmt.Printf("unconfigured deployment: %s\n", refusal.Because)
+		}
+	}
+
+	fmt.Printf("what it needs:\n%s", configured.Needed())
+}
+
+func indented(said string) string {
+	lines := strings.Split(said, "\n")
+	for at, line := range lines {
+		lines[at] = "  " + line
+	}
+	return strings.Join(lines, "\n")
 }

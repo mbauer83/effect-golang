@@ -54,9 +54,14 @@ Go 1.27 is required because the public API relies on generic methods.
   elapsed limits, predicates, injected jitter, intersection and union.
 - **Retry and repetition.** Typed failures only; never defects, never
   interruption.
-- **Capabilities.** Runtime-local `Clock`, `FileSystem`, `Logger`, `Observer`
-  and `Diagnostics`, with live defaults and deterministic test adapters. No
-  global setters, so parallel tests cannot race on configuration.
+- **Capabilities.** Runtime-local `Clock`, `FileSystem`, `Logger`, `Observer`,
+  `Diagnostics` and `ConfigSource`, with live defaults and deterministic test
+  adapters. No global setters, so parallel tests cannot race on configuration.
+- **Configuration.** Descriptions of what a program must be told, read through
+  the runtime as an effect and provided as a layer. Composition accumulates, so
+  a deployment missing four settings is told about four; a default stands in for
+  absence and never for a value supplied wrongly; and a description can print
+  what it would have asked for.
 - **Observability.** Spans, names, annotations, a bounded lifecycle event model,
   structured cause reports and an optional debug ledger for leak assertions.
 
@@ -142,6 +147,7 @@ construction. That directory does not have to be the module root, and it is not.
 - [Schedule](docs/reference/schedule.md)
 - [Retry](docs/reference/retry.md)
 - [Observability](docs/reference/observability.md)
+- [Configuration](docs/reference/config.md)
 
 ### Explanation
 
@@ -175,8 +181,9 @@ cannot drift apart.
 | [`checkout`](examples/checkout/program.go) | dependent sequential workflow, written with the typed state builder and again in direct style |
 | [`pipeline`](examples/pipeline/program.go) | `Send`, `Recv`, fiber `Done`, producer-owned closure |
 | [`fanout`](examples/fanout/program.go) | `Stream`, bounded `Queue`, `Hub`, `Deferred`, bounded parallel workers |
+| [`configured`](examples/configured/settings.go) | described settings, several sources, a secret, a table, a layer, one component reading a source of its own |
 
-`go run ./examples/cmd/effectdemo` runs all six against live capabilities.
+`go run ./examples/cmd/effectdemo` runs all seven against live capabilities.
 
 ## The modules beside this one
 

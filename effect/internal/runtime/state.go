@@ -82,6 +82,19 @@ func (state *State) WithScope(scope *lifetime.Scope) *State {
 	return &derived
 }
 
+// WithConfigSource derives state whose nested effects read their settings
+// from source.
+//
+// A capability replacement rather than metadata, and the only one that is
+// local: what a program is configured from is a property of the part of the
+// program doing the reading, so a plugin can be configured from its own
+// document while the program around it reads the environment.
+func (state *State) WithConfigSource(source capability.ConfigSource) *State {
+	derived := *state
+	derived.capabilities.ConfigSource = source
+	return &derived
+}
+
 // Metadata returns a defensive snapshot of current observation metadata.
 func (state *State) Metadata() Metadata {
 	metadata := state.metadata
