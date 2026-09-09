@@ -54,7 +54,7 @@ rather than `ctx.Err`, so a caller's reason survives instead of a generic
 ## Conversion
 
 `MapFailure` rewrites every `Fail` leaf and preserves structure.
-`FailuresAsDefects(fx)` rewrites an effect's typed failures as defects for use
+`OrDie(fx)` rewrites an effect's typed failures as defects for use
 where the failure channel must be `Never`.
 
 ## Exit

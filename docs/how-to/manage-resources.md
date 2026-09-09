@@ -22,7 +22,7 @@ Release cannot fail with `E`. Pick one deliberately:
 effect.Release[R](func(ctx context.Context) error { return handle.Close() })
 
 // The same, for an effect you already have.
-effect.FailuresAsDefects(io.Remove(path))
+effect.OrDie(io.Remove(path))
 
 // Absorbed on purpose, having decided that is correct.
 operations.LogWarn("could not remove lock").As(effect.Unit{})

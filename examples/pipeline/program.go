@@ -58,7 +58,7 @@ func produce(io effect.IOOperations[effect.Unit], inputPath string, records chan
 // closing runs in every outcome, so a failing producer still releases a
 // consumer that is blocked on a receive.
 func closing(records chan string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
-	return effect.Release[effect.Unit](func(context.Context) error {
+	return effect.AddFinalizer[effect.Unit](func(context.Context) error {
 		close(records)
 		return nil
 	})

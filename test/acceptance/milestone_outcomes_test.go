@@ -81,7 +81,7 @@ func TestMilestoneBackoffIsInterruptibleUnderTheLiveClock(t *testing.T) {
 				return effecttest.TrackedRelease[effect.Unit](tracker, "release handle")
 			},
 		).AndThen(operations.Fail[string](appError{Reason: "transient"}))
-	}).Retry(effect.AndSchedules(slow, effect.Spaced[appError](time.Hour)))
+	}).Retry(effect.IntersectSchedules(slow, effect.Spaced[appError](time.Hour)))
 
 	go func() {
 		time.Sleep(5 * time.Millisecond)

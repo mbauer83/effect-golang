@@ -44,7 +44,7 @@ func (Operations[R, E]) Try[A any](
 
 // Do starts a typed workflow using these channels.
 func (Operations[R, E]) Do[S any](factory func() S) Workflow[R, E, S] {
-	return Do[R, E](factory)
+	return NewWorkflow[R, E](factory)
 }
 
 // WidenError retypes an infallible effect into these channels, which is how a
@@ -62,7 +62,7 @@ func (Operations[R, E]) Suspend[A any](create func() Effect[R, E, A]) Effect[R, 
 // FailuresAsDefects rewrites an effect's typed failures as defects so it can be
 // used where the failure channel must be Never, such as a release workflow.
 func (Operations[R, E]) FailuresAsDefects[A any](fx Effect[R, E, A]) Effect[R, Never, A] {
-	return FailuresAsDefects(fx)
+	return OrDie(fx)
 }
 
 // CheckInterrupt inserts a cooperative cancellation checkpoint using these

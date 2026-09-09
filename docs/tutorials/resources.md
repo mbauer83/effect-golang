@@ -10,7 +10,7 @@ program := effect.Scoped(func(scope effect.Scope) effect.Effect[effect.Unit, eff
     return scope.AcquireRelease(
         io.WriteFile(lockPath, []byte("in progress\n"), 0o600).As(lockPath),
         func(path string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
-            return io.FailuresAsDefects(io.Remove(path))
+            return io.OrDie(io.Remove(path))
         },
     ).AndThen(importSources())
 })
@@ -28,7 +28,7 @@ error becomes a **defect** that the cause preserves:
 
 ```go
 effect.Release[R](func(ctx context.Context) error { return handle.Close() })
-effect.FailuresAsDefects(io.Remove(path))
+effect.OrDie(io.Remove(path))
 ```
 
 Both keep the error visible. Neither discards it.

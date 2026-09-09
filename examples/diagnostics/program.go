@@ -95,7 +95,7 @@ func panickingStage(meeting *rendezvous) stageProgram {
 }
 
 func failingCleanup(stage string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
-	return effect.Release[effect.Unit](func(context.Context) error {
+	return effect.AddFinalizer[effect.Unit](func(context.Context) error {
 		return fmt.Errorf("%s: %w", stage, ErrCleanupFailed)
 	})
 }

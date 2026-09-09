@@ -1728,8 +1728,8 @@ use package-global random state implicitly.
 Policy combination can follow these explicit rules:
 
 ```text
-AndSchedules(left, right) continues only while both continue; waits max(left, right)
-OrSchedules(left, right)  continues while either continues; waits min(active delays)
+IntersectSchedules(left, right) continues only while both continue; waits max(left, right)
+UnionSchedules(left, right)  continues while either continues; waits min(active delays)
 ```
 
 The output types remain exact (`Product` for `And`; a named combined decision or
@@ -2010,7 +2010,7 @@ computed.
 
 ADDED: direct style needs one seam the core did not have. A bound effect must be
 evaluated inside the *current* interpretation, or it would silently get a fresh
-runtime with live defaults, a scope of its own and no cancellation. `Interpreting`
+runtime with live defaults, a scope of its own and no cancellation. `WithInterpreter`
 and `Evaluate` provide that seam, and they are useful beyond direct style: they
 are how any caller writes a combinator this package does not provide.
 
@@ -2208,7 +2208,7 @@ func Recv[A any](
 ) Effect[Unit, Never, Receive[A]]
 ```
 
-Heterogeneous `ZipParMerge`, `FlatMapMerge`, `RetryOrElse`, etc. continue to use
+Heterogeneous `ZipParChannels`, `FlatMapChannels`, `RetryOrElse`, etc. continue to use
 structural `Product`/`Either`.
 
 The typed state builder from section 21 remains a thin convenience surface, not
@@ -2315,7 +2315,7 @@ interruptible under the live clock.
 Implement:
 
 1. `ZipPar`;
-2. heterogeneous `ZipParMerge`;
+2. heterogeneous `ZipParChannels`;
 3. `Race`;
 4. `RaceFirst`;
 5. `AllPar`;
@@ -2651,7 +2651,7 @@ attempt := Scoped(func(scope Scope) Effect[Env, AppError, Result] {
 })
 
 program := attempt.Retry(
-    AndSchedules(
+    IntersectSchedules(
         Recurs[AppError](3),
         Exponential[AppError](100*time.Millisecond, 5*time.Second),
     ),

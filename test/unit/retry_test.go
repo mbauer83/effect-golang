@@ -108,7 +108,7 @@ func TestRetryUsesDeterministicCappedBackoff(t *testing.T) {
 		}
 		return effect.ExitSuccess[string](99)
 	})
-	policy := effect.AndSchedules(
+	policy := effect.IntersectSchedules(
 		effect.Recurs[string](3),
 		effect.Exponential[string](time.Second, 2*time.Second),
 	)

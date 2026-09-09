@@ -71,7 +71,7 @@ func TestSchedulePredicatesStopAtRejectedInputOrOutput(t *testing.T) {
 }
 
 func TestAndSchedulesUsesIntersectionLaws(t *testing.T) {
-	driver := effect.AndSchedules(
+	driver := effect.IntersectSchedules(
 		effect.Recurs[string](1),
 		effect.Spaced[string](3*time.Second),
 	).Start()
@@ -87,7 +87,7 @@ func TestAndSchedulesUsesIntersectionLaws(t *testing.T) {
 }
 
 func TestOrSchedulesUsesUnionLaws(t *testing.T) {
-	driver := effect.OrSchedules(
+	driver := effect.UnionSchedules(
 		effect.Recurs[string](1),
 		effect.Spaced[string](3*time.Second).WhileOutput(func(output uint64) bool { return output < 2 }),
 	).Start()

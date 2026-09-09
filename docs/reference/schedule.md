@@ -45,9 +45,9 @@ without weakening `E`.
   random fraction. Randomness is injected so tests stay deterministic; no
   package-global random state is used. Fractions outside `[0,1]` are clamped and
   `NaN` selects the minimum.
-- `AndSchedules(left, right)` continues only while both continue and waits
+- `IntersectSchedules(left, right)` continues only while both continue and waits
   `max(left, right)`. Output is `Product`.
-- `OrSchedules(left, right)` continues while either continues and waits the
+- `UnionSchedules(left, right)` continues while either continues and waits the
   shortest active delay. Output is `ScheduleUnion`, which reports which
   component asked to continue.
 

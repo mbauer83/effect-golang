@@ -10,7 +10,7 @@ both := effect.ZipPar(loadCustomer(id), loadBasket(id))
 Different requirements or error types:
 
 ```go
-merged := effect.ZipParMerge(loadCustomer(id), fetchQuote(id))
+merged := effect.ZipParChannels(loadCustomer(id), fetchQuote(id))
 // Effect[Product[R1,R2], Either[E1,E2], Product[Customer, Quote]]
 ```
 

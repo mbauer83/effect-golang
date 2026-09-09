@@ -28,7 +28,7 @@ func TestStopNeverRecursAndForeverAlwaysDoes(t *testing.T) {
 
 	// Forever recurs, so it is only safe here bounded by another policy.
 	attempts = 0
-	bounded := effect.AndSchedules(effect.Forever[string](), effect.Recurs[string](2))
+	bounded := effect.IntersectSchedules(effect.Forever[string](), effect.Recurs[string](2))
 	effect.Run(context.Background(), effect.Unit{}, flaky.Retry(bounded))
 	if attempts != 3 {
 		t.Fatalf("expected Forever bounded to three attempts, got %d", attempts)

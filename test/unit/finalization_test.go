@@ -63,7 +63,7 @@ func TestEnsuringComposesFinalizerDefectAfterOriginalCause(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
 	broken := errors.New("rollback failed")
 	program := operations.Fail[string]("rejected").Ensuring(
-		effect.Release[effect.Unit](func(context.Context) error {
+		effect.AddFinalizer[effect.Unit](func(context.Context) error {
 			return broken
 		}),
 	)

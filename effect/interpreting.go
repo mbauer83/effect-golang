@@ -31,12 +31,12 @@ type interpreterValidity struct {
 	live bool
 }
 
-// Interpreting runs body with an Interpreter for the current interpretation.
+// WithInterpreter runs body with an Interpreter for the current interpretation.
 //
 // The Interpreter stops working when body returns, so body must not publish it.
 // A combinator that needs to evaluate effects later should hold the Effect
-// values and interpret them inside its own Interpreting call.
-func Interpreting[R, E, A any](body func(Interpreter[R, E]) Exit[E, A]) Effect[R, E, A] {
+// values and interpret them inside its own WithInterpreter call.
+func WithInterpreter[R, E, A any](body func(Interpreter[R, E]) Exit[E, A]) Effect[R, E, A] {
 	return fromRuntime(func(ctx context.Context, state *runtimecore.State, env R) Exit[E, A] {
 		validity := &interpreterValidity{live: true}
 		defer func() { validity.live = false }()
@@ -49,13 +49,13 @@ func Interpreting[R, E, A any](body func(Interpreter[R, E]) Exit[E, A]) Effect[R
 	})
 }
 
-// Evaluate interprets fx in the current interpretation and returns its complete
+// Interpret interprets fx in the current interpretation and returns its complete
 // outcome, so the caller decides what a failure, a defect or an interruption
 // means.
 //
 // It is a package function because its result is built from the interpreter's
 // own type arguments (golang/go#80172).
-func Evaluate[R, E, A any](interpreter Interpreter[R, E], fx Effect[R, E, A]) Exit[E, A] {
+func Interpret[R, E, A any](interpreter Interpreter[R, E], fx Effect[R, E, A]) Exit[E, A] {
 	if interpreter.validity == nil || !interpreter.validity.live {
 		panic(fmt.Errorf("effect: Interpreter used after its Interpreting body returned"))
 	}

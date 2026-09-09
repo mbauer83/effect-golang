@@ -65,7 +65,7 @@ func TestScopePreservesFinalizerDefectAfterOriginalFailure(t *testing.T) {
 		resource := scope.AcquireRelease(
 			operations.Succeed("handle"),
 			func(string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
-				return effect.Release[effect.Unit](func(context.Context) error {
+				return effect.AddFinalizer[effect.Unit](func(context.Context) error {
 					return brokenClose
 				})
 			},
@@ -96,7 +96,7 @@ func TestSuccessfulBodyFailsWhenReleaseDefects(t *testing.T) {
 		return scope.AcquireRelease(
 			operations.Succeed("handle"),
 			func(string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
-				return effect.Release[effect.Unit](func(context.Context) error {
+				return effect.AddFinalizer[effect.Unit](func(context.Context) error {
 					return errors.New("close failed")
 				})
 			},

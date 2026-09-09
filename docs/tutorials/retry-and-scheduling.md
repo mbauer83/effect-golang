@@ -4,7 +4,7 @@ Retry policy is data. Construct it independently, then attach it to the one
 effect whose typed failures are safe to repeat:
 
 ```go
-policy := effect.AndSchedules(
+policy := effect.IntersectSchedules(
     effect.Recurs[effect.IOError](3),
     effect.Exponential[effect.IOError](
         100*time.Millisecond,

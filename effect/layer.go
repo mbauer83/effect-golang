@@ -86,7 +86,7 @@ func ZipLayers[RIn, E, ROut, RIn2, E2, ROut2 any](
 	layer Layer[RIn, E, ROut],
 	that Layer[RIn2, E2, ROut2],
 ) Layer[Product[RIn, RIn2], Either[E, E2], Product[ROut, ROut2]] {
-	return LayerFromEffect(ZipMerge(layer.build, that.build))
+	return LayerFromEffect(ZipChannels(layer.build, that.build))
 }
 
 // ProvideLayer satisfies an Effect's entire R channel from a Layer. Layer and

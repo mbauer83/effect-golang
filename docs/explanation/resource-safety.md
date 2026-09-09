@@ -35,7 +35,7 @@ has three honest destinations and no fourth:
 ```go
 // 1. Convert it to a defect.
 effect.Release[R](func(ctx context.Context) error { return handle.Close() })
-effect.FailuresAsDefects(io.Remove(path))
+effect.OrDie(io.Remove(path))
 
 // 2. Absorb it deliberately, having decided that is correct.
 operations.LogWarn("could not remove lock").As(effect.Unit{})

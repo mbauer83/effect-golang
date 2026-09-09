@@ -29,7 +29,7 @@ func TestCatchAllDoesNotDiscardCompositeCause(t *testing.T) {
 
 func TestCatchAllMergeTagsHandlerFailure(t *testing.T) {
 	operation := effect.Fail[effect.Unit, int]("missing")
-	recovered := effect.CatchAllMerge(operation, func(string) effect.Effect[effect.Unit, int, int] {
+	recovered := effect.CatchAllChannels(operation, func(string) effect.Effect[effect.Unit, int, int] {
 		return effect.Fail[effect.Unit, int](404)
 	})
 
@@ -148,9 +148,9 @@ func TestWidenErrorRetypesAnInfallibleEffect(t *testing.T) {
 
 func TestFailuresAsDefectsPreservesCauseStructure(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
-	program := effect.FailuresAsDefects(
+	program := effect.OrDie(
 		operations.Fail[int]("rejected").Ensuring(
-			effect.Release[effect.Unit](func(context.Context) error {
+			effect.AddFinalizer[effect.Unit](func(context.Context) error {
 				return errors.New("cleanup failed")
 			}),
 		),

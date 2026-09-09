@@ -92,7 +92,7 @@ func TrackedResource[R, E any](scope effect.Scope, tracker *Tracker, name string
 
 // TrackedRelease is an infallible release workflow that records one event.
 func TrackedRelease[R any](tracker *Tracker, event string) effect.Effect[R, effect.Never, effect.Unit] {
-	return effect.Release[R](func(context.Context) error {
+	return effect.AddFinalizer[R](func(context.Context) error {
 		tracker.Record(event)
 		return nil
 	})

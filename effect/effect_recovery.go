@@ -28,9 +28,9 @@ func (fx Effect[R, E, A]) CatchAll(handler func(E) Effect[R, E, A]) Effect[R, E,
 	})
 }
 
-// CatchAllMerge handles a leaf typed failure with a different error type.
+// CatchAllChannels handles a leaf typed failure with a different error type.
 // Unhandled original failures are tagged Left; handler failures are tagged Right.
-func CatchAllMerge[R, E, A, E2 any](fx Effect[R, E, A], handler func(E) Effect[R, E2, A]) Effect[R, Either[E, E2], A] {
+func CatchAllChannels[R, E, A, E2 any](fx Effect[R, E, A], handler func(E) Effect[R, E2, A]) Effect[R, Either[E, E2], A] {
 	return fx.MapError(Left[E, E2]).CatchCause(
 		func(cause Cause[Either[E, E2]]) Effect[R, Either[E, E2], A] {
 			original, handled := originalFailure(cause)
@@ -87,7 +87,7 @@ func Fold[R, E, A, B any](
 	})
 }
 
-// FailuresAsDefects rewrites every typed failure in fx as a defect, leaving its
+// OrDie rewrites every typed failure in fx as a defect, leaving its
 // success channel untouched and its cause structure intact.
 //
 // It is how a workflow whose failure channel must be Never -- a scope
@@ -96,7 +96,7 @@ func Fold[R, E, A, B any](
 // choices for a release error: absorb it deliberately, convert it to a defect
 // with this operation, or handle it before registration so it can still
 // participate in E. Silently dropping it is not one of them.
-func FailuresAsDefects[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, A] {
+func OrDie[R, E, A any](fx Effect[R, E, A]) Effect[R, Never, A] {
 	return fromInstructions[R, Never, A](&runtimecore.TransformCause{
 		Source: fx.instructions(),
 		Apply:  outcome.FailuresAsDefects,

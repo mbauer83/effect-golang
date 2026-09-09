@@ -57,7 +57,7 @@ the effects have been composed. Three honest conversions exist:
 
 - `Release(func(context.Context) error)` turns a conventional close error into a
   defect;
-- `FailuresAsDefects(fx)` does the same for an existing effect;
+- `OrDie(fx)` does the same for an existing effect;
 - handling the error before registration keeps it in `E`.
 
 ## Fibers

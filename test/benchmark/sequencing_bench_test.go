@@ -40,7 +40,7 @@ func flatMapped(second func(int) step) step {
 }
 
 func workflowed(second func(int) step) step {
-	return effect.Do[effect.Unit, string](func() state { return state{} }).
+	return effect.NewWorkflow[effect.Unit, string](func() state { return state{} }).
 		Bind(
 			func(state) step { return loadFirst() },
 			func(current state, value int) state { current.first = value; return current },

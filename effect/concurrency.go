@@ -23,9 +23,9 @@ func ZipPar[R, E, A, B any](fx Effect[R, E, A], that Effect[R, E, B]) Effect[R, 
 	return pairing(fx, that, settleOnFailure, lifetime.ErrSiblingFailed, bothResults[E, A, B])
 }
 
-// ZipParMerge evaluates effects with different R and E channels concurrently
+// ZipParChannels evaluates effects with different R and E channels concurrently
 // while preserving all channel information.
-func ZipParMerge[R, E, A, R2, E2, B any](
+func ZipParChannels[R, E, A, R2, E2, B any](
 	fx Effect[R, E, A],
 	that Effect[R2, E2, B],
 ) Effect[Product[R, R2], Either[E, E2], Product[A, B]] {

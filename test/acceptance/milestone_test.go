@@ -35,7 +35,7 @@ type resource struct {
 type milestoneEffect[A any] = effect.Effect[effect.Unit, appError, A]
 
 func backoffPolicy() effect.Schedule[appError, effect.Product[uint64, time.Duration]] {
-	return effect.AndSchedules(
+	return effect.IntersectSchedules(
 		effect.Recurs[appError](3),
 		effect.Exponential[appError](100*time.Millisecond, 5*time.Second),
 	)
@@ -55,7 +55,7 @@ func milestone(
 				return effect.ExitSuccess[appError](resource{Name: "handle"})
 			}),
 			func(held resource) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
-				return effect.Release[effect.Unit](func(context.Context) error {
+				return effect.AddFinalizer[effect.Unit](func(context.Context) error {
 					tracker.Record("release " + held.Name)
 					return nil
 				})

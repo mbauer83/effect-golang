@@ -8,9 +8,9 @@ type Workflow[R, E, S any] struct {
 	state Effect[R, E, S]
 }
 
-// Do starts a workflow. factory is evaluated once for each interpretation, so
+// NewWorkflow starts a workflow. factory is evaluated once for each interpretation, so
 // retries and concurrent runs never share workflow state by accident.
-func Do[R, E, S any](factory func() S) Workflow[R, E, S] {
+func NewWorkflow[R, E, S any](factory func() S) Workflow[R, E, S] {
 	return Workflow[R, E, S]{
 		state: From(func(context.Context, R) Exit[E, S] {
 			return ExitSuccess[E](factory())

@@ -67,7 +67,7 @@ type sentinel struct{}
 
 // Run interprets body in direct style.
 func Run[R, E, A any](body func(*Binder[R, E]) A) effect.Effect[R, E, A] {
-	return effect.Interpreting(func(interpreter effect.Interpreter[R, E]) effect.Exit[E, A] {
+	return effect.WithInterpreter(func(interpreter effect.Interpreter[R, E]) effect.Exit[E, A] {
 		binder := &Binder[R, E]{
 			interpreter: interpreter,
 			progress:    &progress[E]{token: &sentinel{}, live: true},
@@ -87,7 +87,7 @@ func Bind[R, E, A any](binder *Binder[R, E], fx effect.Effect[R, E, A]) A {
 		panic(fmt.Errorf("direct: Binder used outside the Run body that created it"))
 	}
 
-	exit := effect.Evaluate(binder.interpreter, fx)
+	exit := effect.Interpret(binder.interpreter, fx)
 	if value, ok := exit.Value(); ok {
 		return value
 	}

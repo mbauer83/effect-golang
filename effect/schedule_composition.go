@@ -2,9 +2,9 @@ package effect
 
 import "time"
 
-// AndSchedules intersects two schedules. Both must continue, and the longer
+// IntersectSchedules intersects two schedules. Both must continue, and the longer
 // delay wins because both timing constraints must be satisfied.
-func AndSchedules[In, Left, Right any](left Schedule[In, Left], right Schedule[In, Right]) Schedule[In, Product[Left, Right]] {
+func IntersectSchedules[In, Left, Right any](left Schedule[In, Left], right Schedule[In, Right]) Schedule[In, Product[Left, Right]] {
 	return Schedule[In, Product[Left, Right]]{start: func() scheduleStep[In, Product[Left, Right]] {
 		return andScheduleStep(left.driver(), right.driver())
 	}}
@@ -32,9 +32,9 @@ type ScheduleUnion[Left, Right any] struct {
 	RightContinues bool
 }
 
-// OrSchedules unions two schedules. Either may continue, and the shortest
+// UnionSchedules unions two schedules. Either may continue, and the shortest
 // delay among the continuing components wins.
-func OrSchedules[In, Left, Right any](left Schedule[In, Left], right Schedule[In, Right]) Schedule[In, ScheduleUnion[Left, Right]] {
+func UnionSchedules[In, Left, Right any](left Schedule[In, Left], right Schedule[In, Right]) Schedule[In, ScheduleUnion[Left, Right]] {
 	return Schedule[In, ScheduleUnion[Left, Right]]{start: func() scheduleStep[In, ScheduleUnion[Left, Right]] {
 		return orScheduleStep(left.driver(), right.driver())
 	}}

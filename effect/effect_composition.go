@@ -11,9 +11,9 @@ func Zip[R, E, A, B any](fx Effect[R, E, A], that Effect[R, E, B]) Effect[R, E, 
 	})
 }
 
-// FlatMapMerge composes effects with different R and E channels without
+// FlatMapChannels composes effects with different R and E channels without
 // widening or erasing either channel.
-func FlatMapMerge[R, E, A, R2, E2, B any](
+func FlatMapChannels[R, E, A, R2, E2, B any](
 	fx Effect[R, E, A],
 	f func(A) Effect[R2, E2, B],
 ) Effect[Product[R, R2], Either[E, E2], B] {
@@ -24,9 +24,9 @@ func FlatMapMerge[R, E, A, R2, E2, B any](
 	)
 }
 
-// ZipMerge combines independent effects with different R and E channels,
+// ZipChannels combines independent effects with different R and E channels,
 // evaluating left before right while preserving all channel information.
-func ZipMerge[R, E, A, R2, E2, B any](
+func ZipChannels[R, E, A, R2, E2, B any](
 	fx Effect[R, E, A],
 	that Effect[R2, E2, B],
 ) Effect[Product[R, R2], Either[E, E2], Product[A, B]] {

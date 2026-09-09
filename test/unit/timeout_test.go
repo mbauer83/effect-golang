@@ -132,7 +132,7 @@ func TestTimeoutPreservesACleanupDefectFromAbandonedWork(t *testing.T) {
 	work := effecttest.NewBlocker(tracker)
 	broken := errors.New("rollback failed")
 
-	guarded := effecttest.Blocking[effect.Unit, string](work, "finished").Ensuring(effect.Release[effect.Unit](func(context.Context) error {
+	guarded := effecttest.Blocking[effect.Unit, string](work, "finished").Ensuring(effect.AddFinalizer[effect.Unit](func(context.Context) error {
 		return broken
 	}))
 

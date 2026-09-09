@@ -33,7 +33,7 @@ func TestFlatMapMergePreservesThreeChannels(t *testing.T) {
 		return effect.Right[dbError](env.prefix + "user")
 	})
 
-	program := effect.FlatMapMerge(load, func(user string) effect.Effect[mailEnv, mailError, string] {
+	program := effect.FlatMapChannels(load, func(user string) effect.Effect[mailEnv, mailError, string] {
 		return effect.FromEither(func(_ context.Context, env mailEnv) effect.Either[mailError, string] {
 			return effect.Right[mailError](user + env.suffix)
 		})
@@ -49,7 +49,7 @@ func TestFlatMapMergePreservesThreeChannels(t *testing.T) {
 
 func TestFlatMapMergeTagsFailureOrigin(t *testing.T) {
 	load := effect.Fail[dbEnv, string](dbError{message: "db down"})
-	program := effect.FlatMapMerge(load, func(string) effect.Effect[mailEnv, mailError, string] {
+	program := effect.FlatMapChannels(load, func(string) effect.Effect[mailEnv, mailError, string] {
 		t.Fatal("second effect must not run")
 		return effect.Succeed[mailEnv, mailError]("")
 	})
@@ -171,7 +171,7 @@ func TestZipMergeRetainsAllThreeChannelsSequentially(t *testing.T) {
 		},
 	)
 
-	merged := effect.ZipMerge(left, right)
+	merged := effect.ZipChannels(left, right)
 	exit := effect.Run(context.Background(), effect.ProductOf(21, "hi"), merged)
 	value, ok := exit.Value()
 	if !ok || value.First != 42 || value.Second != "hi!" {

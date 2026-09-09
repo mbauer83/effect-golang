@@ -10,10 +10,10 @@ first.FlatMap(func(a A) effect.Effect[Env, AppError, B] {
 
 This preserves the monadic shape `Effect[Env, AppError, _]`.
 
-Use `FlatMapMerge` when the channels differ:
+Use `FlatMapChannels` when the channels differ:
 
 ```go
-effect.FlatMapMerge(loadUser, sendMail)
+effect.FlatMapChannels(loadUser, sendMail)
 ```
 
 Given:

@@ -78,12 +78,12 @@ inside your own `Run`.
 ## The seam it is built on
 
 ```go
-func Interpreting[R, E, A any](body func(Interpreter[R, E]) Exit[E, A]) Effect[R, E, A]
+func WithInterpreter[R, E, A any](body func(Interpreter[R, E]) Exit[E, A]) Effect[R, E, A]
 func Evaluate[R, E, A any](interpreter Interpreter[R, E], fx Effect[R, E, A]) Exit[E, A]
 func (interpreter Interpreter[R, E]) Context() context.Context
 ```
 
-`Interpreting` is public and useful beyond direct style: it is how any caller
+`WithInterpreter` is public and useful beyond direct style: it is how any caller
 writes a combinator this package does not provide. `Evaluate` interprets an
 effect inside the *current* interpretation, which is the point — reaching for
 the package-level `Run` instead would silently give the effect a fresh runtime

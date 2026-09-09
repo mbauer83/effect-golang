@@ -62,7 +62,7 @@ func TestNonPositiveDelaysNormalizeToNoWait(t *testing.T) {
 
 	// A negative spacing must not become a wait the test has to release, and
 	// must not move the clock backwards.
-	negative := effect.AndSchedules(
+	negative := effect.IntersectSchedules(
 		effect.Recurs[string](5),
 		effect.Spaced[string](-time.Hour),
 	)

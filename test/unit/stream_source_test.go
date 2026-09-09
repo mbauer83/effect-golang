@@ -124,10 +124,10 @@ func TestTheInterpreterSeamLetsACallerWriteItsOwnCombinator(t *testing.T) {
 	// evaluating sub-effects in the current interpretation so they see its
 	// capabilities, scope and cancellation.
 	firstSucceeding := func(candidates ...effect.Effect[effect.Unit, string, int]) effect.Effect[effect.Unit, string, int] {
-		return effect.Interpreting(func(interpreter effect.Interpreter[effect.Unit, string]) effect.Exit[string, int] {
+		return effect.WithInterpreter(func(interpreter effect.Interpreter[effect.Unit, string]) effect.Exit[string, int] {
 			var last effect.Exit[string, int]
 			for _, candidate := range candidates {
-				last = effect.Evaluate(interpreter, candidate)
+				last = effect.Interpret(interpreter, candidate)
 				if last.IsSuccess() {
 					return last
 				}

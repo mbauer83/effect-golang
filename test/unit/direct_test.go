@@ -160,7 +160,7 @@ func TestDirectStyleReportsABinderUsedAfterItsBodyReturned(t *testing.T) {
 
 	// Using the escaped binder must say so rather than evaluate against an
 	// interpretation that has ended.
-	later := effect.Interpreting(func(effect.Interpreter[effect.Unit, string]) effect.Exit[string, string] {
+	later := effect.WithInterpreter(func(effect.Interpreter[effect.Unit, string]) effect.Exit[string, string] {
 		return effect.ExitSuccess[string](direct.Bind(escaped, directOperations.Succeed("late")))
 	})
 	exit := effect.Run(context.Background(), effect.Unit{}, later)

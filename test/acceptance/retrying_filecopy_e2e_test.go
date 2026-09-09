@@ -44,7 +44,7 @@ func TestRetryingFileCopyProgramRecoversFromTransientReadFailures(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	policy := effect.AndSchedules(
+	policy := effect.IntersectSchedules(
 		effect.Recurs[effect.IOError](2),
 		effect.Spaced[effect.IOError](time.Second),
 	)

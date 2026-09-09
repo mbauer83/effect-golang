@@ -88,7 +88,7 @@ func visitingPulls[R, E, A any](next pull[R, E, A], visit func(A) Effect[R, E, U
 func RunIntoQueue[R, E, A any](stream Stream[R, E, A], queue Queue[A]) Effect[R, E, Unit] {
 	return RunForEach(stream, func(value A) Effect[R, E, Unit] {
 		return WidenError[E](queue.Offer[R](value)).As(Unit{})
-	}).Ensuring(FailuresAsDefects(queue.Shutdown[R]()))
+	}).Ensuring(OrDie(queue.Shutdown[R]()))
 }
 
 // RunIntoHub publishes every value to a hub, then shuts it down so every
@@ -96,5 +96,5 @@ func RunIntoQueue[R, E, A any](stream Stream[R, E, A], queue Queue[A]) Effect[R,
 func RunIntoHub[R, E, A any](stream Stream[R, E, A], hub Hub[A]) Effect[R, E, Unit] {
 	return RunForEach(stream, func(value A) Effect[R, E, Unit] {
 		return WidenError[E](hub.Publish[R](value)).As(Unit{})
-	}).Ensuring(FailuresAsDefects(hub.Shutdown[R]()))
+	}).Ensuring(OrDie(hub.Shutdown[R]()))
 }

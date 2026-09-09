@@ -92,10 +92,10 @@ func (scope Scope) AcquireRelease[R, E, A any](
 	return acquire.withExitObserver(registerRelease(scope.state, release))
 }
 
-// Release adapts a conventional Go release function into an infallible release
+// AddFinalizer adapts a conventional Go release function into an infallible release
 // workflow. A non-nil error becomes a defect, which the closing cause preserves
 // rather than silently discarding.
-func Release[R any](release func(context.Context) error) Effect[R, Never, Unit] {
+func AddFinalizer[R any](release func(context.Context) error) Effect[R, Never, Unit] {
 	return From(func(ctx context.Context, _ R) Exit[Never, Unit] {
 		if err := release(ctx); err != nil {
 			return ExitCause[Never, Unit](DieCause[Never](Defect{Value: err}))

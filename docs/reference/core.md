@@ -17,8 +17,8 @@ Key operations:
 - `ContramapEnv`: adapt `R`.
 - `Provide`: supply all of `R`.
 - `FlatMap`: sequence effects with the same `R` and `E`.
-- `FlatMapMerge(fx, f)`: sequence effects with different channels using `Product` and `Either`.
-- `Zip(left, right)` / `ZipMerge(left, right)`: retain both successful values.
+- `FlatMapChannels(fx, f)`: sequence effects with different channels using `Product` and `Either`.
+- `Zip(left, right)` / `ZipChannels(left, right)`: retain both successful values.
 - `CatchAll`: handle a leaf typed `E`; defects and interruption remain unhandled.
 - `As`, `Tap`, `AndThen`, and `Flatten`: common sequential shapes without a
   nested callback.
@@ -29,7 +29,7 @@ Key operations:
   built from the effect's own channels.
 - `WidenError[E](fx)`: retype an `Effect[R, Never, A]` so it composes with
   failing work. Free and total, because `Never` is uninhabited.
-- `FailuresAsDefects(fx)`: rewrite typed failures as defects for use where the
+- `OrDie(fx)`: rewrite typed failures as defects for use where the
   failure channel must be `Never`.
 - `All`, `ForEach`: evaluate a collection in order, short-circuiting.
 
@@ -41,7 +41,7 @@ add filesystem effects with `IOError` as the typed-error channel.
 own failure channel is `Never` or whose requirement channel is unused: `Fork`,
 `ForkIn`, `ForkDaemon`, `Await`, `Join`, `Interrupt`, `Send`, `Recv`,
 `RecvOrFail`, `Suspend`, `CheckInterrupt`, `WidenError` and
-`FailuresAsDefects`.
+`OrDie`.
 
 `Workflow[R,E,S]` is a small, typed `Do`/`Bind`/`Yield` convenience for longer
 dependent sequences. Its state factory runs once per interpretation.
@@ -53,7 +53,7 @@ one; `scope.AcquireRelease` registers a resource; `scope.Fork`, `Fork` and
 `ForkDaemon` choose an owner. `fx.Ensuring` and `fx.OnExit` attach cleanup to a
 single effect. See [scope](scope.md) and [fiber](fiber.md).
 
-`ZipPar`, `ZipParMerge`, `Race`, `RaceFirst`, `ForEachPar`, `ForEachParN`,
+`ZipPar`, `ZipParChannels`, `Race`, `RaceFirst`, `ForEachPar`, `ForEachParN`,
 `AllPar`, `AllParN`, `Timeout`, `TimeoutFail` and `TimeoutTo` are the
 structured-concurrency operators. None returns while work it discarded is still
 running or finalizing.
@@ -77,7 +77,7 @@ returns.
 
 `Schedule[In,Out]` is immutable and creates a fresh driver per interpretation.
 The initial policies are `Stop`, `Forever`, `Recurs`, `Spaced`, `Exponential`,
-`Fibonacci`, and `UpTo`. `AndSchedules` intersects policies and `OrSchedules`
+`Fibonacci`, and `UpTo`. `IntersectSchedules` intersects policies and `UnionSchedules`
 unions them; `WhileInput`, `WhileOutput`, and `MapOutput` refine a policy.
 
 - `Retry` retries exact typed-failure leaves only.

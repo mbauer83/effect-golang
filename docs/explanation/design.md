@@ -2,7 +2,7 @@
 
 ## Why `Either`, not `Or`
 
-The error composition used by `FlatMapMerge` is an exclusive sum: a sequential computation fails at one stage. `Either[L,R]` is therefore the appropriate datatype and is right-biased as a monad for fixed `L`.
+The error composition used by `FlatMapChannels` is an exclusive sum: a sequential computation fails at one stage. `Either[L,R]` is therefore the appropriate datatype and is right-biased as a monad for fixed `L`.
 
 An inclusive sum (`These`/`Ior`) is a different algebra and should only be introduced for an operation that can retain values from both sides simultaneously, for example an accumulating parallel combinator.
 

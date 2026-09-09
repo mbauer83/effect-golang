@@ -12,7 +12,7 @@ four evaluations in total. The first attempt is always immediate.
 ## Back off
 
 ```go
-policy := effect.AndSchedules(
+policy := effect.IntersectSchedules(
     effect.Recurs[effect.IOError](5),
     effect.Exponential[effect.IOError](100*time.Millisecond, 5*time.Second),
 )
@@ -20,7 +20,7 @@ policy := effect.AndSchedules(
 loaded := readSource(path).Retry(policy)
 ```
 
-`AndSchedules` continues only while both continue and waits the longer delay, so
+`IntersectSchedules` continues only while both continue and waits the longer delay, so
 this is "exponential backoff, at most five retries".
 
 ## Add jitter

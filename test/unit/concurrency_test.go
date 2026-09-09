@@ -188,7 +188,7 @@ func TestZipParMergePreservesAllChannels(t *testing.T) {
 		},
 	)
 
-	program := effect.ZipParMerge(left, right)
+	program := effect.ZipParChannels(left, right)
 	exit := effect.Run(context.Background(), effect.ProductOf(21, "hello"), program)
 	value, ok := exit.Value()
 	if !ok || value.First != 42 || value.Second != "hello!" {
