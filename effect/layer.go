@@ -41,6 +41,26 @@ func (layer Layer[RIn, E, ROut]) Build() Effect[RIn, E, ROut] {
 	return layer.build
 }
 
+// MapError adapts a Layer's construction failure.
+//
+// What lets a layer built from something with a failure type of its own be
+// provided to a program with a failure type of its own: a settings layer fails
+// with a ConfigError, and an application whose failures are its own refusals
+// adapts it once, where the layer is assembled, rather than everywhere it is
+// used.
+//
+//	settings := effect.ConfigLayer[Unit](described).
+//	    MapError(func(failure effect.ConfigError) Refusal {
+//	        return Refusal{Because: failure.Error()}
+//	    })
+//
+// Without this, ProvideLayerSame is unusable for any layer whose failures are
+// not already the consumer's, and ProvideLayer answers with an Either the
+// program then has to fold at every call.
+func (layer Layer[RIn, E, ROut]) MapError[E2 any](adapt func(E) E2) Layer[RIn, E2, ROut] {
+	return LayerFromEffect(layer.build.MapError(adapt))
+}
+
 // Map transforms the environment produced by a Layer.
 func (layer Layer[RIn, E, ROut]) Map[ROut2 any](f func(ROut) ROut2) Layer[RIn, E, ROut2] {
 	return LayerFromEffect(layer.build.Map(f))

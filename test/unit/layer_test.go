@@ -8,13 +8,15 @@ import (
 	"github.com/mbauer83/effect-golang/effect"
 )
 
-type config struct{ DSN string }
+// dsnSettings is what this layer is built from. Named for what it holds
+// rather than "config", which is now a package.
+type dsnSettings struct{ DSN string }
 type database struct{ DSN string }
 type buildError string
 type queryError string
 
 func TestProvideLayer(t *testing.T) {
-	layer := effect.LayerFromEffect(effect.FromEither(func(_ context.Context, cfg config) effect.Either[buildError, database] {
+	layer := effect.LayerFromEffect(effect.FromEither(func(_ context.Context, cfg dsnSettings) effect.Either[buildError, database] {
 		return effect.Right[buildError](database{DSN: cfg.DSN})
 	}))
 
@@ -23,7 +25,7 @@ func TestProvideLayer(t *testing.T) {
 	})
 
 	program := effect.ProvideLayer(query, layer)
-	exit := effect.Run(context.Background(), config{DSN: "postgres://db"}, program)
+	exit := effect.Run(context.Background(), dsnSettings{DSN: "postgres://db"}, program)
 	value, ok := exit.Value()
 	if !ok || value != "postgres://db/users" {
 		t.Fatalf("unexpected exit: %#v", exit)
@@ -75,5 +77,34 @@ func TestLayerMapTransformsTheProducedEnvironment(t *testing.T) {
 	exit := effect.Run(context.Background(), effect.Unit{}, layer.Build())
 	if value, ok := exit.Value(); !ok || value != "xxx" {
 		t.Fatalf("unexpected exit: %v", exit)
+	}
+}
+
+func TestLayerMapErrorAdaptsConstructionFailureOnly(t *testing.T) {
+	// What lets a layer built from something with a failure type of its own be
+	// provided to a program with a failure type of its own. The consumer's
+	// failures are untouched: only the construction's are adapted.
+	failing := effect.LayerFromEffect(effect.FromEither(
+		func(_ context.Context, _ dsnSettings) effect.Either[buildError, database] {
+			return effect.Left[buildError, database]("no dsn")
+		}))
+	adapted := failing.MapError(func(failure buildError) queryError {
+		return queryError("adapted: " + string(failure))
+	})
+
+	query := effect.FromEither(
+		func(_ context.Context, db database) effect.Either[queryError, string] {
+			return effect.Right[queryError](db.DSN)
+		})
+
+	exit := effect.Run(context.Background(), dsnSettings{},
+		query.ProvideLayerSame(adapted))
+	cause, failed := exit.Cause()
+	if !failed {
+		t.Fatalf("expected the layer to fail, got %v", exit)
+	}
+	failures := cause.Failures()
+	if len(failures) != 1 || failures[0] != "adapted: no dsn" {
+		t.Fatalf("expected the adapted failure, got %v", failures)
 	}
 }
