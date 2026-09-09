@@ -25,7 +25,7 @@ import (
 // no tenants configured has no tenants, which is a thing it may legitimately
 // be told.
 func Table[A any](name string, of Config[A]) Config[map[string]A] {
-	held := of.read
+	held := of.reader()
 	return Config[map[string]A]{
 		expects: []Expectation{{
 			Path: pathOf(name),
@@ -68,7 +68,7 @@ func Table[A any](name string, of Config[A]) Config[map[string]A] {
 // primitive: config.Many("ports", ",", config.Port("")). A named one would
 // have no key to read, because a piece of text has no keys beneath it.
 func Many[A any](name string, separator string, of Config[A]) Config[[]A] {
-	held := of.read
+	held := of.reader()
 	return Config[[]A]{
 		expects: []Expectation{{
 			Path: pathOf(name),

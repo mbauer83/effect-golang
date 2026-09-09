@@ -12,14 +12,16 @@ fx.ReadingConfigFrom(source)                         // one part of a program
 ```
 
 ```go
-described := config.ZipWith(
-    config.NonEmptyText("host").Documented("the address of the primary"),
-    config.Port("port").WithDefault(5432),
-    func(host string, port int) Store {
-        return Store{Host: host, Port: port}
-    })
+described := config.Nested("db", config.Struct(
+    config.Setting(
+        config.NonEmptyText("host").Documented("the address of the primary"),
+        func(store *Store, host string) { store.Host = host }),
+    config.Setting(
+        config.Port("port").WithDefault(5432),
+        func(store *Store, port int) { store.Port = port }),
+))
 
-settings := effect.ConfigLayer[effect.Unit](config.Nested("db", described))
+settings := effect.ConfigLayer[effect.Unit](described)
 program := serve().ProvideLayerSame(settings.MapError(refusalOf))
 ```
 
@@ -155,7 +157,9 @@ config.Table("queues", config.ZipWith(config.Int("depth"), config.Int("workers")
 ```
 
 ```go
-config.ZipWith(first, second, combine)    // both are read; failures accumulate
+config.Struct(fields...)                  // a settings type, one field per line
+config.Setting(of, assign)                // one of its fields
+config.ZipWith(first, second, combine)    // two values, no field to assign into
 config.All(descriptions...)               // the homogeneous case
 config.Nested(name, of)                   // read beneath a name
 config.Table(name, of)                    // one entry per key the source holds
@@ -166,6 +170,39 @@ description.Validated(message, keep)      description.Documented(doc)
 description.WithDefault(value)            description.OrElse(that)
 config.Optional(of, supplied, absent)
 ```
+
+### One field per line
+
+`Struct` and `Setting` are the flat form of what `ZipWith` does, and the reason
+they exist is that a settings type of five fields written as four nested
+`ZipWith`s stops resembling the settings: each field arrives as another level of
+nesting and another closure whose whole job is to assign one field.
+
+```go
+config.Struct(
+    config.Setting(config.NonEmptyText("host"),
+        func(store *Store, host string) { store.Host = host }),
+    config.Setting(config.Port("port").WithDefault(5432),
+        func(store *Store, port int) { store.Port = port }),
+    config.Setting(config.SecretOf("password"),
+        func(store *Store, password config.Secret) { store.Password = password }),
+)
+```
+
+It is the same accumulation: every field is read whatever the ones before it
+did, and the failures compose with `And`, so a deployment that supplied none of
+five settings is told about five. The value is built into a fresh `S` and
+returned only if every field succeeded, so a half-assembled settings type never
+escapes. Expectations keep field order, which is the order `Document` prints.
+
+The field's own name, type, default and documentation are all on the
+description, so the assignment is the only thing left to say — and it is the
+same shape [`schema.Struct`](https://github.com/mbauer83/effect-golang-schema)
+uses, for the same reason.
+
+`ZipWith` is still what to reach for when there is no field to assign into: two
+whole values combined, or a description whose result is not a struct. `Struct`
+is what to reach for when there is.
 
 `Optional` takes two branches rather than producing an option, because a
 program that treats a setting as optional has to say what its absence means —

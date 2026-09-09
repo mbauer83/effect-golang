@@ -76,18 +76,37 @@ func (at reading) under(name string) reading {
 // The runtime calls this with the source its capabilities carry, which is why
 // a program's settings need no argument passed down to whoever wants them.
 func Read[A any](ctx context.Context, source Source, description Config[A]) (A, Error) {
-	if description.read == nil {
-		var missing A
-		return missing, Invalid("described; the zero Config describes nothing")
-	}
 	if source == nil {
 		var missing A
 		return missing, Unavailable(errNoSource)
 	}
-	return description.read(reading{ctx: ctx, source: source})
+	return description.reader()(reading{ctx: ctx, source: source})
 }
 
 var errNoSource = errors.New("config: no source to read from")
+
+// errZeroDescription is what a description nobody constructed reports.
+//
+// A Config is only built by the constructors here, so the zero value is a
+// declared variable somebody never assigned. It fails rather than succeeding
+// with a zero value, and it fails rather than panicking, so one forgotten
+// field in a composite is reported beside whatever else was wrong.
+var errZeroDescription = Invalid("described; the zero Config describes nothing")
+
+// reader is this description's read, total on a description nobody built.
+//
+// Every combinator goes through it, so a zero Config nested, mapped or made a
+// field of is reported where it is read instead of being a nil call at the
+// bottom of a stack.
+func (description Config[A]) reader() func(reading) (A, Error) {
+	if description.read != nil {
+		return description.read
+	}
+	return func(reading) (A, Error) {
+		var missing A
+		return missing, errZeroDescription
+	}
+}
 
 // Expects are the values this description asks for, in the order it asks.
 func (description Config[A]) Expects() []Expectation {
@@ -96,7 +115,7 @@ func (description Config[A]) Expects() []Expectation {
 
 // Map transforms a value that was read.
 func (description Config[A]) Map[B any](transform func(A) B) Config[B] {
-	held := description.read
+	held := description.reader()
 	return Config[B]{
 		expects: description.expects,
 		read: func(at reading) (B, Error) {
@@ -118,7 +137,7 @@ func (description Config[A]) Map[B any](transform func(A) B) Config[B] {
 // a port and then finding it outside the range a listener accepts is the same
 // kind of mistake as reading "eight" where a number was wanted.
 func (description Config[A]) MapOrFail[B any](transform func(A) (B, error)) Config[B] {
-	held := description.read
+	held := description.reader()
 	subject := description.subject()
 	return Config[B]{
 		expects: description.expects,

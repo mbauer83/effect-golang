@@ -38,16 +38,24 @@ type program[A any] = effect.Effect[Service, Refusal, A]
 // The failure is adapted here, where the layer is assembled, rather than at
 // every use of it.
 func Settings() effect.Layer[effect.Unit, Refusal, Service] {
-	described := config.ZipWith(
-		DescribedStore(),
-		DescribedMailer(),
-		func(store Store, mailer Mailer) Service {
-			return Service{Store: store, Mailer: mailer}
-		})
-	return effect.ConfigLayer[effect.Unit](described).
+	return effect.ConfigLayer[effect.Unit](Described()).
 		MapError(func(failure effect.ConfigError) Refusal {
 			return Refusal{Because: failure.Error()}
 		})
+}
+
+// Described is everything this program must be told: each component's own
+// description, assembled the same way a component assembles its fields.
+//
+// One description, used by the layer that reads it and by the command that
+// prints it, because those must not be able to disagree.
+func Described() config.Config[Service] {
+	return config.Struct(
+		config.Setting(DescribedStore(),
+			func(service *Service, store Store) { service.Store = store }),
+		config.Setting(DescribedMailer(),
+			func(service *Service, mailer Mailer) { service.Mailer = mailer }),
+	)
 }
 
 // Program is the whole thing: settings read into a layer, and a program that
@@ -116,13 +124,7 @@ func StoreFor(which config.Config[string]) effect.Effect[effect.Unit, Refusal, S
 // deployment that has just been told a value is missing can be shown the whole
 // list without starting anything.
 func Needed() string {
-	described := config.ZipWith(
-		DescribedStore(),
-		DescribedMailer(),
-		func(store Store, mailer Mailer) Service {
-			return Service{Store: store, Mailer: mailer}
-		})
-	return config.Document(described.Expects())
+	return config.Document(Described().Expects())
 }
 
 func limits(held map[string]int) string {

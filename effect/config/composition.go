@@ -32,12 +32,13 @@ func ZipWith[A, B, C any](
 	second Config[B],
 	combine func(A, B) C,
 ) Config[C] {
+	readFirst, readSecond := first.reader(), second.reader()
 	return Config[C]{
 		expects: append(slices.Clone(first.expects), second.expects...),
 		read: func(at reading) (C, Error) {
 			var missing C
-			left, leftFailure := first.read(at)
-			right, rightFailure := second.read(at)
+			left, leftFailure := readFirst(at)
+			right, rightFailure := readSecond(at)
 			if failure := leftFailure.And(rightFailure); !failure.IsEmpty() {
 				return missing, failure
 			}
@@ -56,14 +57,17 @@ func All[A any](descriptions ...Config[A]) Config[[]A] {
 	for _, description := range descriptions {
 		expects = append(expects, description.expects...)
 	}
-	held := slices.Clone(descriptions)
+	held := make([]func(reading) (A, Error), 0, len(descriptions))
+	for _, description := range descriptions {
+		held = append(held, description.reader())
+	}
 	return Config[[]A]{
 		expects: expects,
 		read: func(at reading) ([]A, Error) {
 			values := make([]A, 0, len(held))
 			failure := Error{}
-			for _, description := range held {
-				value, refused := description.read(at)
+			for _, read := range held {
+				value, refused := read(at)
 				failure = failure.And(refused)
 				values = append(values, value)
 			}
@@ -87,7 +91,7 @@ func All[A any](descriptions ...Config[A]) Config[[]A] {
 // source happens to hold -- and the two compose: a table of groups is a Table
 // whose entry is a Nested description.
 func Nested[A any](name string, of Config[A]) Config[A] {
-	held := of.read
+	held := of.reader()
 	return Config[A]{
 		expects: nestedExpectations(name, of.expects),
 		read: func(at reading) (A, Error) {
@@ -105,7 +109,7 @@ func Nested[A any](name string, of Config[A]) Config[A] {
 // unreachable secret store becomes a service that started without its
 // credentials.
 func (description Config[A]) WithDefault(value A) Config[A] {
-	held := description.read
+	held := description.reader()
 	stood := slices.Clone(description.expects)
 	for at := range stood {
 		if stood[at].Default == "" {
@@ -135,8 +139,8 @@ func (description Config[A]) WithDefault(value A) Config[A] {
 // Sources, which puts the whole description over several sources rather than
 // naming two descriptions per value.
 func (description Config[A]) OrElse(that Config[A]) Config[A] {
-	held := description.read
-	other := that.read
+	held := description.reader()
+	other := that.reader()
 	optional := slices.Clone(description.expects)
 	for at := range optional {
 		optional[at].Optional = true
@@ -176,7 +180,7 @@ func Optional[A, B any](
 	supplied func(A) B,
 	absent func() B,
 ) Config[B] {
-	held := of.read
+	held := of.reader()
 	optional := slices.Clone(of.expects)
 	for at := range optional {
 		optional[at].Optional = true
