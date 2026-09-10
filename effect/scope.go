@@ -95,6 +95,30 @@ func (scope Scope) AcquireRelease[R, E, A any](
 // AddFinalizer adapts a conventional Go release function into an infallible release
 // workflow. A non-nil error becomes a defect, which the closing cause preserves
 // rather than silently discarding.
+//
+// Which puts a judgement on the caller, and it is the one most easily missed:
+// a release runs after the work it belongs to has finished, and a fiber's
+// context is cancelled when the fiber finishes -- so for any work that failed
+// or was interrupted, the release runs with a context that is already done.
+// Drivers notice. A rollback answers that the context is done, a cursor's
+// close answers "context canceled", and a release that reported those as
+// errors put a defect beside every typed refusal its work raised. A cause
+// carrying a defect is what a boundary answers as a five hundred, so the
+// refusal a caller was meant to act on never reached them.
+//
+// Such an error is usually the outcome the release wanted rather than its
+// failure: a cancelled context takes the connection with it, so what needed
+// releasing was released before anything asked. Usually and not always, which
+// is why this does not filter them here -- a release that had to reach the
+// network to let go and could not is a real leak, and only the caller knows
+// which of the two it is holding. So: decide, and say which in the release.
+//
+//	effect.AddFinalizer[R](func(context.Context) error {
+//	    if err := held.Close(); err != nil && !alreadyGone(err) {
+//	        return err
+//	    }
+//	    return nil
+//	})
 func AddFinalizer[R any](release func(context.Context) error) Effect[R, Never, Unit] {
 	return From(func(ctx context.Context, _ R) Exit[Never, Unit] {
 		if err := release(ctx); err != nil {

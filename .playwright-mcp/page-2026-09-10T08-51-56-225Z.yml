@@ -1,0 +1,120 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - navigation [ref=e4]:
+      - link "films" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - link "Watchlist" [ref=e6] [cursor=pointer]:
+        - /url: /lists/watchlist
+      - link "Diary" [ref=e7] [cursor=pointer]:
+        - /url: /lists/diary
+      - link "Shelf" [ref=e8] [cursor=pointer]:
+        - /url: /lists/shelf
+      - link "Scan" [ref=e9] [cursor=pointer]:
+        - /url: /scan
+      - button "Sign out" [ref=e15]
+  - main [ref=e13]:
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - textbox "a title" [active] [ref=e18]: heat
+        - button "Search" [ref=e19]
+      - generic [ref=e21]:
+        - link "Heat Heat 1995" [ref=e22] [cursor=pointer]:
+          - /url: /films/949
+          - img "Heat" [ref=e23]
+          - generic [ref=e24]: Heat
+          - generic [ref=e25]: "1995"
+        - link "The Heat The Heat 2013" [ref=e26] [cursor=pointer]:
+          - /url: /films/136795
+          - img "The Heat" [ref=e27]
+          - generic [ref=e28]: The Heat
+          - generic [ref=e29]: "2013"
+        - link "Red Heat Red Heat 1988" [ref=e30] [cursor=pointer]:
+          - /url: /films/9604
+          - img "Red Heat" [ref=e31]
+          - generic [ref=e32]: Red Heat
+          - generic [ref=e33]: "1988"
+        - link "White Heat White Heat 1949" [ref=e34] [cursor=pointer]:
+          - /url: /films/15794
+          - img "White Heat" [ref=e35]
+          - generic [ref=e36]: White Heat
+          - generic [ref=e37]: "1949"
+        - link "Body Heat Body Heat 1981" [ref=e38] [cursor=pointer]:
+          - /url: /films/14412
+          - img "Body Heat" [ref=e39]
+          - generic [ref=e40]: Body Heat
+          - generic [ref=e41]: "1981"
+        - link "City Heat City Heat 1984" [ref=e42] [cursor=pointer]:
+          - /url: /films/16969
+          - img "City Heat" [ref=e43]
+          - generic [ref=e44]: City Heat
+          - generic [ref=e45]: "1984"
+        - link "Caged Heat Caged Heat 1974" [ref=e46] [cursor=pointer]:
+          - /url: /films/39775
+          - img "Caged Heat" [ref=e47]
+          - generic [ref=e48]: Caged Heat
+          - generic [ref=e49]: "1974"
+        - link "Heat 2 Heat 2 0" [ref=e50] [cursor=pointer]:
+          - /url: /films/1047807
+          - img "Heat 2" [ref=e51]
+          - generic [ref=e52]: Heat 2
+          - generic [ref=e53]: "0"
+        - link "Calypso Heat Wave Calypso Heat Wave 1957" [ref=e54] [cursor=pointer]:
+          - /url: /films/211563
+          - img "Calypso Heat Wave" [ref=e55]
+          - generic [ref=e56]: Calypso Heat Wave
+          - generic [ref=e57]: "1957"
+        - link "Prison Heat Prison Heat 1993" [ref=e58] [cursor=pointer]:
+          - /url: /films/83024
+          - img "Prison Heat" [ref=e59]
+          - generic [ref=e60]: Prison Heat
+          - generic [ref=e61]: "1993"
+        - link "The Heat After the Rain The Heat After the Rain 2017" [ref=e62] [cursor=pointer]:
+          - /url: /films/430852
+          - img "The Heat After the Rain" [ref=e63]
+          - generic [ref=e64]: The Heat After the Rain
+          - generic [ref=e65]: "2017"
+        - link "Dead Heat Dead Heat 2002" [ref=e66] [cursor=pointer]:
+          - /url: /films/20053
+          - img "Dead Heat" [ref=e67]
+          - generic [ref=e68]: Dead Heat
+          - generic [ref=e69]: "2002"
+        - link "In the Heat of the Night In the Heat of the Night 1967" [ref=e70] [cursor=pointer]:
+          - /url: /films/10633
+          - img "In the Heat of the Night" [ref=e71]
+          - generic [ref=e72]: In the Heat of the Night
+          - generic [ref=e73]: "1967"
+        - link "Dead Heat Dead Heat 1988" [ref=e74] [cursor=pointer]:
+          - /url: /films/40095
+          - img "Dead Heat" [ref=e75]
+          - generic [ref=e76]: Dead Heat
+          - generic [ref=e77]: "1988"
+        - link "Killer Heat Killer Heat 2024" [ref=e78] [cursor=pointer]:
+          - /url: /films/1108566
+          - img "Killer Heat" [ref=e79]
+          - generic [ref=e80]: Killer Heat
+          - generic [ref=e81]: "2024"
+        - link "Sahara Heat Sahara Heat 1987" [ref=e82] [cursor=pointer]:
+          - /url: /films/327703
+          - img "Sahara Heat" [ref=e83]
+          - generic [ref=e84]: Sahara Heat
+          - generic [ref=e85]: "1987"
+        - link "High Heat High Heat 2022" [ref=e86] [cursor=pointer]:
+          - /url: /films/1015963
+          - img "High Heat" [ref=e87]
+          - generic [ref=e88]: High Heat
+          - generic [ref=e89]: "2022"
+        - link "Downtown Heat Downtown Heat 1994" [ref=e90] [cursor=pointer]:
+          - /url: /films/149652
+          - img "Downtown Heat" [ref=e91]
+          - generic [ref=e92]: Downtown Heat
+          - generic [ref=e93]: "1994"
+        - link "Muscle Heat Muscle Heat 2002" [ref=e94] [cursor=pointer]:
+          - /url: /films/196936
+          - img "Muscle Heat" [ref=e95]
+          - generic [ref=e96]: Muscle Heat
+          - generic [ref=e97]: "2002"
+        - link "Heat Heat 1972" [ref=e98] [cursor=pointer]:
+          - /url: /films/4579
+          - img "Heat" [ref=e99]
+          - generic [ref=e100]: Heat
+          - generic [ref=e101]: "1972"
