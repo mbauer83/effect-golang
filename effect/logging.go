@@ -20,7 +20,7 @@ func Log[R, E any](level slog.Level, message string, fields ...slog.Attr) Effect
 			Timestamp: capabilities.Clock.Now(),
 			Level:     level,
 			Message:   message,
-			Fields:    append(metadata.Attributes, ownedFields...),
+			Fields:    withoutRepeatedKeys(metadata.Attributes, ownedFields),
 			Operation: metadata.Operation,
 			FiberID:   metadata.FiberID,
 			SpanID:    metadata.SpanID,
@@ -54,6 +54,36 @@ func LogDebug[R, E any](message string, fields ...slog.Attr) Effect[R, E, Unit] 
 
 func LogInfo[R, E any](message string, fields ...slog.Attr) Effect[R, E, Unit] {
 	return Log[R, E](slog.LevelInfo, message, fields...)
+}
+
+// withoutRepeatedKeys is the span's inherited attributes plus this record's
+// own, with a key stated twice appearing once.
+//
+// The record's own wins, because it was written about this line while the
+// inherited one was written about everything inside the span -- and where they
+// disagree the nearer one is the one meant. Where they agree, which is the
+// common case, saying it twice is noise a reader has to check is not two
+// different things: "method=GET route=/films method=GET route=/films" was the
+// shape of it.
+//
+// The inherited order is kept, so a reader scanning a stream of records sees
+// the same keys in the same places.
+func withoutRepeatedKeys(inherited []slog.Attr, own []slog.Attr) []slog.Attr {
+	if len(own) == 0 {
+		return inherited
+	}
+	stated := make(map[string]struct{}, len(own))
+	for _, field := range own {
+		stated[field.Key] = struct{}{}
+	}
+	merged := make([]slog.Attr, 0, len(inherited)+len(own))
+	for _, field := range inherited {
+		if _, repeated := stated[field.Key]; repeated {
+			continue
+		}
+		merged = append(merged, field)
+	}
+	return append(merged, own...)
 }
 
 func LogWarn[R, E any](message string, fields ...slog.Attr) Effect[R, E, Unit] {
