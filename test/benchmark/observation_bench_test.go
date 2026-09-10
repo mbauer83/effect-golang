@@ -1,0 +1,60 @@
+package benchmark
+
+// What observation costs when nobody is observing.
+//
+// The claim worth measuring rather than asserting: a program that named no
+// observer should pay a nil check per boundary and nothing else -- no event
+// built, no attributes cloned, no clock read it would not have read anyway.
+
+import (
+	"context"
+	"testing"
+
+	"github.com/mbauer83/effect-golang/effect"
+)
+
+// spanning is a span-heavy workload, which is where observation costs what it
+// costs: the boundaries are the events.
+func spanning(depth int) effect.Effect[effect.Unit, effect.Never, int] {
+	work := effect.Succeed[effect.Unit, effect.Never](0)
+	for at := range depth {
+		named := "stage"
+
+		work = work.
+			Map(func(total int) int { return total + at }).
+			WithSpan(named)
+	}
+	return work
+}
+
+func runSpanning(b *testing.B, runtime *effect.Runtime) {
+	b.Helper()
+	work := spanning(64)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		runtime.Run(context.Background(), effect.Unit{}, work)
+	}
+}
+
+func BenchmarkSixtyFourSpansUnobserved(b *testing.B) {
+	runtime, err := effect.NewRuntime()
+	if err != nil {
+		b.Fatal(err)
+	}
+	runSpanning(b, runtime)
+}
+
+func BenchmarkSixtyFourSpansObserved(b *testing.B) {
+	runtime, err := effect.NewRuntime(effect.WithObserver(counting{}))
+	if err != nil {
+		b.Fatal(err)
+	}
+	runSpanning(b, runtime)
+}
+
+// counting is the cheapest possible observer, so what the comparison shows is
+// the cost of observing at all rather than the cost of one tool.
+type counting struct{}
+
+func (counting) Observe(context.Context, effect.RuntimeEvent) {}
