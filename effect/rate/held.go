@@ -44,7 +44,15 @@ func NewHeld(now func() time.Time) *Held {
 // is spaced -- which is what "forty a minute" means to whoever is being asked
 // forty times -- and a spent allowance comes back one turn at a time rather
 // than all at once on a window boundary.
-func (limiter *Held) Turn(_ context.Context, allowance Allowance) (time.Duration, error) {
+//
+// The ceiling is checked before the moment is moved along, under the same
+// lock, so a caller that will not wait leaves the allowance exactly as it
+// found it.
+func (limiter *Held) Turn(
+	_ context.Context,
+	allowance Allowance,
+	longest time.Duration,
+) (time.Duration, error) {
 	if !allowance.IsStated() {
 		return 0, Fault{Allowance: allowance.Name, Err: ErrUnstated}
 	}
@@ -59,9 +67,12 @@ func (limiter *Held) Turn(_ context.Context, allowance Allowance) (time.Duration
 	}
 	tolerance := time.Duration(allowance.Most-1) * spacing
 	wait := arriving.Add(-tolerance).Sub(now)
-	limiter.arriving[allowance.Name] = arriving.Add(spacing)
 	if wait < 0 {
-		return 0, nil
+		wait = 0
 	}
+	if longest > 0 && wait > longest {
+		return wait, Fault{Allowance: allowance.Name, Err: ErrQueued}
+	}
+	limiter.arriving[allowance.Name] = arriving.Add(spacing)
 	return wait, nil
 }

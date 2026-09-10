@@ -47,19 +47,35 @@ func (allowance Allowance) Spacing() time.Duration {
 // Limiter hands out turns.
 //
 // One method, because there is one question, and it is asked in the plainest
-// shape an adapter can implement: context, a duration, an error. Everything
-// about waiting for the turn is in Waiting, which is the only thing in this
-// package that knows about effects.
+// shape an adapter can implement: context, two durations, an error.
+// Everything about waiting for the turn is in Waiting, which is the only
+// thing in this package that knows about effects.
 type Limiter interface {
 	// Turn reserves the next turn under an allowance and says how long until
 	// it: nothing when there is room now, and the wait until the reserved
 	// moment when there is not.
 	//
+	// It reserves nothing and answers ErrQueued when the turn would be later
+	// than longest, and that decision is here rather than in the caller
+	// because it cannot be made anywhere else: a caller that asked for a turn
+	// and then declined to wait for it would have spent an allowance on a
+	// request it never made, and would have pushed back every caller behind
+	// it. Deciding and reserving have to be one operation, and only the
+	// limiter can make them one. A longest of zero or less has no ceiling and
+	// always reserves.
+	//
 	// It returns the wait rather than performing it so that the waiting
 	// happens in the interpretation, where the runtime's clock and its
 	// cancellation are: a caller abandoned while waiting for its turn is
 	// abandoned, and a test can move time rather than spend it.
-	Turn(ctx context.Context, allowance Allowance) (time.Duration, error)
+	//
+	// The wait is reported either way, so a caller refused a turn can say how
+	// long the queue was rather than only that there was one.
+	Turn(
+		ctx context.Context,
+		allowance Allowance,
+		longest time.Duration,
+	) (time.Duration, error)
 }
 
 // Fault is why a limiter could not hand out a turn.

@@ -23,10 +23,17 @@ var (
 // AwaitTurn is this program's turn, waited for.
 //
 // The whole of what a caller wants: reserve a moment, and be interpreted at
-// it. Failing rather than sleeping when the queue is longer than the caller
-// will wait, because a request that would wait four minutes for its turn is
-// one whose caller has long since gone, and a refusal somebody can be shown
-// beats a page that never arrives.
+// it. The limiter refuses rather than reserving when the queue is longer than
+// the caller will wait, because a request that would wait four minutes for
+// its turn is one whose caller has long since gone -- and a refusal somebody
+// can be shown beats a page that never arrives.
+//
+// Which makes longest more than a patience: it is how much of somebody else's
+// allowance this caller is entitled to queue for. Work that states a small
+// one takes only the room that happens to be free and never pushes back work
+// that states a large one, so speculative reading cannot starve the reading
+// somebody is waiting on. The two are the same allowance, counted once, and
+// no priority scheme is needed to keep them apart.
 func AwaitTurn[R any](
 	limiter Limiter,
 	allowance Allowance,
@@ -35,18 +42,12 @@ func AwaitTurn[R any](
 	if !allowance.IsStated() {
 		return effect.Fail[R, effect.Unit](Fault{Allowance: allowance.Name, Err: ErrUnstated})
 	}
-	return reserveTurn[R](limiter, allowance).
+	return reserveTurn[R](limiter, allowance, longest).
 		FlatMap(func(wait time.Duration) effect.Effect[R, Fault, effect.Unit] {
-			switch {
-			case wait <= 0:
+			if wait <= 0 {
 				return effect.Succeed[R, Fault](effect.Unit{})
-			case longest > 0 && wait > longest:
-				return effect.Fail[R, effect.Unit](Fault{
-					Allowance: allowance.Name, Err: ErrQueued,
-				})
-			default:
-				return effect.Sleep[R, Fault](wait)
 			}
+			return effect.Sleep[R, Fault](wait)
 		}).
 		Named("rate wait")
 }
@@ -56,10 +57,14 @@ func AwaitTurn[R any](
 // Exported nowhere, because a caller that took a turn and did not wait for it
 // would have spent an allowance it then exceeded. Waiting is the only way to
 // take one.
-func reserveTurn[R any](limiter Limiter, allowance Allowance) effect.Effect[R, Fault, time.Duration] {
+func reserveTurn[R any](
+	limiter Limiter,
+	allowance Allowance,
+	longest time.Duration,
+) effect.Effect[R, Fault, time.Duration] {
 	return effect.Try(
 		func(ctx context.Context, _ R) (time.Duration, error) {
-			return limiter.Turn(ctx, allowance)
+			return limiter.Turn(ctx, allowance, longest)
 		},
 		func(err error) Fault {
 			var already Fault

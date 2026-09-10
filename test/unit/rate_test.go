@@ -17,9 +17,11 @@ func thrice() rate.Allowance {
 	return rate.Allowance{Name: "a service", Most: 3, Every: 3 * time.Second}
 }
 
+// turned is a turn taken with no ceiling, which is what every test that is
+// not about the ceiling wants.
 func turned(t *testing.T, limiter rate.Limiter, allowance rate.Allowance) time.Duration {
 	t.Helper()
-	wait, err := limiter.Turn(context.Background(), allowance)
+	wait, err := limiter.Turn(context.Background(), allowance, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,9 +88,64 @@ func TestTwoAllowancesAreCountedApart(t *testing.T) {
 func TestAnUnstatedAllowanceIsRefusedRatherThanTreatedAsUnlimited(t *testing.T) {
 	limiter := rate.NewHeld(ticking().now)
 
-	_, err := limiter.Turn(context.Background(), rate.Allowance{Name: "a service"})
+	_, err := limiter.Turn(context.Background(), rate.Allowance{Name: "a service"}, 0)
 
 	if !errors.Is(err, rate.ErrUnstated) {
 		t.Fatalf("expected an unstated allowance to be refused, got %v", err)
+	}
+}
+
+func TestATurnRefusedForBeingTooFarOffLeavesTheAllowanceAlone(t *testing.T) {
+	// The reason the ceiling is the limiter's decision and not its caller's.
+	// A caller that asked for a turn and then declined to wait for it would
+	// have spent an allowance on a request it never made -- and, worse, moved
+	// every caller behind it one spacing further back. Somebody else's
+	// allowance is not this program's to burn on requests it abandons.
+	limiter := rate.NewHeld(ticking().now)
+	allowance := thrice()
+	for range 3 {
+		_ = turned(t, limiter, allowance)
+	}
+
+	// The next turn is one spacing off, and this caller will not wait at all.
+	wait, err := limiter.Turn(context.Background(), allowance, time.Millisecond)
+	if !errors.Is(err, rate.ErrQueued) {
+		t.Fatalf("expected the turn refused as queued, got %v", err)
+	}
+	if wait != time.Second {
+		t.Fatalf("expected the queue reported as one spacing, got %v", wait)
+	}
+
+	// So a caller that will wait is still only one spacing off, not two.
+	if waited := turned(t, limiter, allowance); waited != time.Second {
+		t.Fatalf("the refused turn spent an allowance: a patient caller now waits %v "+
+			"rather than the one spacing it should", waited)
+	}
+}
+
+func TestSpeculativeReadingTakesOnlyTheRoomThatIsFree(t *testing.T) {
+	// What keeps a search's backfill from starving the page somebody is
+	// looking at. Both state the same allowance; they differ only in how long
+	// each will queue for it, and that is enough: the speculative one takes
+	// the burst while it is free and is refused the moment there is a queue,
+	// leaving every spaced turn for whoever said they would wait.
+	limiter := rate.NewHeld(ticking().now)
+	allowance := thrice()
+	const speculative = 10 * time.Millisecond
+
+	// The burst is free, so speculative work is served from it.
+	for range 3 {
+		if _, err := limiter.Turn(context.Background(), allowance, speculative); err != nil {
+			t.Fatalf("expected the free burst served, got %v", err)
+		}
+	}
+	// Past the burst it yields rather than queueing.
+	if _, err := limiter.Turn(context.Background(), allowance, speculative); !errors.Is(err, rate.ErrQueued) {
+		t.Fatalf("expected speculative work to yield past the burst, got %v", err)
+	}
+	// And the work somebody is waiting on is exactly one spacing off, which is
+	// where it would have been had the speculative caller never asked.
+	if waited := turned(t, limiter, allowance); waited != time.Second {
+		t.Fatalf("expected the interactive turn undelayed at one spacing, got %v", waited)
 	}
 }
