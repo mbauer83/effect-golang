@@ -65,8 +65,89 @@ type Cause struct {
 	Failure      any
 	Defect       Defect
 	Interruption Interruption
+	Raised       Raised
 	Left         *Cause
 	Right        *Cause
+}
+
+// Raised is where a failure came from.
+//
+// A typed failure carries no stack, deliberately: it is an expected outcome
+// and not a crash, so paying for a stack at every one would be paying for a
+// crash report at every 404. What it needs instead is the two things a reader
+// actually asks -- which line produced this, and what was going on at the
+// time -- and both are one string each.
+type Raised struct {
+	// Source is the file and line that produced the failure.
+	Source string
+	// Operation is the innermost named span it was produced inside, which is
+	// what says which request or which stage rather than which line.
+	Operation string
+}
+
+// IsKnown reports whether anything is known about where a failure came from.
+func (raised Raised) IsKnown() bool {
+	return raised.Source != "" || raised.Operation != ""
+}
+
+// String renders where a failure came from, for a reader who wants to open it.
+func (raised Raised) String() string {
+	switch {
+	case raised.Source != "" && raised.Operation != "":
+		return raised.Source + " in " + raised.Operation
+	case raised.Source != "":
+		return raised.Source
+	default:
+		return raised.Operation
+	}
+}
+
+// RaisedAt is this cause with where it came from recorded, on the leaves that
+// do not have it yet.
+//
+// Only where it is missing, because a failure is raised once and travels: a
+// boundary that translated a store's fault into the domain's did not move the
+// line it happened on, and overwriting it with the line of the translation
+// would point a reader at the adapter instead of at the cause.
+func (c Cause) RaisedAt(raised Raised) Cause {
+	if !raised.IsKnown() {
+		return c
+	}
+	switch c.Kind {
+	case CauseEmpty:
+		return c
+	case CauseThen, CauseBoth:
+		composed := c
+		if c.Left != nil {
+			left := c.Left.RaisedAt(raised)
+			composed.Left = &left
+		}
+		if c.Right != nil {
+			right := c.Right.RaisedAt(raised)
+			composed.Right = &right
+		}
+		return composed
+	default:
+		c.Raised = c.Raised.filledFrom(raised)
+		return c
+	}
+}
+
+// filledFrom is this with whatever it does not know taken from that.
+//
+// Field by field rather than all or nothing, because the two halves are
+// learned in different places: the line is known where the failure is written
+// and the span only when it is run. An all-or-nothing merge meant whichever
+// was recorded first shut the other out -- and since the line is recorded
+// first, every failure ended up with a line and no span.
+func (raised Raised) filledFrom(other Raised) Raised {
+	if raised.Source == "" {
+		raised.Source = other.Source
+	}
+	if raised.Operation == "" {
+		raised.Operation = other.Operation
+	}
+	return raised
 }
 
 // FailCause constructs an expected typed failure.

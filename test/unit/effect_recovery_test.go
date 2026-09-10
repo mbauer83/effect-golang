@@ -3,6 +3,7 @@ package unit
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -94,7 +95,11 @@ func TestFoldEliminatesBothChannelsAndKeepsHandlerPanicsAsDefects(t *testing.T) 
 		func(value int) string { return "succeeded" },
 	)
 	exit := effect.Run(context.Background(), effect.Unit{}, summary)
-	if value, ok := exit.Value(); !ok || value != "failed: Fail(rejected)" {
+	// The handler saw the cause, which is what this states. A cause also says
+	// where it was raised, so what is asserted is that the failure reached
+	// the handler rather than how a cause renders.
+	value, ok := exit.Value()
+	if !ok || !strings.HasPrefix(value, "failed: Fail(rejected)") {
 		t.Fatalf("unexpected exit: %v", exit)
 	}
 

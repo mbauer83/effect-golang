@@ -130,7 +130,13 @@ func (machine *interpreter) settle(node Node) outcome.Exit {
 	case *Succeed:
 		return outcome.Success(instruction.Value)
 	case *Fail:
-		return outcome.Failure(instruction.Cause)
+		// Stamped here because only the interpreter knows what was going on:
+		// a failure records its line where it is written and the span it was
+		// inside where it is run, and the second is what says which request
+		// or which stage rather than which line.
+		return outcome.Failure(instruction.Cause.RaisedAt(outcome.Raised{
+			Operation: machine.state.Metadata().Operation,
+		}))
 	case *Eval:
 		return evaluatedLeaf(instruction, machine.interpretation())
 	default:

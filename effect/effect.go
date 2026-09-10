@@ -2,6 +2,7 @@ package effect
 
 import (
 	"context"
+	"github.com/mbauer83/effect-golang/effect/internal/outcome"
 
 	runtimecore "github.com/mbauer83/effect-golang/effect/internal/runtime"
 )
@@ -42,7 +43,9 @@ func Succeed[R, E, A any](value A) Effect[R, E, A] {
 
 // Fail constructs an Effect that fails with an expected typed error.
 func Fail[R, A, E any](failure E) Effect[R, E, A] {
-	return FailWithCause[R, A](FailCause(failure))
+	return FailWithCause[R, A](Cause[E]{
+		node: outcome.FailCause(failure).RaisedAt(outcome.Raised{Source: callSite(2)}),
+	})
 }
 
 // FailWithCause constructs an Effect that terminates with a complete cause. It

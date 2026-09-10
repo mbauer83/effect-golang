@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/mbauer83/effect-golang/effect"
@@ -53,9 +54,16 @@ func TestOnExitObservesTheOutcomeBeingFinalized(t *testing.T) {
 	)
 
 	effect.Run(context.Background(), effect.Unit{}, program)
-	want := []string{"rollback Failure(Fail(rejected))"}
-	if got := tracker.Events(); !reflect.DeepEqual(got, want) {
-		t.Fatalf("expected the observed outcome,\nwant %v\ngot  %v", want, got)
+	// What is being stated is that the finaliser saw the outcome, not how a
+	// cause renders -- a cause says where it was raised as well as what
+	// happened, and pinning the whole string would make this a test of the
+	// rendering.
+	got := tracker.Events()
+	if len(got) != 1 {
+		t.Fatalf("expected one observed outcome, got %v", got)
+	}
+	if !strings.HasPrefix(got[0], "rollback Failure(Fail(rejected)") {
+		t.Fatalf("expected the observed outcome, got %q", got[0])
 	}
 }
 

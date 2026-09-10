@@ -91,12 +91,25 @@ func renderLeaf[E any](leaf Cause[E], depth int, includeStacks bool) []renderedL
 
 func renderLeafText[E any](leaf Cause[E]) string {
 	if failure, ok := leaf.Failure(); ok {
-		return fmt.Sprintf("%s(%v)", CauseFailure, failure)
+		return fmt.Sprintf("%s(%v)%s", CauseFailure, failure, renderRaised(leaf))
 	}
 	if interruption, ok := leaf.Interruption(); ok {
-		return fmt.Sprintf("%s(%v)", CauseInterrupted, interruption.Cause)
+		return fmt.Sprintf("%s(%v)%s", CauseInterrupted, interruption.Cause, renderRaised(leaf))
 	}
 	return leaf.Kind().String()
+}
+
+// renderRaised is where a failure came from, appended to it.
+//
+// On the same line as the failure, because the two are read together: a reader
+// asking what went wrong is about to ask where, and a rendering that made them
+// look up the second somewhere else would be a rendering nobody uses.
+func renderRaised[E any](leaf Cause[E]) string {
+	raised := leaf.Raised()
+	if !raised.IsKnown() {
+		return ""
+	}
+	return " at " + raised.String()
 }
 
 func renderDefect(defect Defect, depth int, includeStacks bool) []renderedLine {

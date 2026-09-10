@@ -1,6 +1,10 @@
 package effect
 
-import "context"
+import (
+	"context"
+
+	"github.com/mbauer83/effect-golang/effect/internal/outcome"
+)
 
 // Operations carries an effect program's R and E channels so standard
 // capability constructors inherit them without repeated type arguments.
@@ -31,7 +35,12 @@ func (Operations[R, E]) Succeed[A any](value A) Effect[R, E, A] {
 // Fail constructs a typed failure in these channels. A remains explicit
 // because a failure value provides no successful value from which Go can infer it.
 func (Operations[R, E]) Fail[A any](failure E) Effect[R, E, A] {
-	return Fail[R, A](failure)
+	// The site recorded is this method's caller and not this method, so a
+	// cause read afterwards names the line somebody wrote rather than a line
+	// in the framework.
+	return FailWithCause[R, A](Cause[E]{
+		node: outcome.FailCause(failure).RaisedAt(outcome.Raised{Source: callSite(2)}),
+	})
 }
 
 // Try adapts a conventional Go evaluator using these channels.

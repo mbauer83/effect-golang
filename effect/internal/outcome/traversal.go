@@ -92,16 +92,56 @@ func VisitCause(root Cause, visit func(Cause) bool) {
 	}
 }
 
-// MapCauseFailure rewrites every typed failure while preserving cause structure.
+// MapCauseFailure rewrites every typed failure while preserving cause
+// structure and where each failure was raised.
+//
+// Written as its own walk rather than through FoldCause, because a fold hands
+// its handler the failure and nothing else -- and where a failure came from is
+// the one thing a translation must not invent. A store's fault becoming the
+// domain's at a boundary did not move the line it happened on, and a reader
+// sent to the line of the translation is sent to the adapter instead of to the
+// cause.
 func MapCauseFailure(root Cause, transform func(any) any) Cause {
-	return FoldCause(root, CauseFolder[Cause]{
-		Empty:        func() Cause { return Cause{} },
-		Failure:      func(failure any) Cause { return FailCause(transform(failure)) },
-		Defect:       DieCause,
-		Interruption: func(interruption Interruption) Cause { return InterruptCause(interruption.Cause) },
-		Then:         Cause.Then,
-		Both:         Cause.Both,
-	})
+	switch root.Kind {
+	case CauseEmpty:
+		return Cause{}
+	case CauseFailure:
+		mapped := FailCause(transform(root.Failure))
+		mapped.Raised = root.Raised
+		return mapped
+	case CauseDefect:
+		return DieCause(root.Defect)
+	case CauseInterrupted:
+		interrupted := InterruptCause(root.Interruption.Cause)
+		interrupted.Raised = root.Raised
+		return interrupted
+	default:
+		return composedLike(root,
+			MapCauseFailure(leftOf(root), transform),
+			MapCauseFailure(rightOf(root), transform))
+	}
+}
+
+// composedLike is two causes composed the way this one was.
+func composedLike(root Cause, left Cause, right Cause) Cause {
+	if root.Kind == CauseBoth {
+		return left.Both(right)
+	}
+	return left.Then(right)
+}
+
+func leftOf(root Cause) Cause {
+	if root.Left == nil {
+		return Cause{}
+	}
+	return *root.Left
+}
+
+func rightOf(root Cause) Cause {
+	if root.Right == nil {
+		return Cause{}
+	}
+	return *root.Right
 }
 
 // FailuresAsDefects rewrites every typed failure as a defect while preserving

@@ -7,6 +7,9 @@ import (
 // CauseKind identifies one node in a compositional effect failure.
 type CauseKind = outcome.CauseKind
 
+// Raised is where a failure came from.
+type Raised = outcome.Raised
+
 const (
 	// CauseEmpty is the identity for sequential and parallel composition.
 	CauseEmpty = outcome.CauseEmpty
@@ -65,6 +68,15 @@ func (c Cause[E]) Then(that Cause[E]) Cause[E] {
 // Both composes independent concurrent causes. The empty cause is an identity.
 func (c Cause[E]) Both(that Cause[E]) Cause[E] {
 	return Cause[E]{node: c.node.Both(that.node)}
+}
+
+// Raised is where this failure came from: the line that produced it and the
+// span it was produced inside.
+//
+// Empty for a composite, whose leaves each have their own, and for a defect,
+// which carries a stack instead.
+func (c Cause[E]) Raised() Raised {
+	return c.node.Raised
 }
 
 // Kind returns the node category.
