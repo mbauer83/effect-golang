@@ -51,6 +51,16 @@ func (Operations[R, E]) Try[A any](
 	return Try(eval, mapError)
 }
 
+// Environment is the requirements an effect in these channels was given.
+func (Operations[R, E]) Environment() Effect[R, E, R] {
+	return Environment[R, E]()
+}
+
+// EnvironmentWith is one thing read out of those requirements.
+func (Operations[R, E]) EnvironmentWith[A any](read func(R) A) Effect[R, E, A] {
+	return EnvironmentWith[R, E](read)
+}
+
 // Do starts a typed workflow using these channels.
 func (Operations[R, E]) Do[S any](factory func() S) Workflow[R, E, S] {
 	return NewWorkflow[R, E](factory)
