@@ -31,7 +31,38 @@ re-read this document and audit the change against it.
 - Keep cognitive and cyclomatic complexity bounded; 15 is a review heuristic,
   not a mechanical target.
 - Use expressive, role-oriented names that describe solution behavior without
-  leaking implementation mechanics.
+  leaking implementation mechanics. See Naming.
+
+## Naming
+
+The rule that decides cases: **name a thing for what it is, not for how it
+came to be.** A function that answers with a value is named for the value. Only
+a command -- something called for its effect, answering with nothing -- may be
+named with a verb.
+
+- A set of dependencies is named by the services in it, in the vocabulary a
+  consumer uses to ask for them. `Repositories`, `ProviderGateways`, `Caches`.
+  If no noun names the group, the grouping is wrong: split it until each part
+  has a name.
+- Never name a value for the act of obtaining it, or for where it came from.
+  `ownRecords`, `readFromOthers`, `keptForAWhile` and `Everything` all describe
+  a provenance or a duration where a service name belongs -- and a consumer
+  asking for a `catalog.Repository` cannot tell which of them has it.
+- Vernacular circumlocution is the tell. `ForAWhile`, `FromOthers`, `Own`,
+  `Everything`, `Stuff`, `Data`, `Info`, `Manager`, `Helper` say nothing a
+  reader could not have guessed, and they read as prose rather than as
+  vocabulary.
+- No gerunds or participles for functions. A gerund names an activity, and a
+  function that answers with a `ScannedDisc` is not an activity. `Tracking`,
+  `LogViewing` and `isRated` are fine: the first is a noun this domain has,
+  the second is a command, the third is a predicate.
+- Established pattern names -- Repository, Gateway, Policy, Cache, ReadModel --
+  are earned suffixes and not decoration. Use one when the thing is one.
+
+This is not lintable and was measured not to be: this repository has around
+forty legitimate identifiers ending in `-ing` or `-ed`, so a lexical check
+would produce more false positives than findings. The rule binds by being
+read before the name is chosen.
 
 ## Types and correctness
 
