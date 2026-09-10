@@ -43,12 +43,18 @@ func (wanted Wanted) String() string {
 // Every one of them rather than the first, because a deployment missing three
 // dependencies wants to be told three times: reporting one sends whoever is
 // wiring it round the loop three times.
+//
+// Once each, though. Several rings asking for the same dependency is the
+// normal case -- four of them want a shelf -- and a report naming it four
+// times reads as four problems.
 func Complete(services Services, wanted ...Wanted) error {
 	absent := []string{}
+	named := map[reflect.Type]bool{}
 	for _, want := range wanted {
-		if want.named == nil {
+		if want.named == nil || named[want.named] {
 			continue
 		}
+		named[want.named] = true
 		if _, present := services.held[want.named]; !present {
 			absent = append(absent, want.String())
 		}

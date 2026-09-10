@@ -106,3 +106,24 @@ func (missing Missing) Error() string {
 func missingOf[A any](services Services) Missing {
 	return Missing{Wanted: reflect.TypeFor[A]().String(), Given: services.Named()}
 }
+
+// WithAll is this environment and every dependency another one holds.
+//
+// The other one wins a collision, because it is the later word: a group built
+// over an environment that already held a cache was given that cache and
+// answered with its own, which is a group replacing what it was handed rather
+// than an ambiguity.
+//
+// What makes composing groups of dependencies free of shape: two sets of them
+// are one set, so composing two groups is this at every arity, with nothing
+// to project through and no order to preserve.
+func (services Services) WithAll(other Services) Services {
+	held := make(map[reflect.Type]any, len(services.held)+len(other.held))
+	for named, existing := range services.held {
+		held[named] = existing
+	}
+	for named, existing := range other.held {
+		held[named] = existing
+	}
+	return Services{held: held}
+}
