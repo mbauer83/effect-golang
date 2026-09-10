@@ -49,8 +49,37 @@ func (Operations[R, E]) Do[S any](factory func() S) Workflow[R, E, S] {
 
 // WidenError retypes an infallible effect into these channels, which is how a
 // fiber observation or a cleanup workflow composes with failing work.
+//
+// Reach for it last. An operation obtained through this handle already has
+// these channels and needs no widening -- Now is the one most often widened
+// unnecessarily, and a helper of your own that folds its failures away is
+// better declared over its caller's channels than over Never and widened at
+// every use. What is left after that is what this is for: an effect from
+// somewhere that genuinely only produces Never.
 func (Operations[R, E]) WidenError[A any](fx Effect[R, Never, A]) Effect[R, E, A] {
 	return WidenError[E](fx)
+}
+
+// Fold eliminates an effect's failure and success channels into one success
+// value, in these channels.
+//
+// The package function reports Never, because a fold cannot fail -- which is
+// true and, at a call site inside failing work, means every use of it was
+// followed by a widen. This is the same fold reported in the channels the
+// surrounding work already has, so the composition reads as one step:
+//
+//	operations.Fold(reading, whyNothing, whatWasRead).
+//	    FlatMap(func(found kept) answer.Of[Page] { … })
+//
+// It cannot produce a failure of E any more than the package function can. The
+// channel is what the composition is written in, not a claim that this might
+// fail.
+func (Operations[R, E]) Fold[A, B any](
+	fx Effect[R, E, A],
+	failure func(Cause[E]) B,
+	success func(A) B,
+) Effect[R, E, B] {
+	return WidenError[E](Fold(fx, failure, success))
 }
 
 // Suspend defers construction until interpretation using these channels, so a
