@@ -47,3 +47,23 @@ func EnvironmentWith[R, E, A any](read func(R) A) Effect[R, E, A] {
 		return ExitSuccess[E](read(environment))
 	})
 }
+
+// Anywhere is an effect that requires nothing, run where something is
+// required.
+//
+//	direct.Bind(bind, effect.Anywhere[Services](catalog.Resolve(kept, source, id)))
+//
+// A domain that requires nothing is the point of the requirement channel: it
+// says, in the type, that resolving a film needs a repository and a source
+// and no ambient anything. But composing one with an application step that
+// does have requirements means the two disagree about R, and the disagreement
+// is not a real one -- an effect needing nothing runs in any environment,
+// including the one that has ten dependencies in it.
+//
+// So this is the widening, named once. Without it every junction between a
+// domain effect and an application effect spells out a function discarding an
+// environment, which is ceremony that says nothing a reader did not already
+// know, and which each program was writing for itself.
+func Anywhere[R, E, A any](fx Effect[Unit, E, A]) Effect[R, E, A] {
+	return fx.ContramapEnv(func(R) Unit { return Unit{} })
+}
