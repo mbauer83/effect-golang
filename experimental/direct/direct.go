@@ -134,3 +134,27 @@ func settle[E, A any](state *progress[E], returned effect.Exit[E, A], recovered 
 		return returned
 	}
 }
+
+// Fail abandons the body with this failure.
+//
+// A guard clause. Every judgement a step makes has this shape -- the aggregate
+// refused, so there is nothing to write and nothing to answer with -- and
+// without it the refusal has to be bound as an effect whose success type is
+// the one the body returns:
+//
+//	return Bind(bind, effect.Fail[Services, Tracking](refused))   // before
+//	Fail(bind, refused)                                           // after
+//
+// The difference is not the line count. The first names a type the failure
+// does not have, which reads as though the failing branch produced a tracking,
+// and it can only appear where the body returns rather than where the
+// judgement was made.
+//
+// It does not return: like a bound failure, it unwinds to the enclosing Run.
+func Fail[R, E any](binder *Binder[R, E], failure E) {
+	Bind(binder, effect.Fail[R, never](failure))
+}
+
+// never is the success type of an effect that has none. Unexported and
+// uninhabited, so the only thing Fail can do is fail.
+type never struct{ _ [0]func() }
