@@ -61,11 +61,6 @@ func (Operations[R, E]) EnvironmentWith[A any](read func(R) A) Effect[R, E, A] {
 	return EnvironmentWith[R, E](read)
 }
 
-// Do starts a typed workflow using these channels.
-func (Operations[R, E]) Do[S any](factory func() S) Workflow[R, E, S] {
-	return NewWorkflow[R, E](factory)
-}
-
 // WidenError retypes an infallible effect into these channels, which is how a
 // fiber observation or a cleanup workflow composes with failing work.
 //

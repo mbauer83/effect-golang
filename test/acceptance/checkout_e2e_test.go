@@ -131,14 +131,14 @@ func TestBothCheckoutStylesProduceIdenticalOutcomes(t *testing.T) {
 	}
 
 	for name, input := range cases {
-		builder := effect.Run(context.Background(), catalog(),
-			checkout.Program(input.customer, input.items))
 		direct := effect.Run(context.Background(), catalog(),
-			checkout.DirectProgram(input.customer, input.items))
+			checkout.Program(input.customer, input.items))
+		chained := effect.Run(context.Background(), catalog(),
+			checkout.ChainedProgram(input.customer, input.items))
 
-		if builder.String() != direct.String() {
-			t.Fatalf("%s: the styles disagree\n  workflow: %s\n  direct:   %s",
-				name, builder, direct)
+		if direct.String() != chained.String() {
+			t.Fatalf("%s: the styles disagree\n  direct:  %s\n  chained: %s",
+				name, direct, chained)
 		}
 	}
 }

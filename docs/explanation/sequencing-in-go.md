@@ -45,20 +45,18 @@ pre-widened fiber and channel operations whose own failure channel is `Never`.
 
 ## Then flatten the layout
 
-`Workflow` packages successive `FlatMap` steps around one caller-declared state
-type. It is the closest Go analogue to Effect's non-generator `Do`/`bind`:
-TypeScript can grow a structural record after every bind, Go cannot, so one
-explicit state type carries the whole workflow.
+Effect's non-generator `Do`/`bind` has an analogue Go can express: successive
+`FlatMap` steps around one caller-declared state type, with a transition after
+each bind to write the step's value into it. TypeScript can grow a structural
+record after every bind; Go cannot, so the state type is declared up front and
+every step costs two lambdas — one to compute the effect from the state, one to
+put the value back.
 
-It is a convenience over the core algebra, not a runtime mode. Failures,
-defects, cancellation and stack-safety behave identically. The state factory
-runs once per interpretation, so a retry or a concurrent run never inherits
-another run's partial state. See the
-[checkout example](../../examples/checkout/program.go).
-
-It trades indentation for an explicit state struct. That is a good trade for a
-workflow with several cross-step dependencies and a poor one for a two-step
-composition.
+This library had that builder, as `Workflow`, and retired it. Two lambdas per
+step is too much ceremony to be expressive, and direct style removes the state
+type altogether: each `Await` returns the value the next line uses. What the
+builder offered over direct style was that it needed no goroutine, and the
+rewrite described below takes that away from it too.
 
 ## Direct style, and what it actually costs
 
@@ -83,13 +81,12 @@ difference is soundness, not taste:
 
 ### What it measures
 
-Three-step dependent workflow, same steps, three styles
+Three-step dependent workflow, same steps, two styles
 (`test/benchmark`, Go 1.27.1, i7-13700H, 20 threads):
 
 | Style | Success | Failure |
 |---|---|---|
 | `FlatMap` | 460 ns, 10 allocs | 990 ns, 14 allocs |
-| `Workflow` | 870 ns, 24 allocs | 1420 ns, 23 allocs |
 | `direct` | 1900 ns, 13 allocs | 5400 ns, 18 allocs |
 
 The steps are `Succeed`, so these numbers are almost all framework overhead.
@@ -119,11 +116,7 @@ in a `for` loop inside one body.
 The recommendation is direct style for a dependent sequence. The cost is real
 and small: a microsecond or two per run is noise against a query, a file or a
 request, and it is not paid per step. Where it is not noise — an effect run per
-element of a hot stream — write `FlatMap`, which is what the other two compile
-down to anyway.
-
-`Workflow` remains for now. Its two lambdas per step are the price of an
-explicit state type, which is the thing direct style removes.
+element of a hot stream — build with `effectgo`, below, or write `FlatMap`.
 
 ## Where a source generator belongs
 

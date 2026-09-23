@@ -36,49 +36,11 @@ forms have a `Never` failure channel.
 In dense application code an import alias such as `fx` is fine. Dot imports are
 not recommended: losing symbol provenance is a poor trade for a short qualifier.
 
-## Then flatten the layout
+## Then write it in direct style
 
-When several later steps genuinely depend on several earlier values, an explicit
-state type keeps the source flat:
-
-```go
-type state struct {
-    customer Customer
-    basket   Basket
-    quote    Quote
-}
-
-program := operations.Do(func() state { return state{} }).
-    Bind(
-        func(state) workflowEffect[Customer] { return loadCustomer(id) },
-        func(current state, customer Customer) state {
-            current.customer = customer
-            return current
-        },
-    ).
-    Bind(
-        func(current state) workflowEffect[Basket] { return loadBasket(current.customer) },
-        func(current state, basket Basket) state {
-            current.basket = basket
-            return current
-        },
-    ).
-    Yield(func(current state) Quote { return current.quote })
-```
-
-`Bind` is typed `FlatMap` plus a state transition, so failures, defects,
-cancellation and stack safety are identical to the core operators. The state
-factory runs once **per interpretation**, so a retry or a concurrent run never
-inherits another run's partial state.
-
-Return a new state value rather than mutating shared data. A state value can
-still hold pointers, slices or maps; the builder is sequential and does not
-synchronize what those refer to.
-
-## Or drop the state type
-
-`experimental/direct` writes the same workflow without a state type, because
-each `Await` returns the value the next line uses:
+When several later steps genuinely depend on several earlier values, write the
+sequence as ordinary Go. `experimental/direct` does that, because each `Await`
+returns the value the next line uses:
 
 ```go
 program := direct.Run(func(do *direct.Do[Env, AppError]) Quote {
@@ -94,23 +56,26 @@ program := direct.Run(func(do *direct.Do[Env, AppError]) Quote {
 A failing `Await` ends the rest of the body, and the failure, defect or
 interruption reaches the effect unchanged. A `defer` in the body runs on that
 failure as on a success, and a `recover()` cannot swallow it. Everything else
-behaves as the core operators do: the effect stays lazy, one value is reusable,
-cancellation is observed, and an awaited effect sees the surrounding runtime and
-scope.
+behaves as the core operators do: the effect stays lazy, the body runs afresh
+for each interpretation so a retry or a concurrent run never inherits another
+run's partial state, cancellation is observed, and an awaited effect sees the
+surrounding runtime and scope.
 
 Loop with `for` inside one body rather than recursing through `Run`: each
 running body holds a goroutine.
 
-[`examples/checkout`](../../examples/checkout/program.go) is written both ways,
-and an end-to-end test asserts they agree on every path. The exact semantics are
-in the [direct style reference](../reference/direct.md).
+[`examples/checkout`](../../examples/checkout/program.go) is written this way
+and once more as the `FlatMap` chain it describes, and an end-to-end test
+asserts the two agree on every path. The exact semantics are in the
+[direct style reference](../reference/direct.md).
 
 ## Know when not to use it
 
-The builder trades indentation for an explicit state struct and transitions.
-That is a good trade for a workflow with several cross-step dependencies and a
-poor one for a two-step composition — use `FlatMap` or a small named function
-there.
+A single step reads better as `FlatMap`, and a `Map` over one value better
+still. And for an effect run per element of a hot stream, the goroutine a body
+runs on is a cost worth removing: build with
+[`effectgo`](rewrite-direct-style.md), which rewrites the bodies it can into
+`FlatMap` chains, or write the chain.
 
 ## Naming stages helps more than you expect
 
@@ -164,7 +129,7 @@ explicit `effect` name.
 
 ## Working examples
 
-- [`examples/checkout`](../../examples/checkout/program.go) uses the state
-  builder for a three-step dependent workflow.
+- [`examples/checkout`](../../examples/checkout/program.go) writes a
+  three-step dependent workflow in direct style, and as a `FlatMap` chain.
 - [`examples/filecopy`](../../examples/filecopy/program.go) uses `Zip` and a
   named stage instead of nested `FlatMap`s.

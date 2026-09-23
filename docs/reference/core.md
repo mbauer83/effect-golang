@@ -43,8 +43,8 @@ own failure channel is `Never` or whose requirement channel is unused: `Fork`,
 `RecvOrFail`, `Suspend`, `CheckInterrupt`, `WidenError` and
 `OrDie`.
 
-`Workflow[R,E,S]` is a small, typed `Do`/`Bind`/`Yield` convenience for longer
-dependent sequences. Its state factory runs once per interpretation.
+A longer dependent sequence is written in direct style; see the
+[direct style reference](direct.md).
 
 ## Lifetimes and concurrency
 

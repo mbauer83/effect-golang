@@ -2032,6 +2032,16 @@ a `Goexit` in the body through to the goroutine running the fiber. The API is
 `do.Await(fx)` and `do.Fail(e)`, and direct style is the recommended way to
 write a dependent sequence; see `docs/explanation/sequencing-in-go.md`.
 
+CORRECTED: `Workflow` is retired. Its two lambdas per step -- one to compute
+the effect from the state, one to write the value back -- made it too verbose to
+be expressive, and direct style removes the state type altogether. What the
+builder had over direct style was that it needed no goroutine; `effectgo`, which
+rewrites direct-style bodies into `FlatMap` chains through `go build -overlay`,
+takes that away from it too, at the allocation count of the same chain written
+by hand and built per run. A source generator was rejected earlier in this
+section for inventing a second source language; this one does not, because the
+source it rewrites is ordinary Go that runs correctly without it.
+
 ADDED: direct style needs one seam the core did not have. A bound effect must be
 evaluated inside the *current* interpretation, or it would silently get a fresh
 runtime with live defaults, a scope of its own and no cancellation. `WithInterpreter`

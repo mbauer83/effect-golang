@@ -1,9 +1,10 @@
 // Package benchmark measures the sequencing styles against each other.
 //
-// The architecture plan gates direct style on its measured cost rather than on
-// taste: it pays for a panic on the expected-failure path, and the question is
-// how much. These benchmarks answer that with the same three-step dependent
-// workflow written three ways.
+// Direct style costs a goroutine hand-off per run, and effectgo's rewrite is
+// meant to remove it, so both claims are measured rather than assumed. These
+// benchmarks run the same three-step dependent workflow three ways: as a
+// FlatMap chain built once, as one built per run, and in direct style -- which
+// is its rewritten form when run under effectgo's overlay.
 package benchmark
 
 import (
@@ -24,13 +25,6 @@ func loadThird(from int) step  { return effect.Succeed[effect.Unit, string](from
 
 func rejectAtSecond(int) step { return effect.Fail[effect.Unit, int]("rejected") }
 
-// state is the workflow builder's caller-declared state.
-type state struct {
-	first  int
-	second int
-	third  int
-}
-
 func sequenceFlatMap(second func(int) step) step {
 	return loadFirst().FlatMap(func(first int) step {
 		return second(first).FlatMap(func(value int) step {
@@ -45,23 +39,6 @@ func sequenceFlatMap(second func(int) step) step {
 // style rewritten by effectgo, where sequenceFlatMap reuses a chain built once.
 func sequenceFlatMapPerRun(second func(int) step) step {
 	return effect.Suspend(func() step { return sequenceFlatMap(second) })
-}
-
-func sequenceWorkflow(second func(int) step) step {
-	return effect.NewWorkflow[effect.Unit, string](func() state { return state{} }).
-		Bind(
-			func(state) step { return loadFirst() },
-			func(current state, value int) state { current.first = value; return current },
-		).
-		Bind(
-			func(current state) step { return second(current.first) },
-			func(current state, value int) state { current.second = value; return current },
-		).
-		Bind(
-			func(current state) step { return loadThird(current.second) },
-			func(current state, value int) state { current.third = value; return current },
-		).
-		Yield(func(current state) int { return current.third })
 }
 
 func sequenceDirect(second func(int) step) step {
@@ -91,12 +68,10 @@ func BenchmarkSucceedingFlatMap(b *testing.B) { measure(b, sequenceFlatMap(loadS
 func BenchmarkSucceedingFlatMapPerRun(b *testing.B) {
 	measure(b, sequenceFlatMapPerRun(loadSecond))
 }
-func BenchmarkSucceedingWorkflow(b *testing.B) { measure(b, sequenceWorkflow(loadSecond)) }
-func BenchmarkSucceedingDirect(b *testing.B)   { measure(b, sequenceDirect(loadSecond)) }
+func BenchmarkSucceedingDirect(b *testing.B) { measure(b, sequenceDirect(loadSecond)) }
 
 func BenchmarkFailingFlatMap(b *testing.B) { measure(b, sequenceFlatMap(rejectAtSecond)) }
 func BenchmarkFailingFlatMapPerRun(b *testing.B) {
 	measure(b, sequenceFlatMapPerRun(rejectAtSecond))
 }
-func BenchmarkFailingWorkflow(b *testing.B) { measure(b, sequenceWorkflow(rejectAtSecond)) }
-func BenchmarkFailingDirect(b *testing.B)   { measure(b, sequenceDirect(rejectAtSecond)) }
+func BenchmarkFailingDirect(b *testing.B) { measure(b, sequenceDirect(rejectAtSecond)) }

@@ -1,11 +1,9 @@
 // Package checkout is a complete program showing a longer sequential workflow
 // whose later steps depend on several earlier results.
 //
-// Go has no do-notation and no resumable generators, so a dependent chain is
-// ultimately a chain of binds. The typed state builder does not pretend
-// otherwise: it packages successive FlatMap steps around one caller-declared
-// state type so the source stays visually flat while laziness, cancellation and
-// the three typed channels behave exactly as they do for the core operators.
+// It is written in direct style, which reads in the order it runs, and once
+// more as the FlatMap chain it describes, so an end-to-end test can assert the
+// two agree on every path.
 package checkout
 
 import (
@@ -14,6 +12,7 @@ import (
 	"log/slog"
 
 	"github.com/mbauer83/effect-golang/effect"
+	"github.com/mbauer83/effect-golang/experimental/direct"
 )
 
 // Catalog is the workflow's requirement. Keeping it in R rather than reaching
@@ -52,52 +51,19 @@ func (failure CheckoutError) Error() string {
 	return fmt.Sprintf("%s: %s", failure.Step, failure.Detail)
 }
 
-// state is the workflow's caller-declared state. TypeScript can grow a record
-// type after every bind; Go cannot, so one explicit state type carries the
-// whole workflow and each transition returns a new value rather than mutating
-// shared data.
-type state struct {
-	customer Customer
-	basket   Basket
-	quote    Quote
-}
-
 type workflowEffect[A any] = effect.Effect[Catalog, CheckoutError, A]
 
 // Program prices a basket for a customer.
 //
 // Every step is lazy: nothing is looked up, logged or priced until the effect
-// is interpreted, and the state is created afresh for each interpretation, so a
-// retry or a concurrent run never inherits another run's partial state.
+// is interpreted, and the body runs afresh for each interpretation, so a retry
+// or a concurrent run never inherits another run's partial state.
 func Program(customerID string, items []string) workflowEffect[Quote] {
-	operations := effect.For[Catalog, CheckoutError]()
-	return operations.Do(func() state { return state{} }).
-		Bind(
-			func(state) workflowEffect[Customer] { return loadCustomer(customerID) },
-			func(current state, customer Customer) state {
-				current.customer = customer
-				return current
-			},
-		).
-		Bind(
-			func(current state) workflowEffect[Basket] {
-				return loadBasket(current.customer, items)
-			},
-			func(current state, basket Basket) state {
-				current.basket = basket
-				return current
-			},
-		).
-		Bind(
-			func(current state) workflowEffect[Quote] {
-				return price(current.customer, current.basket)
-			},
-			func(current state, quote Quote) state {
-				current.quote = quote
-				return current
-			},
-		).
-		Yield(func(current state) Quote { return current.quote }).
+	return direct.Run(func(do *direct.Do[Catalog, CheckoutError]) Quote {
+		customer := do.Await(loadCustomer(customerID))
+		basket := do.Await(loadBasket(customer, items))
+		return do.Await(price(customer, basket))
+	}).
 		WithName("checkout").
 		WithSpan("checkout", slog.String("customer", customerID))
 }
