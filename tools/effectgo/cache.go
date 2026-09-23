@@ -24,7 +24,7 @@ func store(dir, name string, content []byte) (string, error) {
 	if _, err := os.Stat(target); err == nil {
 		return target, nil
 	}
-	temporary, err := os.CreateTemp(dir, "writing-*")
+	temporary, err := os.CreateTemp(dir, "partial-*")
 	if err != nil {
 		return "", err
 	}
