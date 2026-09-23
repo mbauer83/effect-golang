@@ -46,6 +46,7 @@ package direct
 import (
 	"fmt"
 	"runtime"
+	"strconv"
 	"sync/atomic"
 
 	"github.com/mbauer83/effect-golang/effect"
@@ -106,8 +107,21 @@ func (do *Do[R, E]) Await[A any](fx effect.Effect[R, E, A]) A {
 // A guard clause. Every judgement a step makes has this shape -- the aggregate
 // refused, so there is nothing to write and nothing to answer with -- and it
 // belongs where the judgement is made, not where the body returns.
+//
+// The failure's origin is the line that called Fail, as it would be for an
+// effect.Fail written there.
 func (do *Do[R, E]) Fail(failure E) {
-	do.Await(effect.Fail[R, never](failure))
+	cause := effect.FailCause(failure).WithOrigin(effect.Origin{Source: caller()})
+	do.Await(effect.FailWithCause[R, never](cause))
+}
+
+// caller is the file and line that called the function calling it.
+func caller() string {
+	_, file, line, ok := runtime.Caller(2)
+	if !ok {
+		return ""
+	}
+	return file + ":" + strconv.Itoa(line)
 }
 
 // never is the success type of an effect that has none. Unexported and

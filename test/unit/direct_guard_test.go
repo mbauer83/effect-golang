@@ -3,6 +3,10 @@ package unit
 // Failing out of a direct-style body.
 
 import (
+	"context"
+	"fmt"
+	goruntime "runtime"
+	"strings"
 	"testing"
 
 	"github.com/mbauer83/effect-golang/effect"
@@ -56,5 +60,21 @@ func TestNothingAfterAGuardClauseRuns(t *testing.T) {
 	runtime.Run(t.Context(), effect.Unit{}, guarded)
 	if reached {
 		t.Fatal("the body carried on after failing")
+	}
+}
+
+func TestAGuardClauseRecordsTheLineThatWroteIt(t *testing.T) {
+	var line int
+	program := direct.Run(func(do *direct.Do[effect.Unit, string]) int {
+		_, _, line, _ = goruntime.Caller(0)
+		do.Fail("refused") // the line after the one Caller reported
+		return 0
+	})
+
+	exit := effect.Run(context.Background(), effect.Unit{}, program)
+	cause, _ := exit.Cause()
+	want := fmt.Sprintf("direct_guard_test.go:%d", line+1)
+	if !strings.HasSuffix(cause.Origin().Source, want) {
+		t.Fatalf("expected the origin to be %s, got %q", want, cause.Origin().Source)
 	}
 }

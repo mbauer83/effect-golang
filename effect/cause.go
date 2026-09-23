@@ -79,6 +79,18 @@ func (c Cause[E]) Origin() Origin {
 	return c.node.Origin
 }
 
+// WithOrigin is this cause with where it came from recorded, on the leaves that
+// do not have it yet.
+//
+// For a helper that raises a failure on its caller's behalf, which would
+// otherwise record its own line: the origin a reader wants is the line that
+// called the helper. Only where it is missing, because a failure is raised
+// once and travels, and a boundary that translates it did not move the line
+// it happened on.
+func (c Cause[E]) WithOrigin(origin Origin) Cause[E] {
+	return Cause[E]{node: c.node.WithOrigin(origin)}
+}
+
 // Kind returns the node category.
 func (c Cause[E]) Kind() CauseKind {
 	return c.node.Kind
