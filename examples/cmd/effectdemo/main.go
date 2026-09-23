@@ -8,8 +8,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -119,8 +121,9 @@ func runCheckout(runtime *effect.Runtime, ctx context.Context) {
 		},
 		Prices: map[string]int{"widget": 250, "gasket": 125},
 	}
-	for _, style := range []string{"workflow", "direct"} {
-		exit := runtime.Run(ctx, catalog, checkout.Styles()[style]("c-1", []string{"widget", "gasket"}))
+	styles := checkout.Styles()
+	for _, style := range slices.Sorted(maps.Keys(styles)) {
+		exit := runtime.Run(ctx, catalog, styles[style]("c-1", []string{"widget", "gasket"}))
 		quote, ok := exit.Value()
 		if !ok {
 			report("sequential workflow ("+style+")", exit)
