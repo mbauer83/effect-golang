@@ -122,7 +122,9 @@ many effects it awaits; a failed run costs a fresh goroutine, a few microseconds
 more. The numbers are in
 [sequencing in Go](../explanation/sequencing-in-go.md#what-it-measures). Against
 any real work — a query, a file, a request — that is noise. For an effect run per
-element of a hot stream, write `FlatMap`.
+element of a hot stream, build with [`effectgo`](../how-to/rewrite-direct-style.md),
+which rewrites the bodies it can translate into `FlatMap` chains, or write
+`FlatMap`.
 
 ## Choosing
 

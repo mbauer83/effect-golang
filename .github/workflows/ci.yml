@@ -53,6 +53,22 @@ jobs:
       - name: Acceptance stress
         run: go test -race -count=10 ./test/acceptance/
 
+      # The rewriter is its own module, so the core keeps no dependencies.
+      - name: Rewriter
+        working-directory: tools/effectgo
+        run: |
+          go vet ./...
+          go test -count=1 ./...
+          go build -o "$RUNNER_TEMP/effectgo" .
+
+      # A direct-style body rewritten into a FlatMap chain must behave exactly
+      # as written, so every suite runs again on the rewritten source.
+      - name: Rewritten
+        run: |
+          overlay="$("$RUNNER_TEMP/effectgo" overlay ./...)"
+          go vet -overlay="$overlay" ./...
+          go test -race -count=1 -overlay="$overlay" ./...
+
       # The sequencing benchmarks gate an experimental API on measured cost, so
       # they must keep compiling and running even though CI does not judge the
       # numbers.

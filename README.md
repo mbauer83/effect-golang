@@ -120,6 +120,7 @@ construction. That directory does not have to be the module root, and it is not.
 ### How-to
 
 - [Write sequential workflows](docs/how-to/write-sequential-workflows.md)
+- [Rewrite direct style into FlatMap chains](docs/how-to/rewrite-direct-style.md)
 - [Compose different channels](docs/how-to/compose-channels.md)
 - [Fork and join](docs/how-to/fork-and-join.md)
 - [Run parallel work](docs/how-to/run-parallel-work.md)

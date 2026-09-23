@@ -132,12 +132,22 @@ has no hygienic macro facility to make it transparent. That is still true, and
 none is planned.
 
 Rewriting direct style is a different proposition, because the source is
-already ordinary Go that compiles and runs correctly without any generator.
-A rewrite into `FlatMap` chains is then an optimisation and not a semantics:
+already ordinary Go that compiles and runs correctly without any generator. A
+rewrite into `FlatMap` chains is then an optimisation and not a semantics, and
+[`effectgo`](../how-to/rewrite-direct-style.md) is that rewrite:
 `go build -overlay` substitutes rewritten files without touching the tree,
 `//line` directives keep positions pointing at the source, and a body the
-rewriter cannot prove equivalent is simply left alone. Running a test suite
-both ways is what checks the claim.
+rewriter cannot translate is left alone. Running a test suite both ways is what
+checks the claim, and this repository's CI does.
+
+| Style | Success | Failure |
+|---|---|---|
+| `FlatMap` | 490 ns, 10 allocs | 930 ns, 14 allocs |
+| `direct` | 1860 ns, 13 allocs | 4890 ns, 19 allocs |
+| `direct`, rewritten | 620 ns, 17 allocs | 1150 ns, 18 allocs |
+
+A rewritten body is a `FlatMap` chain, so it is stack-safe and holds no
+goroutine of its own.
 
 Elsewhere, generation is useful where the output is a boring adapter a person
 could have written: an application façade that fixes `R` and `E` once, a
