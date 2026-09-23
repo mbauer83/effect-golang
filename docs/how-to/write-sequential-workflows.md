@@ -39,11 +39,11 @@ not recommended: losing symbol provenance is a poor trade for a short qualifier.
 ## Then write it in direct style
 
 When several later steps genuinely depend on several earlier values, write the
-sequence as ordinary Go. `experimental/direct` does that, because each `Await`
+sequence as ordinary Go. `effect.Gen` does that, because each `Await`
 returns the value the next line uses:
 
 ```go
-program := direct.Run(func(do *direct.Do[Env, AppError]) Quote {
+program := effect.Gen(func(do *effect.Do[Env, AppError]) Quote {
     customer := do.Await(loadCustomer(id))
     basket := do.Await(loadBasket(customer))
     if basket.IsEmpty() {
@@ -61,13 +61,13 @@ for each interpretation so a retry or a concurrent run never inherits another
 run's partial state, cancellation is observed, and an awaited effect sees the
 surrounding runtime and scope.
 
-Loop with `for` inside one body rather than recursing through `Run`: each
+Loop with `for` inside one body rather than recursing through `Gen`: each
 running body holds a goroutine.
 
 [`examples/checkout`](../../examples/checkout/program.go) is written this way
 and once more as the `FlatMap` chain it describes, and an end-to-end test
 asserts the two agree on every path. The exact semantics are in the
-[direct style reference](../reference/direct.md).
+[direct style reference](../reference/gen.md).
 
 ## Know when not to use it
 

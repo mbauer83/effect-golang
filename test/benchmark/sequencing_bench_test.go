@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/mbauer83/effect-golang/effect"
-	"github.com/mbauer83/effect-golang/experimental/direct"
 )
 
 type step = effect.Effect[effect.Unit, string, int]
@@ -42,7 +41,7 @@ func sequenceFlatMapPerRun(second func(int) step) step {
 }
 
 func sequenceDirect(second func(int) step) step {
-	return direct.Run(func(do *direct.Do[effect.Unit, string]) int {
+	return effect.Gen(func(do *effect.Do[effect.Unit, string]) int {
 		first := do.Await(loadFirst())
 		value := do.Await(second(first))
 		return do.Await(loadThird(value))

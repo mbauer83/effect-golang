@@ -144,7 +144,7 @@ construction. That directory does not have to be the module root, and it is not.
 - [Hub](docs/reference/hub.md)
 - [Deferred](docs/reference/deferred.md)
 - [Stream](docs/reference/stream.md)
-- [Direct style](docs/reference/direct.md)
+- [Direct style](docs/reference/gen.md)
 - [Schedule](docs/reference/schedule.md)
 - [Retry](docs/reference/retry.md)
 - [Observability](docs/reference/observability.md)
@@ -160,13 +160,13 @@ construction. That directory does not have to be the module root, and it is not.
 - [Why a cause algebra](docs/explanation/cause-algebra.md)
 - [Sequencing in Go](docs/explanation/sequencing-in-go.md)
 
-### Experimental
+### Direct style
 
-`experimental/direct` writes a dependent sequence as ordinary Go:
+`effect.Gen` writes a dependent sequence as ordinary Go:
 `customer := do.Await(loadCustomer(id))`. The body runs on a goroutine in lock
 step with the interpretation and ends early with `runtime.Goexit`, so no
 `recover()` can swallow a failure and a `defer` runs as a finalizer. See the
-[direct style reference](docs/reference/direct.md) for its exact semantics and
+[direct style reference](docs/reference/gen.md) for its exact semantics and
 [sequencing in Go](docs/explanation/sequencing-in-go.md#what-it-measures) for
 what it costs.
 

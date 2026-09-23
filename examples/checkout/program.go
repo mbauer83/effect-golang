@@ -12,7 +12,6 @@ import (
 	"log/slog"
 
 	"github.com/mbauer83/effect-golang/effect"
-	"github.com/mbauer83/effect-golang/experimental/direct"
 )
 
 // Catalog is the workflow's requirement. Keeping it in R rather than reaching
@@ -59,7 +58,7 @@ type workflowEffect[A any] = effect.Effect[Catalog, CheckoutError, A]
 // is interpreted, and the body runs afresh for each interpretation, so a retry
 // or a concurrent run never inherits another run's partial state.
 func Program(customerID string, items []string) workflowEffect[Quote] {
-	return direct.Run(func(do *direct.Do[Catalog, CheckoutError]) Quote {
+	return effect.Gen(func(do *effect.Do[Catalog, CheckoutError]) Quote {
 		customer := do.Await(loadCustomer(customerID))
 		basket := do.Await(loadBasket(customer, items))
 		return do.Await(price(customer, basket))

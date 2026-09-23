@@ -2042,6 +2042,11 @@ by hand and built per run. A source generator was rejected earlier in this
 section for inventing a second source language; this one does not, because the
 source it rewrites is ordinary Go that runs correctly without it.
 
+CORRECTED: direct style is no longer experimental. It is `effect.Gen`, whose
+name is Effect's, with `do.Await(fx)` and `do.Fail(e)` on the body's `*effect.Do`.
+The goroutine design removed the reasons it was fenced off in a subpackage, and
+the recommended way to write a dependent sequence belongs beside `FlatMap`.
+
 ADDED: direct style needs one seam the core did not have. A bound effect must be
 evaluated inside the *current* interpretation, or it would silently get a fresh
 runtime with live defaults, a scope of its own and no cancellation. `WithInterpreter`

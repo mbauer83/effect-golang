@@ -5,15 +5,16 @@
 //	effectgo build -o server ./cmd/server
 //	go test -overlay="$(effectgo overlay ./...)" ./...
 //
-// The rewrite is an optimisation. Every direct.Run body is ordinary Go that
+// The rewrite is an optimisation. Every effect.Gen body is ordinary Go that
 // compiles and runs correctly without it; effectgo produces a faster form of
 // the bodies it can translate, hands the go command an -overlay naming the
 // rewritten files, and leaves the source tree untouched. A body it declines
-// keeps running on direct's goroutine. EFFECTGO_EXPLAIN=1 lists every body
+// keeps running on its own goroutine. EFFECTGO_EXPLAIN=1 lists every body
 // declined, and why.
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -96,7 +97,7 @@ func workspacePatterns() ([]string, error) {
 // overlay rewrites the packages matching patterns and answers with the path of
 // an overlay file naming every rewritten file.
 func overlay(patterns []string) (string, error) {
-	importers, err := importersOfDirect(patterns)
+	importers, err := importersOfGen(patterns)
 	if err != nil {
 		return "", err
 	}
@@ -117,7 +118,7 @@ func overlay(patterns []string) (string, error) {
 		for _, pkg := range loaded {
 			for i, file := range pkg.Syntax {
 				filename := pkg.CompiledGoFiles[i]
-				if _, done := replace[filename]; done || !importsDirect(file) {
+				if _, done := replace[filename]; done || !importsEffect(file) {
 					continue
 				}
 				text, err := os.ReadFile(filename)
@@ -139,7 +140,7 @@ func overlay(patterns []string) (string, error) {
 			}
 		}
 	}
-	fmt.Fprintf(os.Stderr, "effectgo: rewrote %d direct bodies, declined %d\n", rewritten, declined)
+	fmt.Fprintf(os.Stderr, "effectgo: rewrote %d Gen bodies, declined %d\n", rewritten, declined)
 	encoded, err := json.Marshal(map[string]map[string]string{"Replace": replace})
 	if err != nil {
 		return "", err
@@ -147,11 +148,13 @@ func overlay(patterns []string) (string, error) {
 	return store(cache, "overlay.json", encoded)
 }
 
-// importersOfDirect is the packages matching patterns that import direct, found
-// without type-checking anything.
-func importersOfDirect(patterns []string) ([]string, error) {
+// importersOfGen is the packages matching patterns that might call
+// effect.Gen: those importing effect whose files mention Gen at all, found
+// without type-checking anything. Every program imports effect, so the text
+// is what keeps the type-checking to the packages that need it.
+func importersOfGen(patterns []string) ([]string, error) {
 	loaded, err := packages.Load(&packages.Config{
-		Mode:  packages.NeedName | packages.NeedImports,
+		Mode:  packages.NeedName | packages.NeedImports | packages.NeedFiles,
 		Tests: true,
 	}, patterns...)
 	if err != nil {
@@ -160,19 +163,30 @@ func importersOfDirect(patterns []string) ([]string, error) {
 	seen := map[string]bool{}
 	var importers []string
 	for _, pkg := range loaded {
-		if _, ok := pkg.Imports[directPath]; ok && !seen[pkg.PkgPath] {
-			seen[pkg.PkgPath] = true
-			importers = append(importers, pkg.PkgPath)
+		if _, ok := pkg.Imports[effectPath]; !ok || seen[pkg.PkgPath] || !mentionsGen(pkg.GoFiles) {
+			continue
 		}
+		seen[pkg.PkgPath] = true
+		importers = append(importers, pkg.PkgPath)
 	}
 	return importers, nil
 }
 
-const directPath = "github.com/mbauer83/effect-golang/experimental/direct"
+func mentionsGen(files []string) bool {
+	for _, file := range files {
+		text, err := os.ReadFile(file)
+		if err == nil && (bytes.Contains(text, []byte("Gen(")) || bytes.Contains(text, []byte("Gen["))) {
+			return true
+		}
+	}
+	return false
+}
 
-func importsDirect(file *ast.File) bool {
+const effectPath = "github.com/mbauer83/effect-golang/effect"
+
+func importsEffect(file *ast.File) bool {
 	for _, spec := range file.Imports {
-		if path, _ := strconv.Unquote(spec.Path.Value); path == directPath {
+		if path, _ := strconv.Unquote(spec.Path.Value); path == effectPath {
 			return true
 		}
 	}

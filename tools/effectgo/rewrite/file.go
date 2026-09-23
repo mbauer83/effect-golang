@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// Decline is a direct.Run body left as it was, and why.
+// Decline is an effect.Gen body left as it was, and why.
 type Decline struct {
 	Position token.Position
 	Reason   string
@@ -25,7 +25,7 @@ type Result struct {
 	Declined  []Decline
 }
 
-// File rewrites every direct.Run body in file that it can translate.
+// File rewrites every effect.Gen body in file that it can translate.
 //
 // Bodies are rewritten innermost first, so an outer body's replacement is
 // written with its inner bodies already replaced; an outer body that is
@@ -37,7 +37,7 @@ func File(fset *token.FileSet, file *ast.File, info *types.Info, pkg *types.Pack
 
 	var calls []*ast.CallExpr
 	ast.Inspect(file, func(node ast.Node) bool {
-		if call, ok := node.(*ast.CallExpr); ok && isRun(info, call) {
+		if call, ok := node.(*ast.CallExpr); ok && isGen(info, call) {
 			calls = append(calls, call)
 		}
 		return true
@@ -67,7 +67,7 @@ func File(fset *token.FileSet, file *ast.File, info *types.Info, pkg *types.Pack
 			edits = append(edits, edit{start: src.offset(call.Pos()), end: src.offset(call.End()), text: replacement})
 		}
 	}
-	edits = append(edits, importEdits(src, file, info, typeNames, nested)...)
+	edits = append(edits, importEdits(src, file, typeNames)...)
 	result.Source = []byte(src.splice(0, len(text), edits))
 	return result
 }
@@ -126,63 +126,21 @@ func insideAny(call *ast.CallExpr, others map[*ast.CallExpr]string) bool {
 }
 
 // importEdits adds the imports generated code needs, on the line of the last
-// import so no line below moves, and blanks the direct import when nothing
-// left in the file refers to it.
-func importEdits(
-	src *source,
-	file *ast.File,
-	info *types.Info,
-	typeNames *typeNames,
-	rewritten map[*ast.CallExpr]string,
-) []edit {
-	var edits []edit
+// import so no line below moves.
+func importEdits(src *source, file *ast.File, typeNames *typeNames) []edit {
 	var last *ast.GenDecl
 	for _, decl := range file.Decls {
 		if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.IMPORT {
 			last = gen
 		}
 	}
-	if len(typeNames.added) > 0 && last != nil {
-		var added strings.Builder
-		for _, path := range slices.Sorted(maps.Keys(typeNames.added)) {
-			added.WriteString("; import " + typeNames.added[path] + " " + strconv.Quote(path))
-		}
-		at := src.offset(last.End())
-		edits = append(edits, edit{start: at, end: at, text: added.String()})
+	if len(typeNames.added) == 0 || last == nil {
+		return nil
 	}
-	for _, spec := range file.Imports {
-		path, _ := strconv.Unquote(spec.Path.Value)
-		if path != directPath || stillUsed(info, file, spec, rewritten) {
-			continue
-		}
-		if spec.Name != nil {
-			edits = append(edits, edit{start: src.offset(spec.Name.Pos()), end: src.offset(spec.Name.End()), text: "_"})
-		} else {
-			at := src.offset(spec.Path.Pos())
-			edits = append(edits, edit{start: at, end: at, text: "_ "})
-		}
+	var added strings.Builder
+	for _, path := range slices.Sorted(maps.Keys(typeNames.added)) {
+		added.WriteString("; import " + typeNames.added[path] + " " + strconv.Quote(path))
 	}
-	return edits
-}
-
-// stillUsed reports whether the file refers to the package spec imports
-// anywhere the rewrite did not replace.
-func stillUsed(info *types.Info, file *ast.File, spec *ast.ImportSpec, rewritten map[*ast.CallExpr]string) bool {
-	name := info.PkgNameOf(spec)
-	used := false
-	ast.Inspect(file, func(node ast.Node) bool {
-		if used {
-			return false
-		}
-		if call, ok := node.(*ast.CallExpr); ok {
-			if _, replaced := rewritten[call]; replaced {
-				return false
-			}
-		}
-		if ident, ok := node.(*ast.Ident); ok && info.Uses[ident] == name {
-			used = true
-		}
-		return true
-	})
-	return used
+	at := src.offset(last.End())
+	return []edit{{start: at, end: at, text: added.String()}}
 }

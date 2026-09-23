@@ -44,7 +44,7 @@ own failure channel is `Never` or whose requirement channel is unused: `Fork`,
 `OrDie`.
 
 A longer dependent sequence is written in direct style; see the
-[direct style reference](direct.md).
+[direct style reference](gen.md).
 
 ## Lifetimes and concurrency
 

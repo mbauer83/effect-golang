@@ -10,7 +10,6 @@ import (
 
 	"github.com/mbauer83/effect-golang/effect"
 	"github.com/mbauer83/effect-golang/effect/env"
-	"github.com/mbauer83/effect-golang/experimental/direct"
 )
 
 // Two ports, as an application would have them.
@@ -72,7 +71,7 @@ func TestAStepResolvesWhatItNeedsAndReadsAsOrdinaryGo(t *testing.T) {
 	needs := env.ResolverFor[error]()
 	given := env.Empty().With[Films](filmStore{}).With[Clock](wallClock{})
 
-	program := direct.Run(func(do *direct.Do[env.Services, error]) string {
+	program := effect.Gen(func(do *effect.Do[env.Services, error]) string {
 		films := do.Await(needs.Service[Films]())
 		now := do.Await(needs.Service[Clock]())
 		return films.Title(949) + ", read in " + itoa(now.Year())
@@ -91,7 +90,7 @@ func TestADependencyNobodyProvidedIsADefectAndNotAFailure(t *testing.T) {
 	needs := env.ResolverFor[error]()
 	given := env.Empty().With[Films](filmStore{})
 
-	program := direct.Run(func(do *direct.Do[env.Services, error]) int {
+	program := effect.Gen(func(do *effect.Do[env.Services, error]) int {
 		return do.Await(needs.Service[Clock]()).Year()
 	})
 

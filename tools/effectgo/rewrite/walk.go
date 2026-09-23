@@ -8,7 +8,7 @@ import (
 
 // text is node's source with every edit the rewrite makes inside it:
 //
-//   - a nested direct.Run that was itself rewritten is replaced whole;
+//   - a nested effect.Gen that was itself rewritten is replaced whole;
 //   - an awaited step is replaced by the name its value was bound to;
 //   - a return answers its value as an effect, because the body now answers
 //     with an effect;

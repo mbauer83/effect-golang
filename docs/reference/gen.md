@@ -1,17 +1,17 @@
 # Direct style reference
 
-`experimental/direct` writes a dependent sequence of effects as ordinary Go. It
+`effect.Gen` writes a dependent sequence of effects as ordinary Go. It
 is the recommended way to write one; the reasons, and what it replaced, are in
 [sequencing in Go](../explanation/sequencing-in-go.md).
 
 ```go
-func Run[R, E, A any](body func(*Do[R, E]) A) effect.Effect[R, E, A]
-func (do *Do[R, E]) Await[A any](fx effect.Effect[R, E, A]) A
+func Gen[R, E, A any](body func(*Do[R, E]) A) Effect[R, E, A]
+func (do *Do[R, E]) Await[A any](fx Effect[R, E, A]) A
 func (do *Do[R, E]) Fail(failure E)
 ```
 
 ```go
-program := direct.Run(func(do *direct.Do[Env, AppError]) Quote {
+program := effect.Gen(func(do *effect.Do[Env, AppError]) Quote {
     customer := do.Await(loadCustomer(id))
     basket := do.Await(loadBasket(customer))
     if basket.IsEmpty() {
@@ -26,9 +26,9 @@ program := direct.Run(func(do *direct.Do[Env, AppError]) Quote {
 Everything, because every awaited effect is interpreted by the surrounding
 interpretation and not by a second mechanism.
 
-- The effect is a description. `Run` evaluates nothing; the body runs when the
+- The effect is a description. `Gen` evaluates nothing; the body runs when the
   effect is interpreted, once per interpretation.
-- One `Run` value is reusable. A retry runs the body again, and concurrent runs
+- One `Gen` value is reusable. A retry runs the body again, and concurrent runs
   each have their own body and their own `Do`.
 - Interruption is observed at the next `Await`, where any effect would observe
   it.
@@ -69,14 +69,14 @@ Two properties follow, and they are why this replaced a panic:
   `defer` runs on a failure as on a success — what a `finally` block is in
   Effect's `gen` and `ensuring` is in ZIO.
 
-An inner `Run`'s failure is an ordinary typed failure to the outer body, which
+An inner `Gen`'s failure is an ordinary typed failure to the outer body, which
 can handle it with `CatchAll` like any other.
 
 ## Misuse that is reported rather than silent
 
 - A `Do` used after its body ended reports a defect naming the mistake, instead
   of evaluating against an interpretation that has ended. Hold the `Effect`
-  values and interpret them inside your own `Run`.
+  values and interpret them inside your own `Gen`.
 - A `Do` used from a goroutine the body started reports a defect when the two
   overlap. `Await` belongs to the body's own goroutine; fork an effect instead.
 - A `runtime.Goexit` of the body's own — `testing.T.FailNow` inside a body is
@@ -84,14 +84,14 @@ can handle it with `CatchAll` like any other.
 
 ## Where it stops
 
-**Recursion through `Run`.** Every running body holds a goroutine, and a body
+**Recursion through `Gen`.** Every running body holds a goroutine, and a body
 awaiting another body holds one for each. A handler awaiting a service awaiting
-a repository is three; a program that recurses through `Run` a million deep is a
+a repository is three; a program that recurses through `Gen` a million deep is a
 million, where the same recursion through `FlatMap` is stack-safe. Loop with
 `for` inside one body.
 
 **What belongs to a goroutine.** The body is not the goroutine that called
-`Run`, so `runtime.LockOSThread` and profiler labels do not carry over.
+`Gen`, so `runtime.LockOSThread` and profiler labels do not carry over.
 
 **Recovery part-way through.** `Await` ends the body, so there is no way to
 catch a failure and carry on inside one. Await the effect with `CatchAll` or
@@ -139,7 +139,7 @@ doing order.
 A refusal is a guard clause:
 
 ```go
-direct.Run(func(do *direct.Do[Env, Refusal]) Book {
+effect.Gen(func(do *effect.Do[Env, Refusal]) Book {
     held := do.Await(store.All())
     index := slices.IndexFunc(held, sameTitle(title))
     if index < 0 {

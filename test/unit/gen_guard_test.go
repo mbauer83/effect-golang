@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/mbauer83/effect-golang/effect"
-	"github.com/mbauer83/effect-golang/experimental/direct"
 )
 
 // A guard clause is how every judgement in a step is written: this cannot
@@ -18,7 +17,7 @@ import (
 // type the failure does not have, so Fail is the same short-circuit with the
 // type gone.
 func TestAGuardClauseAbandonsTheBodyWithItsFailure(t *testing.T) {
-	refused := direct.Run(func(do *direct.Do[effect.Unit, string]) int {
+	refused := effect.Gen(func(do *effect.Do[effect.Unit, string]) int {
 		if true {
 			do.Fail("the aggregate refused")
 		}
@@ -47,7 +46,7 @@ func TestAGuardClauseAbandonsTheBodyWithItsFailure(t *testing.T) {
 // guard clause is worth having.
 func TestNothingAfterAGuardClauseRuns(t *testing.T) {
 	reached := false
-	guarded := direct.Run(func(do *direct.Do[effect.Unit, string]) int {
+	guarded := effect.Gen(func(do *effect.Do[effect.Unit, string]) int {
 		do.Fail("stop here")
 		reached = true
 		return 7
@@ -65,7 +64,7 @@ func TestNothingAfterAGuardClauseRuns(t *testing.T) {
 
 func TestAGuardClauseRecordsTheLineThatWroteIt(t *testing.T) {
 	var line int
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) int {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) int {
 		_, _, line, _ = goruntime.Caller(0)
 		do.Fail("refused") // the line after the one Caller reported
 		return 0
@@ -73,7 +72,7 @@ func TestAGuardClauseRecordsTheLineThatWroteIt(t *testing.T) {
 
 	exit := effect.Run(context.Background(), effect.Unit{}, program)
 	cause, _ := exit.Cause()
-	want := fmt.Sprintf("direct_guard_test.go:%d", line+1)
+	want := fmt.Sprintf("gen_guard_test.go:%d", line+1)
 	if !strings.HasSuffix(cause.Origin().Source, want) {
 		t.Fatalf("expected the origin to be %s, got %q", want, cause.Origin().Source)
 	}

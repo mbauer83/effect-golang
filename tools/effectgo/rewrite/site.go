@@ -1,10 +1,10 @@
 // Package rewrite turns direct-style bodies into FlatMap chains.
 //
-// The rewrite is an optimisation and never a semantics. A direct.Run body is
+// The rewrite is an optimisation and never a semantics. A effect.Gen body is
 // ordinary Go that compiles and runs correctly on its own; this package
 // produces a second form of the same program, and only for a body it can
 // translate statement by statement. Anything else is left alone and keeps
-// running on direct's goroutine, so a body the rewriter declines costs speed
+// running on its own goroutine, so a body the rewriter declines costs speed
 // and nothing else.
 package rewrite
 
@@ -14,12 +14,9 @@ import (
 	"go/types"
 )
 
-const (
-	directPath = "github.com/mbauer83/effect-golang/experimental/direct"
-	effectPath = "github.com/mbauer83/effect-golang/effect"
-)
+const effectPath = "github.com/mbauer83/effect-golang/effect"
 
-// site is one direct.Run call and what the rewrite needs to know about it.
+// site is one effect.Gen call and what the rewrite needs to know about it.
 type site struct {
 	call    *ast.CallExpr
 	literal *ast.FuncLit
@@ -38,12 +35,12 @@ type step struct {
 	value types.Type
 }
 
-// findSite recognises call as a direct.Run over a function literal whose one
-// parameter is a *direct.Do, and answers with its channels and its steps. The
-// reason is empty when the call is not a direct.Run at all, and says why when
+// findSite recognises call as a effect.Gen over a function literal whose one
+// parameter is a *effect.Do, and answers with its channels and its steps. The
+// reason is empty when the call is not a effect.Gen at all, and says why when
 // it is one this package will not translate.
 func findSite(info *types.Info, call *ast.CallExpr) (*site, string) {
-	if !isRun(info, call) {
+	if !isGen(info, call) {
 		return nil, ""
 	}
 	literal, ok := call.Args[0].(*ast.FuncLit)
@@ -77,7 +74,7 @@ func findSite(info *types.Info, call *ast.CallExpr) (*site, string) {
 	return found, ""
 }
 
-func isRun(info *types.Info, call *ast.CallExpr) bool {
+func isGen(info *types.Info, call *ast.CallExpr) bool {
 	var ident *ast.Ident
 	switch fun := ast.Unparen(call.Fun).(type) {
 	case *ast.SelectorExpr:
@@ -98,7 +95,7 @@ func isRun(info *types.Info, call *ast.CallExpr) bool {
 		return false
 	}
 	function, ok := info.Uses[ident].(*types.Func)
-	return ok && function.Name() == "Run" && function.Pkg() != nil && function.Pkg().Path() == directPath
+	return ok && function.Name() == "Gen" && function.Pkg() != nil && function.Pkg().Path() == effectPath
 }
 
 // collectSteps finds every use of do. Each one must be the receiver of an
@@ -159,7 +156,7 @@ func identOf(expr ast.Expr) *ast.Ident {
 // unsupported names the first construct in the body this package does not
 // translate, or answers empty. Defer, go, select and labels are
 // declined as a whole rather than one by one: each would need a translation
-// of its own, and until one exists the body runs on direct's goroutine.
+// of its own, and until one exists the body runs on its own goroutine.
 func (found *site) unsupported() string {
 	reason := ""
 	ast.Inspect(found.literal.Body, func(node ast.Node) bool {
@@ -191,8 +188,8 @@ func (found *site) unsupported() string {
 	return reason
 }
 
-// endsGoroutine names a call that ends the goroutine it runs on. Direct style
-// reports that as a defect of the body; a rewritten body is a FlatMap chain,
+// endsGoroutine names a call that ends the goroutine it runs on. Gen reports
+// that as a defect of the body; a rewritten body is a FlatMap chain,
 // where it ends the fiber's goroutine as it would inside any FlatMap. Only
 // calls written in the body can be seen here; one made through a function the
 // body calls cannot.

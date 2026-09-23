@@ -10,10 +10,9 @@ import (
 	"testing"
 
 	"github.com/mbauer83/effect-golang/effect"
-	"github.com/mbauer83/effect-golang/experimental/direct"
 )
 
-type body = direct.Do[effect.Unit, string]
+type body = effect.Do[effect.Unit, string]
 
 var ops = effect.For[effect.Unit, string]()
 
@@ -41,7 +40,7 @@ func want[A comparable](t *testing.T, got, expected A) {
 
 // A := that reuses a name assigns it, and a closure made before sees that.
 func TestRedeclarationAssignsTheEarlierVariable(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) int {
+	value, _ := run(t, effect.Gen(func(do *body) int {
 		a := 1
 		read := func() int { return a }
 		x := do.Await(ops.Succeed(1))
@@ -52,7 +51,7 @@ func TestRedeclarationAssignsTheEarlierVariable(t *testing.T) {
 }
 
 func TestAnInnerScopeShadowsWithoutLeaking(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) int {
+	value, _ := run(t, effect.Gen(func(do *body) int {
 		x := do.Await(ops.Succeed(1))
 		{
 			x := do.Await(ops.Succeed(20))
@@ -65,7 +64,7 @@ func TestAnInnerScopeShadowsWithoutLeaking(t *testing.T) {
 
 func TestBranchesRejoinWhatFollows(t *testing.T) {
 	for input, expected := range map[int]string{0: "zero!", 1: "one!", 5: "many!"} {
-		value, _ := run(t, direct.Run(func(do *body) string {
+		value, _ := run(t, effect.Gen(func(do *body) string {
 			n := do.Await(ops.Succeed(input))
 			label := "many"
 			if n == 0 {
@@ -80,7 +79,7 @@ func TestBranchesRejoinWhatFollows(t *testing.T) {
 }
 
 func TestAnEarlyReturnAfterAStep(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) string {
+	value, _ := run(t, effect.Gen(func(do *body) string {
 		n := do.Await(ops.Succeed(3))
 		if n > 2 {
 			return "early"
@@ -93,7 +92,7 @@ func TestAnEarlyReturnAfterAStep(t *testing.T) {
 // A break inside a translated switch leaves the switch, even from inside an if
 // that is itself inside a continuation.
 func TestABreakLeavesTheSwitch(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) string {
+	value, _ := run(t, effect.Gen(func(do *body) string {
 		trail := ""
 		switch do.Await(ops.Succeed(2)) {
 		case 1:
@@ -114,7 +113,7 @@ func TestABreakLeavesTheSwitch(t *testing.T) {
 }
 
 func TestATypeSwitchWithAStepInAClause(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) string {
+	value, _ := run(t, effect.Gen(func(do *body) string {
 		var thing any = do.Await(ops.Succeed(42))
 		switch v := thing.(type) {
 		case string:
@@ -136,7 +135,7 @@ func TestStepsInOneExpressionKeepTheirOrder(t *testing.T) {
 			return effect.ExitSuccess[string](value)
 		})
 	}
-	value, _ := run(t, direct.Run(func(do *body) int {
+	value, _ := run(t, effect.Gen(func(do *body) int {
 		return do.Await(step("a", 1)) + do.Await(step("b", do.Await(step("c", 2))))*10
 	}))
 	want(t, value, 21)
@@ -144,7 +143,7 @@ func TestStepsInOneExpressionKeepTheirOrder(t *testing.T) {
 }
 
 func TestAStepInAnIfInitKeepsItsScope(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) int {
+	value, _ := run(t, effect.Gen(func(do *body) int {
 		v := 100
 		if v := do.Await(ops.Succeed(1)); v > 0 {
 			v += do.Await(ops.Succeed(1))
@@ -156,8 +155,8 @@ func TestAStepInAnIfInitKeepsItsScope(t *testing.T) {
 }
 
 func TestANestedBodyIsRewrittenToo(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) int {
-		inner := direct.Run(func(do *body) int {
+	value, _ := run(t, effect.Gen(func(do *body) int {
+		inner := effect.Gen(func(do *body) int {
 			return do.Await(ops.Succeed(2)) * 3
 		})
 		return do.Await(inner) + 1
@@ -168,7 +167,7 @@ func TestANestedBodyIsRewrittenToo(t *testing.T) {
 // A body that declares the name the generated code would use for the effect
 // package must not have it shadowed.
 func TestABodyThatShadowsThePackageName(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) string {
+	value, _ := run(t, effect.Gen(func(do *body) string {
 		effect := do.Await(ops.Succeed("shadow"))
 		return effect + do.Await(ops.Succeed("ed"))
 	}))
@@ -176,7 +175,7 @@ func TestABodyThatShadowsThePackageName(t *testing.T) {
 }
 
 func TestAGuardClause(t *testing.T) {
-	_, failure := run(t, direct.Run(func(do *body) int {
+	_, failure := run(t, effect.Gen(func(do *body) int {
 		if do.Await(ops.Succeed(0)) == 0 {
 			do.Fail("empty")
 		}
@@ -186,7 +185,7 @@ func TestAGuardClause(t *testing.T) {
 }
 
 func TestDeclarationsAndAssignments(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) int {
+	value, _ := run(t, effect.Gen(func(do *body) int {
 		var x, y = do.Await(ops.Succeed(1)), 5
 		x = do.Await(ops.Succeed(10))
 		x += do.Await(ops.Succeed(100))
@@ -196,7 +195,7 @@ func TestDeclarationsAndAssignments(t *testing.T) {
 }
 
 func generic[R any](value R) effect.Effect[effect.Unit, string, []R] {
-	return direct.Run(func(do *direct.Do[effect.Unit, string]) []R {
+	return effect.Gen(func(do *effect.Do[effect.Unit, string]) []R {
 		first := do.Await(effect.Succeed[effect.Unit, string](value))
 		return []R{first, do.Await(effect.Succeed[effect.Unit, string](value))}
 	})
@@ -209,7 +208,7 @@ func TestAGenericBody(t *testing.T) {
 
 func TestAFailureInABranchSkipsTheContinuation(t *testing.T) {
 	ran := false
-	_, failure := run(t, direct.Run(func(do *body) int {
+	_, failure := run(t, effect.Gen(func(do *body) int {
 		if do.Await(ops.Succeed(true)) {
 			do.Await(ops.Fail[int]("stopped"))
 		}

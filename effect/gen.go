@@ -1,7 +1,8 @@
-// Package direct is direct-style sequencing: a dependent sequence of effects
-// written as ordinary Go.
+package effect
+
+// Direct style: a dependent sequence of effects written as ordinary Go.
 //
-//	program := direct.Run(func(do *direct.Do[Env, AppError]) Quote {
+//	program := effect.Gen(func(do *effect.Do[Env, AppError]) Quote {
 //	    customer := do.Await(loadCustomer(id))
 //	    basket := do.Await(loadBasket(customer))
 //	    if basket.IsEmpty() {
@@ -34,22 +35,19 @@
 // Every body holds a goroutine while it runs, and a body that awaits another
 // body holds one for each. That is nothing for a handler awaiting a service
 // awaiting a repository, and it is the wrong tool for recursion: a program
-// that recurses through Run a million deep holds a million goroutines, where
+// that recurses through Gen a million deep holds a million goroutines, where
 // the same recursion through FlatMap is stack-safe. Loop with for inside one
 // body instead.
 //
-// The body is not the goroutine that called Run, so what belongs to a
+// The body is not the goroutine that called Gen, so what belongs to a
 // goroutine does not carry over: runtime.LockOSThread, profiler labels, and a
 // testing.T's FailNow, which ends the body and is reported as a defect.
-package direct
 
 import (
 	"fmt"
 	"runtime"
 	"strconv"
 	"sync/atomic"
-
-	"github.com/mbauer83/effect-golang/effect"
 )
 
 // Do is a running body's access to the interpretation around it.
@@ -58,23 +56,24 @@ import (
 // goroutine. Using it anywhere else reports a defect rather than evaluating an
 // effect against an interpretation that has ended or is busy.
 type Do[R, E any] struct {
-	interpreter effect.Interpreter[R, E]
-	cause       effect.Cause[E]
+	interpreter Interpreter[R, E]
+	cause       Cause[E]
 	failed      bool
 	live        atomic.Bool
 	busy        atomic.Bool
 }
 
-// Run interprets body in direct style.
+// Gen interprets body in direct style. The name is Effect's, whose Effect.gen
+// is the same idea written with a generator.
 //
-// The body runs once per interpretation, so one Run value is reusable: a retry
+// The body runs once per interpretation, so one Gen value is reusable: a retry
 // runs the body again, and concurrent runs each have their own.
-func Run[R, E, A any](body func(*Do[R, E]) A) effect.Effect[R, E, A] {
-	return effect.WithInterpreter(func(interpreter effect.Interpreter[R, E]) effect.Exit[E, A] {
+func Gen[R, E, A any](body func(*Do[R, E]) A) Effect[R, E, A] {
+	return WithInterpreter(func(interpreter Interpreter[R, E]) Exit[E, A] {
 		do := &Do[R, E]{interpreter: interpreter}
 		do.live.Store(true)
-		ended := make(chan effect.Exit[E, A], 1)
-		dispatch(func() { runBody(do, body, ended) })
+		ended := make(chan Exit[E, A], 1)
+		dispatchBody(func() { runGenBody(do, body, ended) })
 		return <-ended
 	})
 }
@@ -84,14 +83,14 @@ func Run[R, E, A any](body func(*Do[R, E]) A) effect.Effect[R, E, A] {
 // When fx does not succeed the body ends here: its deferred calls run, and the
 // typed failure, defect or interruption reaches the resulting effect
 // unchanged.
-func (do *Do[R, E]) Await[A any](fx effect.Effect[R, E, A]) A {
+func (do *Do[R, E]) Await[A any](fx Effect[R, E, A]) A {
 	if !do.live.Load() {
-		panic(fmt.Errorf("direct: Do used outside the Run body that created it"))
+		panic(fmt.Errorf("effect: Do used outside the Gen body that created it"))
 	}
 	if !do.busy.CompareAndSwap(false, true) {
-		panic(fmt.Errorf("direct: Do used from two goroutines at once"))
+		panic(fmt.Errorf("effect: Do used from two goroutines at once"))
 	}
-	exit := effect.Interpret(do.interpreter, fx)
+	exit := Interpret(do.interpreter, fx)
 	do.busy.Store(false)
 	if value, ok := exit.Value(); ok {
 		return value
@@ -109,21 +108,17 @@ func (do *Do[R, E]) Await[A any](fx effect.Effect[R, E, A]) A {
 // belongs where the judgement is made, not where the body returns.
 //
 // The failure's origin is the line that called Fail, as it would be for an
-// effect.Fail written there.
+// Fail written there.
 func (do *Do[R, E]) Fail(failure E) {
-	cause := effect.FailCause(failure).WithOrigin(effect.Origin{Source: caller()})
-	do.Await(effect.FailWithCause[R, never](cause))
+	cause := FailCause(failure).WithOrigin(Origin{Source: callerLine()})
+	do.Await(FailWithCause[R, Never](cause))
 }
 
-// caller is the file and line that called the function calling it.
-func caller() string {
+// callerLine is the file and line that called the function calling it.
+func callerLine() string {
 	_, file, line, ok := runtime.Caller(2)
 	if !ok {
 		return ""
 	}
 	return file + ":" + strconv.Itoa(line)
 }
-
-// never is the success type of an effect that has none. Unexported and
-// uninhabited, so the only thing Fail can do is fail.
-type never struct{ _ [0]func() }

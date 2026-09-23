@@ -60,7 +60,7 @@ rewrite described below takes that away from it too.
 
 ## Direct style, and what it actually costs
 
-`customer := do.Await(loadCustomer(id))` is what `experimental/direct` offers.
+`customer := do.Await(loadCustomer(id))` is what `effect.Gen` offers.
 `Await` must return an `A` while also abandoning the body when the effect did not
 succeed, and Go has no resumable suspension, so the body runs on a goroutine of
 its own in lock step with the interpretation, and a failed `Await` ends that

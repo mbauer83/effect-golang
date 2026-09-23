@@ -1,4 +1,4 @@
-package direct_test
+package effect_test
 
 // These are documentation. Go renders an Example only when it sits beside the
 // package it documents, so unlike the behaviour tests in test/unit these live
@@ -9,15 +9,14 @@ import (
 	"fmt"
 
 	"github.com/mbauer83/effect-golang/effect"
-	"github.com/mbauer83/effect-golang/experimental/direct"
 )
 
 // A dependent sequence reads as ordinary Go: each Await returns a value the next
 // line can use.
-func ExampleRun() {
+func ExampleGen() {
 	operations := effect.For[effect.Unit, string]()
 
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) string {
 		greeting := do.Await(operations.Succeed("hello"))
 		subject := do.Await(operations.Succeed("world"))
 		return greeting + ", " + subject
@@ -34,7 +33,7 @@ func ExampleRun() {
 func ExampleDo_Await_shortCircuit() {
 	operations := effect.For[effect.Unit, string]()
 
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) string {
 		first := do.Await(operations.Succeed("loaded"))
 		do.Await(operations.Fail[string]("catalogue unavailable"))
 		fmt.Println("this line never runs")
@@ -53,7 +52,7 @@ func ExampleDo_Await_shortCircuit() {
 func ExampleDo_Await_defect() {
 	operations := effect.For[effect.Unit, string]()
 
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) string {
 		return do.Await(operations.From(
 			func(context.Context, effect.Unit) effect.Exit[string, string] {
 				panic("index out of range")
@@ -75,7 +74,7 @@ func ExampleDo_Await_defect() {
 func ExampleDo_Await_deferred() {
 	operations := effect.For[effect.Unit, string]()
 
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) string {
 		defer func() {
 			fmt.Println("recovered:", recover())
 		}()
@@ -98,7 +97,7 @@ func ExampleDo_Await_scoped() {
 	operations := effect.For[effect.Unit, string]()
 
 	program := effect.Scoped(func(scope effect.Scope) effect.Effect[effect.Unit, string, string] {
-		return direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		return effect.Gen(func(do *effect.Do[effect.Unit, string]) string {
 			handle := do.Await(scope.AcquireRelease(
 				operations.Succeed("connection"),
 				func(resource string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {

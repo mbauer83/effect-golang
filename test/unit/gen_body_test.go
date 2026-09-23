@@ -13,12 +13,11 @@ import (
 	"time"
 
 	"github.com/mbauer83/effect-golang/effect"
-	"github.com/mbauer83/effect-golang/experimental/direct"
 )
 
 func TestAFailedAwaitRunsTheBodysDeferredCalls(t *testing.T) {
 	var deferred, after bool
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) string {
 		defer func() { deferred = true }()
 		do.Await(directOperations.Fail[string]("refused"))
 		after = true
@@ -37,7 +36,7 @@ func TestAFailedAwaitRunsTheBodysDeferredCalls(t *testing.T) {
 
 func TestAGoexitOfTheBodysOwnIsADefect(t *testing.T) {
 	// testing.T's FailNow inside a body is the realistic way to get here.
-	program := direct.Run(func(*direct.Do[effect.Unit, string]) string {
+	program := effect.Gen(func(*effect.Do[effect.Unit, string]) string {
 		runtime.Goexit()
 		return "unreachable"
 	})
@@ -52,7 +51,7 @@ func TestAGoexitOfTheBodysOwnIsADefect(t *testing.T) {
 func TestInterruptionEndsTheBodyAtItsNextAwait(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var after bool
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) string {
 		cancel()
 		do.Await(effect.Sleep[effect.Unit, string](time.Hour))
 		after = true
@@ -67,7 +66,7 @@ func TestInterruptionEndsTheBodyAtItsNextAwait(t *testing.T) {
 }
 
 func TestAwaitFromAGoroutineTheBodyStartedIsADefect(t *testing.T) {
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) string {
 		release := make(chan struct{})
 		finished := make(chan struct{})
 		go func() {
@@ -94,7 +93,7 @@ func TestAwaitFromAGoroutineTheBodyStartedIsADefect(t *testing.T) {
 
 func TestOneDirectProgramRunsConcurrently(t *testing.T) {
 	var total atomic.Int64
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) string {
 		total.Add(int64(len(do.Await(directOperations.Succeed("x")))))
 		return "done"
 	})
@@ -111,7 +110,7 @@ func TestOneDirectProgramRunsConcurrently(t *testing.T) {
 
 func TestARetryRunsTheBodyAgain(t *testing.T) {
 	attempts := 0
-	program := direct.Run(func(do *direct.Do[effect.Unit, string]) int {
+	program := effect.Gen(func(do *effect.Do[effect.Unit, string]) int {
 		attempts++
 		if attempts < 3 {
 			do.Fail("again")

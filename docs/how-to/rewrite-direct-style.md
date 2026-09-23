@@ -25,7 +25,7 @@ go test -race -overlay="$(effectgo overlay ./...)" ./...
 
 The rewrite is an optimisation, never a semantics. A body is ordinary Go that
 compiles and runs correctly without `effectgo`, and a body it cannot translate
-is left exactly as written and keeps running on direct's goroutine. The only
+is left exactly as written and keeps running on its own goroutine. The only
 cost of a declined body is the speed it would have gained.
 
 `//line` directives keep every position at the line that was written, so a stack

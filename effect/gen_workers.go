@@ -1,4 +1,4 @@
-package direct
+package effect
 
 import "time"
 
@@ -11,39 +11,39 @@ import "time"
 // starts.
 //
 // A worker whose body failed ended with runtime.Goexit and does not come back.
-// One that has waited idleFor without work exits, so a program that stopped
+// One that has waited bodyIdleFor without work exits, so a program that stopped
 // running bodies stops holding goroutines for them.
-const idleFor = time.Second
+const bodyIdleFor = time.Second
 
-var jobs = make(chan func())
+var bodyJobs = make(chan func())
 
-func dispatch(job func()) {
+func dispatchBody(job func()) {
 	select {
-	case jobs <- job:
+	case bodyJobs <- job:
 	default:
 		// Handed over rather than passed as an argument: the send parks this
 		// goroutine until the worker takes the job, which lets the scheduler
 		// run the worker here instead of waking another thread for it.
 		first := make(chan func())
-		go work(first)
+		go workBodies(first)
 		first <- job
 	}
 }
 
-func work(first chan func()) {
+func workBodies(first chan func()) {
 	job := <-first
 	// The timer is made after the first body returns rather than before it,
 	// because a body that fails ends this goroutine, and a failed run should not
 	// leave a pending timer behind.
 	job()
-	timer := time.NewTimer(idleFor)
+	timer := time.NewTimer(bodyIdleFor)
 	for {
 		select {
-		case job = <-jobs:
+		case job = <-bodyJobs:
 		case <-timer.C:
 			return
 		}
 		job()
-		timer.Reset(idleFor)
+		timer.Reset(bodyIdleFor)
 	}
 }
