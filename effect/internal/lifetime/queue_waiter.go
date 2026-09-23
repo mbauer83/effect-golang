@@ -59,8 +59,8 @@ func (queue *Queue[A]) awaitValue(ctx context.Context, waiter *takeWaiter[A]) (A
 func (queue *Queue[A]) abandonTaker(waiter *takeWaiter[A]) bool {
 	queue.mutex.Lock()
 	defer queue.mutex.Unlock()
-	for index, parked := range queue.takers {
-		if parked == waiter {
+	for index, taker := range queue.takers {
+		if taker == waiter {
 			queue.takers = append(queue.takers[:index], queue.takers[index+1:]...)
 			return true
 		}

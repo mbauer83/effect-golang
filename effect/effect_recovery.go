@@ -45,12 +45,12 @@ func CatchAllChannels[R, E, A, E2 any](fx Effect[R, E, A], handler func(E) Effec
 // originalFailure reports the pre-tagging failure only for an exact Fail leaf
 // that CatchAllMerge itself tagged as Left.
 func originalFailure[E, E2 any](cause Cause[Either[E, E2]]) (E, bool) {
-	tagged, isLeaf := cause.Failure()
+	failure, isLeaf := cause.Failure()
 	if !isLeaf {
 		var zero E
 		return zero, false
 	}
-	return tagged.LeftValue()
+	return failure.LeftValue()
 }
 
 // ExitOf reifies fx's complete outcome as a successful value, so a caller can

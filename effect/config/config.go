@@ -147,12 +147,12 @@ func (description Config[A]) MapOrFail[B any](transform func(A) (B, error)) Conf
 			if !failure.IsEmpty() {
 				return zero, failure
 			}
-			transformed, err := transform(value)
+			result, err := transform(value)
 			if err != nil {
 				return zero, Invalid(err.Error(),
 					append(slices.Clone(at.path), subject...)...)
 			}
-			return transformed, Error{}
+			return result, Error{}
 		},
 	}
 }
@@ -208,10 +208,10 @@ func prefixExpectations(name string, expectation []Expectation) []Expectation {
 	if name == "" {
 		return expectation
 	}
-	prefixed := make([]Expectation, 0, len(expectation))
+	expectations := make([]Expectation, 0, len(expectation))
 	for _, expectation := range expectation {
 		expectation.Path = append([]string{name}, expectation.Path...)
-		prefixed = append(prefixed, expectation)
+		expectations = append(expectations, expectation)
 	}
-	return prefixed
+	return expectations
 }

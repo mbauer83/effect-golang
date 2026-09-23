@@ -72,9 +72,9 @@ func Gen[R, E, A any](body func(*Do[R, E]) A) Effect[R, E, A] {
 	return WithInterpreter(func(interpreter Interpreter[R, E]) Exit[E, A] {
 		do := &Do[R, E]{interpreter: interpreter}
 		do.live.Store(true)
-		ended := make(chan Exit[E, A], 1)
-		dispatchBody(func() { runGenBody(do, body, ended) })
-		return <-ended
+		result := make(chan Exit[E, A], 1)
+		dispatchBody(func() { runGenBody(do, body, result) })
+		return <-result
 	})
 }
 

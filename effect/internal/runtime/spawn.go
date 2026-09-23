@@ -35,13 +35,13 @@ func StartFiber(
 		defer ledger.RecordFiberCompletion()
 
 		childCtx := child.Context()
-		startedAt := childState.EmitStart(childCtx, capability.EventFiberStarted)
+		start := childState.EmitStart(childCtx, capability.EventFiberStarted)
 		exit := work(childCtx, childState)
 		cleanup := child.Close(childCtx, exit, lifetime.ErrScopeClosed)
 		if !cleanup.IsEmpty() {
 			exit = outcome.Failure(exit.Cause().Then(cleanup))
 		}
-		childState.EmitEnd(childCtx, capability.EventFiberCompleted, startedAt, outcome.ExitStatus(exit))
+		childState.EmitEnd(childCtx, capability.EventFiberCompleted, start, outcome.ExitStatus(exit))
 		fiber.Complete(exit)
 	})
 	if !started {

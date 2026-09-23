@@ -73,12 +73,12 @@ func renderStepOf[E any](
 
 	lines = append(lines, textLine{depth: current.depth, text: node.Kind().String() + "("})
 	left, right := node.branches()
-	nested := current.depth + 1
+	childDepth := current.depth + 1
 	return lines, append(steps,
 		renderStep[E]{action: closeComposite, depth: current.depth},
-		renderStep[E]{cause: right, depth: nested},
+		renderStep[E]{cause: right, depth: childDepth},
 		renderStep[E]{action: separateBranches},
-		renderStep[E]{cause: left, depth: nested},
+		renderStep[E]{cause: left, depth: childDepth},
 	)
 }
 
@@ -113,14 +113,14 @@ func renderOrigin[E any](leaf Cause[E]) string {
 }
 
 func renderDefect(defect Defect, depth int, includeStacks bool) []textLine {
-	rendered := []textLine{{depth: depth, text: fmt.Sprintf("%s(%v)", CauseDefect, defect.Value)}}
+	lines := []textLine{{depth: depth, text: fmt.Sprintf("%s(%v)", CauseDefect, defect.Value)}}
 	if !includeStacks || defect.Stack == "" {
-		return rendered
+		return lines
 	}
 	for _, line := range strings.Split(strings.TrimSuffix(defect.Stack, "\n"), "\n") {
-		rendered = append(rendered, textLine{depth: depth + 1, text: line})
+		lines = append(lines, textLine{depth: depth + 1, text: line})
 	}
-	return rendered
+	return lines
 }
 
 func joinLines(lines []textLine) string {

@@ -115,8 +115,8 @@ func (group *branchGroup) recordOutcome(index int, work Branch) Branch {
 func (group *branchGroup) awaitFirstFailure(scope *lifetime.Scope, reason error) {
 	abandoned := false
 	for range group.fibers {
-		reported := <-group.completions
-		if reported.exit.IsSuccess() || abandoned {
+		completion := <-group.completions
+		if completion.exit.IsSuccess() || abandoned {
 			continue
 		}
 		abandoned = true

@@ -66,13 +66,13 @@ func IsInduced(cause Cause, reason error) bool {
 // order. A branch canceled only because a sibling failed did not fail on its
 // own account, so its induced interruption is dropped.
 func CombineBranchCauses(exits []Exit, cancelReason error) Cause {
-	combined := Cause{}
+	result := Cause{}
 	for _, exit := range exits {
 		cause := exit.Cause()
 		if IsInduced(cause, cancelReason) {
 			continue
 		}
-		combined = combined.Both(cause)
+		result = result.Both(cause)
 	}
-	return combined
+	return result
 }

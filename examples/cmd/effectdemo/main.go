@@ -146,10 +146,10 @@ func report[E, A any](scenario string, exit effect.Exit[E, A]) {
 }
 
 func reportShutdown(runtime *effect.Runtime, ctx context.Context) {
-	remaining := runtime.LiveWork()
+	live := runtime.LiveWork()
 	cleanup := runtime.Close(ctx)
 	fmt.Printf("shutdown: %d fibers and %d resources still owned at Close\n",
-		remaining.Fibers, remaining.Resources)
+		live.Fibers, live.Resources)
 	if !cleanup.IsEmpty() {
 		fmt.Printf("shutdown cleanup: %s\n", cleanup)
 	}

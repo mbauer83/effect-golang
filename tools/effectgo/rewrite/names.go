@@ -40,10 +40,10 @@ func (all *names) fresh(prefix string) string {
 // package the file does not import -- or imports under a name a body shadows
 // -- is needed.
 type typeNames struct {
-	pkg      *types.Package
-	names    *names
-	imported map[string]string
-	added    map[string]string
+	pkg       *types.Package
+	names     *names
+	imports   map[string]string
+	additions map[string]string
 	// shadowed are the names that might not mean a package where generated
 	// code is written: every name declared inside the body being rewritten,
 	// and every name in scope at the call that is not a package.
@@ -51,28 +51,28 @@ type typeNames struct {
 }
 
 func newTypeNames(file *ast.File, info *types.Info, pkg *types.Package, all *names) *typeNames {
-	imported := map[string]string{}
+	imports := map[string]string{}
 	for _, spec := range file.Imports {
 		name := info.PkgNameOf(spec)
 		if name == nil || name.Name() == "_" || name.Name() == "." {
 			continue
 		}
-		imported[name.Imported().Path()] = name.Name()
+		imports[name.Imported().Path()] = name.Name()
 	}
-	return &typeNames{pkg: pkg, names: all, imported: imported, added: map[string]string{}}
+	return &typeNames{pkg: pkg, names: all, imports: imports, additions: map[string]string{}}
 }
 
 // forSite points shadowing at one call: names declared in its body, and what
 // its position resolves each package name to.
-func (tn *typeNames) forSite(info *types.Info, found *site) {
+func (tn *typeNames) forSite(info *types.Info, site *site) {
 	declared := map[string]bool{}
-	ast.Inspect(found.literal, func(node ast.Node) bool {
+	ast.Inspect(site.literal, func(node ast.Node) bool {
 		if ident, ok := node.(*ast.Ident); ok && info.Defs[ident] != nil {
 			declared[ident.Name] = true
 		}
 		return true
 	})
-	scope := tn.pkg.Scope().Innermost(found.call.Pos())
+	scope := tn.pkg.Scope().Innermost(site.call.Pos())
 	tn.shadowed = func(name string) bool {
 		if declared[name] {
 			return true
@@ -80,7 +80,7 @@ func (tn *typeNames) forSite(info *types.Info, found *site) {
 		if scope == nil {
 			return false
 		}
-		_, object := scope.LookupParent(name, found.call.Pos())
+		_, object := scope.LookupParent(name, site.call.Pos())
 		_, isPackage := object.(*types.PkgName)
 		return object != nil && !isPackage
 	}
@@ -88,14 +88,14 @@ func (tn *typeNames) forSite(info *types.Info, found *site) {
 
 // packageName is what generated code calls the package at path.
 func (tn *typeNames) packageName(path, name string) string {
-	if local, ok := tn.imported[path]; ok && !tn.shadowed(local) {
+	if local, ok := tn.imports[path]; ok && !tn.shadowed(local) {
 		return local
 	}
-	if alias, ok := tn.added[path]; ok {
+	if alias, ok := tn.additions[path]; ok {
 		return alias
 	}
 	alias := tn.names.fresh("rewritten" + strings.ToUpper(name[:1]) + name[1:])
-	tn.added[path] = alias
+	tn.additions[path] = alias
 	return alias
 }
 

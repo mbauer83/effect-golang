@@ -30,11 +30,11 @@ func Want[A any]() Requirement {
 }
 
 // String is the type's own name, for a report.
-func (wanted Requirement) String() string {
-	if wanted.dependency == nil {
+func (requirement Requirement) String() string {
+	if requirement.dependency == nil {
 		return "an unnamed dependency"
 	}
-	return wanted.dependency.String()
+	return requirement.dependency.String()
 }
 
 // Complete reports which of these a program was not given, in the order they

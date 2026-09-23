@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-// branching emits an if, a switch or a block whose branches hold steps. An if
+// branch emits an if, a switch or a block whose branches hold steps. An if
 // and a block pass jumps through, because a break inside them still leaves the
 // switch around them; a switch is what a break inside it leaves.
-func (em *emitter) branching(stmt ast.Stmt, temps map[*ast.CallExpr]string, k string, jumps jumpTargets) string {
+func (em *emitter) branch(stmt ast.Stmt, temps map[*ast.CallExpr]string, k string, jumps jumpTargets) string {
 	switch node := stmt.(type) {
 	case *ast.BlockStmt:
 		return "{\n" + em.list(node.List, k, jumps) + "}\n"

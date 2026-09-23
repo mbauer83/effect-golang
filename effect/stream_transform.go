@@ -108,19 +108,19 @@ func (stream Stream[R, E, A]) FilterStream(keep func(A) bool) Stream[R, E, A] {
 // closes.
 func (stream Stream[R, E, A]) TakeStream(count int) Stream[R, E, A] {
 	return applyStage(stream, func() streamStage[A] {
-		remaining := count
+		budget := count
 		return streamStage[A]{
-			HasEnded: func() bool { return remaining < 1 },
+			HasEnded: func() bool { return budget < 1 },
 			Rewrite: func(step Step[A]) Step[A] {
 				chunk, more := step.Chunk()
 				// The budget is checked here as well as in the gate. Emitting an
 				// empty chunk instead would not end the stream, so relying on
 				// the gate alone would make termination depend on one branch.
-				if !more || remaining < 1 {
+				if !more || budget < 1 {
 					return EndOfStream[A]()
 				}
-				head := chunk.TakeFirst(remaining)
-				remaining -= head.Len()
+				head := chunk.TakeFirst(budget)
+				budget -= head.Len()
 				return Emit(head)
 			},
 		}
@@ -130,16 +130,16 @@ func (stream Stream[R, E, A]) TakeStream(count int) Stream[R, E, A] {
 // DropStream discards the first count values.
 func (stream Stream[R, E, A]) DropStream(count int) Stream[R, E, A] {
 	return applyStage(stream, func() streamStage[A] {
-		remaining := count
+		budget := count
 		return streamStage[A]{
 			HasEnded: withoutEnd,
 			Rewrite: func(step Step[A]) Step[A] {
 				chunk, more := step.Chunk()
-				if !more || remaining < 1 {
+				if !more || budget < 1 {
 					return step
 				}
-				rest := chunk.DropFirst(remaining)
-				remaining -= chunk.Len() - rest.Len()
+				rest := chunk.DropFirst(budget)
+				budget -= chunk.Len() - rest.Len()
 				return Emit(rest)
 			},
 		}

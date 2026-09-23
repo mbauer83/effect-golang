@@ -102,8 +102,8 @@ func (queue *Queue[A]) Take(ctx context.Context) (A, bool, bool) {
 	}
 	if queue.closed {
 		queue.mutex.Unlock()
-		var drained A
-		return drained, false, false
+		var zero A
+		return zero, false, false
 	}
 
 	waiter := &takeWaiter[A]{ready: make(chan A, 1)}

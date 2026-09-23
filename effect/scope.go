@@ -34,7 +34,7 @@ type Scope struct {
 func Scoped[R, E, A any](use func(Scope) Effect[R, E, A]) Effect[R, E, A] {
 	return suspendRuntime(func(ctx context.Context, state *runtimecore.State, _ R) Effect[R, E, A] {
 		scope := lifetime.NewScope(ctx)
-		openedAt := state.EmitStart(ctx, capability.EventScopeOpened)
+		start := state.EmitStart(ctx, capability.EventScopeOpened)
 
 		// use runs inside the subtree that already carries the closing hook, so
 		// a panic while describing the body still closes the scope.
@@ -42,7 +42,7 @@ func Scoped[R, E, A any](use func(Scope) Effect[R, E, A]) Effect[R, E, A] {
 			return use(Scope{state: scope})
 		})
 		return body.
-			withExitObserver(closeScope(scope, openedAt)).
+			withExitObserver(closeScope(scope, start)).
 			withState(replaceState(state.WithScope(scope))).
 			withContext(scope.Context())
 	})
@@ -50,7 +50,7 @@ func Scoped[R, E, A any](use func(Scope) Effect[R, E, A]) Effect[R, E, A] {
 
 // closeScope ends the scope's lifetime once the body it owns has settled, and
 // composes any release failure after the body's own cause.
-func closeScope(scope *lifetime.Scope, openedAt time.Time) exitObserver {
+func closeScope(scope *lifetime.Scope, start time.Time) exitObserver {
 	return func(interpretation runtimecore.Interpretation, exit outcome.Exit) outcome.Exit {
 		ctx, state := interpretation.Context, interpretation.State
 		state.EmitMark(ctx, capability.EventScopeClosing)
@@ -58,7 +58,7 @@ func closeScope(scope *lifetime.Scope, openedAt time.Time) exitObserver {
 		state.EmitEnd(
 			ctx,
 			capability.EventScopeClosed,
-			openedAt,
+			start,
 			outcome.CleanupStatus(cleanup),
 		)
 
@@ -165,10 +165,10 @@ func releaseFinalizer[R, A any](
 	environment := asEnvironment[R](interpretation.Environment)
 	state := interpretation.State
 	return func(ctx context.Context, _ outcome.Exit) outcome.Cause {
-		released := release(resource).run(ctx, state, environment)
+		result := release(resource).run(ctx, state, environment)
 		state.Ledger().RecordRelease()
 		state.EmitMark(ctx, capability.EventResourceReleased)
-		cause, _ := released.Cause()
+		cause, _ := result.Cause()
 		return cause.node
 	}
 }

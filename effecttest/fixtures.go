@@ -61,13 +61,13 @@ func (work *Blocker) Release() {
 // Block is an effect that waits until the Blocker is released or its context
 // is canceled, recording which happened. It records "completed" on release and
 // "interrupted" on cancellation.
-func Block[R, E, A any](work *Blocker, completed A) effect.Effect[R, E, A] {
+func Block[R, E, A any](work *Blocker, value A) effect.Effect[R, E, A] {
 	return effect.From(func(ctx context.Context, _ R) effect.Exit[E, A] {
 		work.startOnce.Do(func() { close(work.started) })
 		select {
 		case <-work.release:
 			work.tracker.Record("completed")
-			return effect.ExitSuccess[E](completed)
+			return effect.ExitSuccess[E](value)
 		case <-ctx.Done():
 			work.tracker.Record("interrupted")
 			return effect.ExitCause[E, A](effect.InterruptCause[E](context.Cause(ctx)))

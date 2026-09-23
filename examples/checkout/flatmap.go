@@ -13,11 +13,11 @@ import (
 	"github.com/mbauer83/effect-golang/effect"
 )
 
-// ChainedProgram prices a basket for a customer, as a FlatMap chain.
+// FlatMapProgram prices a basket for a customer, as a FlatMap chain.
 //
 // It is the same workflow as Program: the same steps, the same failures, the
 // same laziness. Only the sequencing differs.
-func ChainedProgram(customerID string, items []string) workflowEffect[Quote] {
+func FlatMapProgram(customerID string, items []string) workflowEffect[Quote] {
 	return effect.Suspend(func() workflowEffect[Quote] {
 		return loadCustomer(customerID).FlatMap(func(customer Customer) workflowEffect[Quote] {
 			return loadBasket(customer, items).FlatMap(func(basket Basket) workflowEffect[Quote] {
@@ -34,6 +34,6 @@ func ChainedProgram(customerID string, items []string) workflowEffect[Quote] {
 func Styles() map[string]func(string, []string) effect.Effect[Catalog, CheckoutError, Quote] {
 	return map[string]func(string, []string) effect.Effect[Catalog, CheckoutError, Quote]{
 		"direct":  Program,
-		"chained": ChainedProgram,
+		"flatmap": FlatMapProgram,
 	}
 }

@@ -26,7 +26,7 @@ func jitterStep[In, Out any](
 ) scheduleStep[In, Out] {
 	return func(now time.Time, input In) (ScheduleDecision[Out], scheduleStep[In, Out]) {
 		decision, next := step(now, input)
-		if decision.continueRunning {
+		if decision.continues {
 			fraction := normalizeFraction(randomFraction())
 			factor := minimum + fraction*(maximum-minimum)
 			decision.delay = scaleDuration(decision.delay, factor)
@@ -62,9 +62,9 @@ func normalizeFraction(fraction float64) float64 {
 }
 
 func scaleDuration(duration time.Duration, factor float64) time.Duration {
-	scaled := float64(normalizeDuration(duration)) * factor
-	if math.IsInf(scaled, 1) || scaled >= float64(time.Duration(1<<63-1)) {
+	nanos := float64(normalizeDuration(duration)) * factor
+	if math.IsInf(nanos, 1) || nanos >= float64(time.Duration(1<<63-1)) {
 		return time.Duration(1<<63 - 1)
 	}
-	return time.Duration(scaled)
+	return time.Duration(nanos)
 }

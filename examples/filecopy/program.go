@@ -10,8 +10,8 @@ import (
 )
 
 type sourceSnapshot struct {
-	content    []byte
-	observedAt time.Time
+	content   []byte
+	timestamp time.Time
 }
 
 // Program reads a text file, normalizes it to uppercase, records the operation,
@@ -38,14 +38,14 @@ func copyProgram(
 	outputPath string,
 	read effect.Effect[effect.Unit, effect.IOError, []byte],
 ) effect.Effect[effect.Unit, effect.IOError, effect.Unit] {
-	loaded := effect.Zip(
+	snapshot := effect.Zip(
 		read,
 		operations.Now(),
 	).Map(func(values effect.Product[[]byte, time.Time]) sourceSnapshot {
-		return sourceSnapshot{content: values.First, observedAt: values.Second}
+		return sourceSnapshot{content: values.First, timestamp: values.Second}
 	})
 
-	return loaded.
+	return snapshot.
 		FlatMap(normalizeAndStore(operations, inputPath, outputPath)).
 		WithName("file-copy").
 		WithSpan("file-copy", slog.String("input", inputPath))
@@ -63,7 +63,7 @@ func normalizeAndStore(
 		message := operations.LogInfo(
 			"normalizing file",
 			slog.Int("bytes", len(source.content)),
-			slog.Time("started_at", source.observedAt),
+			slog.Time("started_at", source.timestamp),
 		)
 		write := operations.WriteFile(
 			outputPath,

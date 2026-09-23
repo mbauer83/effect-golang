@@ -11,15 +11,15 @@ import (
 // pending continuation frames.
 
 func captureExitDefect(exit *outcome.Exit) {
-	if recovered := recover(); recovered != nil {
-		*exit = outcome.Failure(outcome.DieCause(outcome.CaptureDefect(recovered)))
+	if panicValue := recover(); panicValue != nil {
+		*exit = outcome.Failure(outcome.DieCause(outcome.CaptureDefect(panicValue)))
 	}
 }
 
 func captureDefect(defect **outcome.Defect) {
-	if recovered := recover(); recovered != nil {
-		captured := outcome.CaptureDefect(recovered)
-		*defect = &captured
+	if panicValue := recover(); panicValue != nil {
+		result := outcome.CaptureDefect(panicValue)
+		*defect = &result
 	}
 }
 

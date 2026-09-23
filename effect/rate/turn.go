@@ -67,9 +67,9 @@ func reserveTurn[R any](
 			return limiter.Turn(ctx, allowance, longest)
 		},
 		func(err error) Fault {
-			var existing Fault
-			if errors.As(err, &existing) {
-				return existing
+			var fault Fault
+			if errors.As(err, &fault) {
+				return fault
 			}
 			return Fault{Allowance: allowance.Name, Err: err}
 		},

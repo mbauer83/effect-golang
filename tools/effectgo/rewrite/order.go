@@ -142,8 +142,8 @@ func (em *emitter) terminates(stmt ast.Stmt, jumps jumpTargets) bool {
 		if !ok {
 			return false
 		}
-		if found, isStep := em.site.steps[call]; isStep {
-			return found.fail
+		if step, isStep := em.site.steps[call]; isStep {
+			return step.fail
 		}
 		ident := identOf(call.Fun)
 		builtin, isBuiltin := em.info.Uses[ident].(*types.Builtin)

@@ -103,7 +103,7 @@ func TestEveryMissingSettingIsReportedAtOnce(t *testing.T) {
 	if len(leaves) != 3 {
 		t.Fatalf("expected all three reported, got %d: %v", len(leaves), failure)
 	}
-	if !failure.MissingOnly() {
+	if !failure.IsMissingOnly() {
 		t.Fatalf("expected every failure to be an absence, got %v", failure)
 	}
 	// In the order the description asks, which is the order somebody reading
@@ -125,7 +125,7 @@ func TestABlankValueIsNotAValue(t *testing.T) {
 	if failure.IsEmpty() {
 		t.Fatal("expected blank text to be refused")
 	}
-	if failure.MissingOnly() {
+	if failure.IsMissingOnly() {
 		t.Fatal("expected a refusal rather than an absence: it was supplied")
 	}
 }

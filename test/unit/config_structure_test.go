@@ -77,7 +77,7 @@ func TestADescriptionNobodyBuiltIsReportedRatherThanPanicking(t *testing.T) {
 	if failure.IsEmpty() {
 		t.Fatal("expected the zero description to be reported")
 	}
-	if failure.MissingOnly() {
+	if failure.IsMissingOnly() {
 		t.Fatalf("expected a programming mistake rather than an absence: %v", failure)
 	}
 	// Nested and mapped, it is still reported rather than dereferenced.

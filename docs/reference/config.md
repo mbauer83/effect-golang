@@ -79,7 +79,7 @@ same reason.
 type ConfigError = config.Error
 
 failure.Failures()    // the leaves, left to right
-failure.MissingOnly() // every leaf is a path nobody supplied
+failure.IsMissingOnly() // every leaf is a path nobody supplied
 failure.Kind()        // KindMissing, KindInvalid, KindUnavailable, KindAnd, KindOr
 ```
 

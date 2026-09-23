@@ -180,11 +180,11 @@ func (state *State) Emit(ctx context.Context, event capability.RuntimeEvent) {
 		return
 	}
 	defer func() {
-		if recovered := recover(); recovered != nil {
+		if panicValue := recover(); panicValue != nil {
 			state.Report(ctx, capability.RuntimeFault{
 				Component: capability.FaultObserver,
 				Operation: string(event.Kind),
-				Err:       fmt.Errorf("effect: observer panicked: %v", recovered),
+				Err:       fmt.Errorf("effect: observer panicked: %v", panicValue),
 			})
 		}
 	}()

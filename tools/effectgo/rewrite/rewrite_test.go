@@ -46,9 +46,9 @@ func TestTheCasesPassAsWrittenAndAsRewritten(t *testing.T) {
 				t.Fatal(err)
 			}
 			result := rewrite.File(pkg.Fset, file, pkg.TypesInfo, pkg.Types, text)
-			rewritten += result.Rewritten
-			declined += len(result.Declined)
-			for _, decline := range result.Declined {
+			rewritten += result.Rewrites
+			declined += len(result.Declines)
+			for _, decline := range result.Declines {
 				t.Logf("declined %s: %s", decline.Position, decline.Reason)
 			}
 			if result.Source == nil {

@@ -29,14 +29,14 @@ func (state *State) EmitStart(ctx context.Context, kind capability.EventKind) ti
 func (state *State) EmitEnd(
 	ctx context.Context,
 	kind capability.EventKind,
-	startedAt time.Time,
+	start time.Time,
 	status capability.EventStatus,
 ) {
 	if !state.HasObserver() {
 		return
 	}
 	event := state.Event(kind)
-	event.Duration = nonNegative(event.Timestamp.Sub(startedAt))
+	event.Duration = nonNegative(event.Timestamp.Sub(start))
 	event.Status = status
 	state.Emit(ctx, event)
 }

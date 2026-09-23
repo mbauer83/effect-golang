@@ -55,11 +55,11 @@ func (machine *interpreter) run(node Node) outcome.Exit {
 	current := node
 	for {
 		exit := machine.evaluate(current)
-		resumed, settled, pending := machine.resume(exit)
+		next, result, pending := machine.resume(exit)
 		if !pending {
-			return settled
+			return result
 		}
-		current = resumed
+		current = next
 	}
 }
 
@@ -85,34 +85,34 @@ func (machine *interpreter) evaluate(node Node) outcome.Exit {
 			node = instruction.Source
 		case *WithEnvironment:
 			machine.push(environmentFrame{environment: machine.environment})
-			adapted, defect := adaptEnvironment(instruction.Adapt, machine.environment)
+			environment, defect := adaptEnvironment(instruction.Adapt, machine.environment)
 			if defect != nil {
 				return outcome.Failure(outcome.DieCause(*defect))
 			}
-			machine.environment = adapted
+			machine.environment = environment
 			node = instruction.Source
 		case *WithContext:
 			machine.push(contextFrame{ctx: machine.ctx})
-			derived, defect := deriveContext(instruction.Derive, machine.ctx)
+			ctx, defect := deriveContext(instruction.Derive, machine.ctx)
 			if defect != nil {
 				return outcome.Failure(outcome.DieCause(*defect))
 			}
-			machine.ctx = derived
+			machine.ctx = ctx
 			node = instruction.Source
 		case *WithState:
 			machine.push(stateFrame{state: machine.state})
-			derived, defect := deriveState(instruction.Derive, machine.state)
+			state, defect := deriveState(instruction.Derive, machine.state)
 			if defect != nil {
 				return outcome.Failure(outcome.DieCause(*defect))
 			}
-			machine.state = derived
+			machine.state = state
 			node = instruction.Source
 		case *Suspend:
-			created, defect := createNode(instruction, machine.interpretation())
+			next, defect := createNode(instruction, machine.interpretation())
 			if defect != nil {
 				return outcome.Failure(outcome.DieCause(*defect))
 			}
-			node = created
+			node = next
 		default:
 			return machine.settle(node)
 		}

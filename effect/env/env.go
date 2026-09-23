@@ -56,8 +56,8 @@ func Empty() Services {
 // dependency nobody asks for, which Complete reports.
 func (services Services) With[A any](service A) Services {
 	byType := make(map[reflect.Type]any, len(services.byType)+1)
-	for named, existing := range services.byType {
-		byType[named] = existing
+	for key, value := range services.byType {
+		byType[key] = value
 	}
 	byType[reflect.TypeFor[A]()] = service
 	return Services{byType: byType}
@@ -97,9 +97,9 @@ type MissingDependency struct {
 	Available []string
 }
 
-func (missing MissingDependency) Error() string {
-	return "env: no dependency of type " + missing.Type + " was provided; this program was given " +
-		strings.Join(missing.Available, ", ")
+func (failure MissingDependency) Error() string {
+	return "env: no dependency of type " + failure.Type + " was provided; this program was given " +
+		strings.Join(failure.Available, ", ")
 }
 
 // missingDependency is the report for a type this environment does not hold.
@@ -119,8 +119,8 @@ func missingDependency[A any](services Services) MissingDependency {
 // to project through and no order to preserve.
 func (services Services) WithAll(other Services) Services {
 	byType := make(map[reflect.Type]any, len(services.byType)+len(other.byType))
-	for named, existing := range services.byType {
-		byType[named] = existing
+	for key, value := range services.byType {
+		byType[key] = value
 	}
 	for named, existing := range other.byType {
 		byType[named] = existing

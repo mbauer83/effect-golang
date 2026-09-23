@@ -100,27 +100,27 @@ func workspacePatterns() ([]string, error) {
 func overlay(patterns []string) (string, error) {
 	var importers []string
 	if len(patterns) > 0 {
-		found, err := importersOfGen(patterns)
+		matches, err := importersOfGen(patterns)
 		if err != nil {
 			return "", err
 		}
-		importers = found
+		importers = matches
 	}
 	cache, err := cacheDir()
 	if err != nil {
 		return "", err
 	}
 	replace := map[string]string{}
-	rewritten, declined := 0, 0
+	rewrites, declines := 0, 0
 	if len(importers) > 0 {
-		loaded, err := packages.Load(&packages.Config{
+		pkgs, err := packages.Load(&packages.Config{
 			Mode:  packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 			Tests: true,
 		}, importers...)
 		if err != nil {
 			return "", err
 		}
-		for _, pkg := range loaded {
+		for _, pkg := range pkgs {
 			for i, file := range pkg.Syntax {
 				filename := pkg.CompiledGoFiles[i]
 				if _, done := replace[filename]; done || !importsEffect(file) {
@@ -131,9 +131,9 @@ func overlay(patterns []string) (string, error) {
 					return "", err
 				}
 				result := rewrite.File(pkg.Fset, file, pkg.TypesInfo, pkg.Types, text)
-				rewritten += result.Rewritten
-				declined += len(result.Declined)
-				explain(result.Declined)
+				rewrites += result.Rewrites
+				declines += len(result.Declines)
+				explain(result.Declines)
 				if result.Source == nil {
 					continue
 				}
@@ -145,12 +145,12 @@ func overlay(patterns []string) (string, error) {
 			}
 		}
 	}
-	fmt.Fprintf(os.Stderr, "effectgo: rewrote %d Gen bodies, declined %d\n", rewritten, declined)
-	encoded, err := json.Marshal(map[string]map[string]string{"Replace": replace})
+	fmt.Fprintf(os.Stderr, "effectgo: rewrote %d Gen bodies, declined %d\n", rewrites, declines)
+	overlayJSON, err := json.Marshal(map[string]map[string]string{"Replace": replace})
 	if err != nil {
 		return "", err
 	}
-	return store(cache, "overlay.json", encoded)
+	return store(cache, "overlay.json", overlayJSON)
 }
 
 // importersOfGen is the packages matching patterns that might call
@@ -158,7 +158,7 @@ func overlay(patterns []string) (string, error) {
 // without type-checking anything. Every program imports effect, so the text
 // is what keeps the type-checking to the packages that need it.
 func importersOfGen(patterns []string) ([]string, error) {
-	loaded, err := packages.Load(&packages.Config{
+	pkgs, err := packages.Load(&packages.Config{
 		Mode:  packages.NeedName | packages.NeedImports | packages.NeedFiles,
 		Tests: true,
 	}, patterns...)
@@ -167,7 +167,7 @@ func importersOfGen(patterns []string) ([]string, error) {
 	}
 	seen := map[string]bool{}
 	var importers []string
-	for _, pkg := range loaded {
+	for _, pkg := range pkgs {
 		if _, ok := pkg.Imports[effectPath]; !ok || seen[pkg.PkgPath] || !mentionsGen(pkg.GoFiles) {
 			continue
 		}
@@ -198,11 +198,11 @@ func importsEffect(file *ast.File) bool {
 	return false
 }
 
-func explain(declined []rewrite.Decline) {
+func explain(declines []rewrite.Decline) {
 	if os.Getenv("EFFECTGO_EXPLAIN") == "" {
 		return
 	}
-	for _, decline := range declined {
+	for _, decline := range declines {
 		fmt.Fprintf(os.Stderr, "effectgo: %s: left as it was: %s\n", decline.Position, decline.Reason)
 	}
 }

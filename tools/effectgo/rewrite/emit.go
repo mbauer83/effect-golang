@@ -14,12 +14,12 @@ import (
 // wherever a branch has to rejoin what follows it. jumps are what an unlabeled
 // break or continue becomes, where it leaves a translated switch or loop.
 type emitter struct {
-	src    *source
-	info   *types.Info
-	site   *site
-	names  *names
-	types  *typeNames
-	nested map[*ast.CallExpr]string
+	src          *source
+	info         *types.Info
+	site         *site
+	names        *names
+	types        *typeNames
+	replacements map[*ast.CallExpr]string
 
 	effect  string
 	r, e, a string
@@ -73,9 +73,9 @@ func (em *emitter) list(stmts []ast.Stmt, k string, jumps jumpTargets) string {
 
 // statement emits one statement that holds a step, and everything after it.
 func (em *emitter) statement(stmt ast.Stmt, rest []ast.Stmt, k string, jumps jumpTargets) string {
-	if wrapped, ok := em.withoutInit(stmt); ok {
+	if stmts, ok := em.withoutInit(stmt); ok {
 		return em.compound(rest, k, jumps, func(next string) string {
-			inner := em.list(wrapped, next, jumps)
+			inner := em.list(stmts, next, jumps)
 			return "return func() " + em.eff + " {\n" + inner + "}()\n"
 		})
 	}
@@ -99,7 +99,7 @@ func (em *emitter) statement(stmt ast.Stmt, rest []ast.Stmt, k string, jumps jum
 	case *ast.IfStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.BlockStmt:
 		return em.compound(rest, k, jumps, func(next string) string {
 			return em.chain(own, func(temps map[*ast.CallExpr]string) string {
-				return em.branching(stmt, temps, next, jumps)
+				return em.branch(stmt, temps, next, jumps)
 			})
 		})
 	}
@@ -138,8 +138,8 @@ func (em *emitter) tailStep(stmt ast.Stmt) (*ast.CallExpr, bool) {
 	if !ok {
 		return nil, false
 	}
-	found, isStep := em.site.steps[call]
-	if !isStep || found.fail || !types.Identical(found.value, em.site.a) {
+	step, isStep := em.site.steps[call]
+	if !isStep || step.fail || !types.Identical(step.value, em.site.a) {
 		return nil, false
 	}
 	return call, true
@@ -168,21 +168,21 @@ func (em *emitter) withoutInit(stmt ast.Stmt) ([]ast.Stmt, bool) {
 	switch node := stmt.(type) {
 	case *ast.IfStmt:
 		if node.Init != nil && (em.needs(node.Init) || em.headerHasStep(node.Cond)) {
-			copied := *node
-			copied.Init = nil
-			return []ast.Stmt{node.Init, &copied}, true
+			clone := *node
+			clone.Init = nil
+			return []ast.Stmt{node.Init, &clone}, true
 		}
 	case *ast.SwitchStmt:
 		if node.Init != nil && (em.needs(node.Init) || em.headerHasStep(node.Tag)) {
-			copied := *node
-			copied.Init = nil
-			return []ast.Stmt{node.Init, &copied}, true
+			clone := *node
+			clone.Init = nil
+			return []ast.Stmt{node.Init, &clone}, true
 		}
 	case *ast.TypeSwitchStmt:
 		if node.Init != nil && (em.needs(node.Init) || em.needs(node.Assign)) {
-			copied := *node
-			copied.Init = nil
-			return []ast.Stmt{node.Init, &copied}, true
+			clone := *node
+			clone.Init = nil
+			return []ast.Stmt{node.Init, &clone}, true
 		}
 	}
 	return nil, false
@@ -198,26 +198,26 @@ func (em *emitter) headerHasStep(expr ast.Expr) bool {
 func (em *emitter) chain(own []*ast.CallExpr, inner func(map[*ast.CallExpr]string) string) string {
 	temps := map[*ast.CallExpr]string{}
 	var out strings.Builder
-	closing := 0
+	depth := 0
 	for _, call := range own {
-		found := em.site.steps[call]
+		step := em.site.steps[call]
 		em.emitted[call] = true
-		if found.fail {
+		if step.fail {
 			continue
 		}
 		name := em.names.fresh("awaited")
-		value, ok := em.types.text(found.value)
+		value, ok := em.types.text(step.value)
 		if !ok {
 			em.decline("a step's value has a type this file cannot name")
 			return ""
 		}
-		out.WriteString("return " + em.src.line(call) + em.text(found.argument, temps, jumpTargets{}) +
+		out.WriteString("return " + em.src.line(call) + em.text(step.argument, temps, jumpTargets{}) +
 			".FlatMap(func(" + name + " " + value + ") " + em.eff + " {\n")
 		temps[call] = name
-		closing++
+		depth++
 	}
 	out.WriteString(inner(temps))
-	out.WriteString(strings.Repeat("})\n", closing))
+	out.WriteString(strings.Repeat("})\n", depth))
 	return out.String()
 }
 
@@ -226,10 +226,10 @@ func (em *emitter) chain(own []*ast.CallExpr, inner func(map[*ast.CallExpr]strin
 func (em *emitter) simple(stmt ast.Stmt, temps map[*ast.CallExpr]string) string {
 	if expr, ok := stmt.(*ast.ExprStmt); ok {
 		if call, ok := ast.Unparen(expr.X).(*ast.CallExpr); ok {
-			if found, isStep := em.site.steps[call]; isStep {
-				if found.fail {
+			if step, isStep := em.site.steps[call]; isStep {
+				if step.fail {
 					return "return " + em.src.line(stmt) + em.effect + ".Fail[" + em.r + ", " + em.a + ", " + em.e + "](" +
-						em.text(found.argument, temps, jumpTargets{}) + ")\n"
+						em.text(step.argument, temps, jumpTargets{}) + ")\n"
 				}
 				return "_ = " + temps[call] + "\n"
 			}

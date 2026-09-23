@@ -43,7 +43,7 @@ func (em *emitter) collect(
 		}
 		switch n := n.(type) {
 		case *ast.CallExpr:
-			if replacement, ok := em.nested[n]; ok {
+			if replacement, ok := em.replacements[n]; ok {
 				add(n, replacement)
 				return false
 			}
@@ -100,7 +100,7 @@ func (em *emitter) collect(
 // the new names and an assignment to all of them.
 func (em *emitter) redeclaration(assign *ast.AssignStmt, temps map[*ast.CallExpr]string, jumps jumpTargets) (string, bool) {
 	reuses := false
-	var declared []string
+	var declarations []string
 	left := make([]string, len(assign.Lhs))
 	for i, expr := range assign.Lhs {
 		ident := identOf(expr)
@@ -118,7 +118,7 @@ func (em *emitter) redeclaration(assign *ast.AssignStmt, temps map[*ast.CallExpr
 			em.decline("a redeclared name has a type this file cannot name")
 			return "", false
 		}
-		declared = append(declared, "var "+ident.Name+" "+typeText+"; ")
+		declarations = append(declarations, "var "+ident.Name+" "+typeText+"; ")
 	}
 	if !reuses {
 		return "", false
@@ -127,7 +127,7 @@ func (em *emitter) redeclaration(assign *ast.AssignStmt, temps map[*ast.CallExpr
 	for i, expr := range assign.Rhs {
 		right[i] = em.text(expr, temps, jumps)
 	}
-	return strings.Join(declared, "") + strings.Join(left, ", ") + " = " + strings.Join(right, ", "), true
+	return strings.Join(declarations, "") + strings.Join(left, ", ") + " = " + strings.Join(right, ", "), true
 }
 
 // isTypeSwitchGuard reports whether assign is the v := x.(type) of a type

@@ -62,9 +62,9 @@ func Drop[R any](store Store, about string) effect.Effect[R, Fault, effect.Unit]
 // a Fault, so a caller reading Op sees what actually failed.
 func faultOf(op string, key string) func(error) Fault {
 	return func(err error) Fault {
-		var existing Fault
-		if errors.As(err, &existing) {
-			return existing
+		var fault Fault
+		if errors.As(err, &fault) {
+			return fault
 		}
 		return Fault{Op: op, Key: key, Err: err}
 	}

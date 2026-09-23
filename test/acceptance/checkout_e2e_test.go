@@ -134,7 +134,7 @@ func TestBothCheckoutStylesProduceIdenticalOutcomes(t *testing.T) {
 		direct := effect.Run(context.Background(), catalog(),
 			checkout.Program(input.customer, input.items))
 		chained := effect.Run(context.Background(), catalog(),
-			checkout.ChainedProgram(input.customer, input.items))
+			checkout.FlatMapProgram(input.customer, input.items))
 
 		if direct.String() != chained.String() {
 			t.Fatalf("%s: the styles disagree\n  direct:  %s\n  chained: %s",

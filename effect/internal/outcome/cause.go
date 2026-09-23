@@ -117,16 +117,16 @@ func (c Cause) WithOrigin(origin Origin) Cause {
 	case CauseEmpty:
 		return c
 	case CauseThen, CauseBoth:
-		composed := c
+		result := c
 		if c.Left != nil {
 			left := c.Left.WithOrigin(origin)
-			composed.Left = &left
+			result.Left = &left
 		}
 		if c.Right != nil {
 			right := c.Right.WithOrigin(origin)
-			composed.Right = &right
+			result.Right = &right
 		}
-		return composed
+		return result
 	default:
 		c.Origin = c.Origin.fillFrom(origin)
 		return c

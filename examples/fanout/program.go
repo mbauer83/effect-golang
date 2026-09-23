@@ -83,21 +83,21 @@ func run(
 		recordFeed := do.Await(io.Subscribe(scope, results))
 		warningFeed := do.Await(io.Subscribe(scope, results))
 		counter := do.Await(io.Fork(countRecords(recordFeed, label)))
-		warning := do.Await(io.Fork(countWarnings(warningFeed, label)))
+		warningCounter := do.Await(io.Fork(countWarnings(warningFeed, label)))
 		do.Await(produceAndClassify(inputPath, workers, records, results, label))
-		return combine(do.Await(effect.Zip(io.Join(counter), io.Join(warning))))
+		return combine(do.Await(effect.Zip(io.Join(counter), io.Join(warningCounter))))
 	})
 }
 
 func combine(both effect.Product[Report, warnings]) Report {
-	counted := both.First
-	counted.Warnings = both.Second.Count
-	if both.Second.Label != counted.Label {
+	report := both.First
+	report.Warnings = both.Second.Count
+	if both.Second.Label != report.Label {
 		// Both reporters read the same Deferred, so disagreeing labels would
 		// mean it had been fulfilled twice.
-		counted.Label = "inconsistent: " + counted.Label + " / " + both.Second.Label
+		report.Label = "inconsistent: " + report.Label + " / " + both.Second.Label
 	}
-	return counted
+	return report
 }
 
 // produceAndClassify reads the file into the queue and runs the workers that
@@ -164,8 +164,8 @@ func splitRecords(content []byte) []string {
 	lines := strings.Split(strings.TrimSuffix(string(content), "\n"), "\n")
 	records := make([]string, 0, len(lines))
 	for _, line := range lines {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			records = append(records, trimmed)
+		if record := strings.TrimSpace(line); record != "" {
+			records = append(records, record)
 		}
 	}
 	return records

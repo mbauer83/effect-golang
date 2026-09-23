@@ -48,8 +48,8 @@ func (completion *Completion) Complete(exit outcome.Exit) bool {
 // CompleteOnPanic completes with a defect if the code producing the result
 // panicked, so no observer can wait forever on a library bug.
 func (completion *Completion) CompleteOnPanic() {
-	if recovered := recover(); recovered != nil {
-		completion.Complete(outcome.Failure(outcome.DieCause(outcome.CaptureDefect(recovered))))
+	if panicValue := recover(); panicValue != nil {
+		completion.Complete(outcome.Failure(outcome.DieCause(outcome.CaptureDefect(panicValue))))
 	}
 }
 

@@ -56,7 +56,7 @@ func findSite(info *types.Info, call *ast.CallExpr) (*site, string) {
 		return nil, "the call's type is not an effect.Effect"
 	}
 	arguments := effectType.TypeArgs()
-	found := &site{
+	site := &site{
 		call:    call,
 		literal: literal,
 		r:       arguments.At(0),
@@ -66,12 +66,12 @@ func findSite(info *types.Info, call *ast.CallExpr) (*site, string) {
 	}
 	params := literal.Type.Params.List
 	if len(params) == 1 && len(params[0].Names) == 1 {
-		found.do = info.Defs[params[0].Names[0]]
+		site.do = info.Defs[params[0].Names[0]]
 	}
-	if reason := found.collectSteps(info); reason != "" {
+	if reason := site.collectSteps(info); reason != "" {
 		return nil, reason
 	}
-	return found, ""
+	return site, ""
 }
 
 func isGen(info *types.Info, call *ast.CallExpr) bool {
@@ -102,8 +102,8 @@ func isGen(info *types.Info, call *ast.CallExpr) bool {
 // Await or Fail call, outside any nested function literal: do is gone after
 // the rewrite, so a use of it anywhere else would not compile, and a step
 // inside a closure runs at a time the rewrite cannot know.
-func (found *site) collectSteps(info *types.Info) string {
-	if found.do == nil {
+func (site *site) collectSteps(info *types.Info) string {
+	if site.do == nil {
 		return ""
 	}
 	reason := ""
@@ -118,7 +118,7 @@ func (found *site) collectSteps(info *types.Info) string {
 			return false
 		case *ast.CallExpr:
 			selector, ok := ast.Unparen(node.Fun).(*ast.SelectorExpr)
-			if !ok || info.Uses[identOf(selector.X)] != found.do {
+			if !ok || info.Uses[identOf(selector.X)] != site.do {
 				return true
 			}
 			if nested {
@@ -127,9 +127,9 @@ func (found *site) collectSteps(info *types.Info) string {
 			}
 			switch selector.Sel.Name {
 			case "Await":
-				found.steps[node] = step{argument: node.Args[0], value: info.TypeOf(node)}
+				site.steps[node] = step{argument: node.Args[0], value: info.TypeOf(node)}
 			case "Fail":
-				found.steps[node] = step{fail: true, argument: node.Args[0]}
+				site.steps[node] = step{fail: true, argument: node.Args[0]}
 			default:
 				reason = "do." + selector.Sel.Name + " is not a step"
 				return false
@@ -137,14 +137,14 @@ func (found *site) collectSteps(info *types.Info) string {
 			ast.Inspect(node.Args[0], func(inner ast.Node) bool { return visit(inner, nested) })
 			return false
 		case *ast.Ident:
-			if info.Uses[node] == found.do {
+			if info.Uses[node] == site.do {
 				reason = "do is used other than as the receiver of a step"
 				return false
 			}
 		}
 		return true
 	}
-	ast.Inspect(found.literal.Body, func(node ast.Node) bool { return visit(node, false) })
+	ast.Inspect(site.literal.Body, func(node ast.Node) bool { return visit(node, false) })
 	return reason
 }
 
@@ -153,13 +153,13 @@ func identOf(expr ast.Expr) *ast.Ident {
 	return ident
 }
 
-// unsupported names the first construct in the body this package does not
+// declineReason names the first construct in the body this package does not
 // translate, or answers empty. Defer, go, select and labels are
 // declined as a whole rather than one by one: each would need a translation
 // of its own, and until one exists the body runs on its own goroutine.
-func (found *site) unsupported() string {
+func (site *site) declineReason() string {
 	reason := ""
-	ast.Inspect(found.literal.Body, func(node ast.Node) bool {
+	ast.Inspect(site.literal.Body, func(node ast.Node) bool {
 		if reason != "" {
 			return false
 		}
@@ -175,7 +175,7 @@ func (found *site) unsupported() string {
 				reason = "the body uses " + node.Tok.String()
 			}
 		case *ast.SelectStmt, *ast.GoStmt:
-			if found.containsStep(node) {
+			if site.containsStep(node) {
 				reason = "a step is inside a select or a go statement"
 			}
 		case *ast.CallExpr:
@@ -211,17 +211,17 @@ func endsGoroutine(call *ast.CallExpr) string {
 
 // containsStep reports whether node holds one of this body's steps, outside any
 // nested function literal.
-func (found *site) containsStep(node ast.Node) bool {
+func (site *site) containsStep(node ast.Node) bool {
 	contains := false
 	ast.Inspect(node, func(inner ast.Node) bool {
 		if contains {
 			return false
 		}
-		if _, ok := inner.(*ast.FuncLit); ok && inner != ast.Node(found.literal) {
+		if _, ok := inner.(*ast.FuncLit); ok && inner != ast.Node(site.literal) {
 			return false
 		}
 		if call, ok := inner.(*ast.CallExpr); ok {
-			if _, isStep := found.steps[call]; isStep {
+			if _, isStep := site.steps[call]; isStep {
 				contains = true
 			}
 		}

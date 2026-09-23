@@ -67,8 +67,8 @@ func All[A any](descriptions ...Config[A]) Config[[]A] {
 			values := make([]A, 0, len(readers))
 			failure := Error{}
 			for _, read := range readers {
-				value, refused := read(at)
-				failure = failure.And(refused)
+				value, refusal := read(at)
+				failure = failure.And(refusal)
 				values = append(values, value)
 			}
 			if !failure.IsEmpty() {
@@ -120,7 +120,7 @@ func (description Config[A]) WithDefault(value A) Config[A] {
 		expects: stood,
 		read: func(at cursor) (A, Error) {
 			read, failure := reader(at)
-			if failure.MissingOnly() {
+			if failure.IsMissingOnly() {
 				return value, Error{}
 			}
 			return read, failure
@@ -177,7 +177,7 @@ func (description Config[A]) OrElse(that Config[A]) Config[A] {
 // refused is a failure and not a plaintext deployment.
 func Optional[A, B any](
 	of Config[A],
-	supplied func(A) B,
+	present func(A) B,
 	absent func() B,
 ) Config[B] {
 	reader := of.reader()
@@ -190,13 +190,13 @@ func Optional[A, B any](
 		read: func(at cursor) (B, Error) {
 			value, failure := reader(at)
 			switch {
-			case failure.MissingOnly():
+			case failure.IsMissingOnly():
 				return absent(), Error{}
 			case !failure.IsEmpty():
 				var zero B
 				return zero, failure
 			}
-			return supplied(value), Error{}
+			return present(value), Error{}
 		},
 	}
 }

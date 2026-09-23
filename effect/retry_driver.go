@@ -59,7 +59,7 @@ func retryAttempt[R, E, A, In, Out any](
 			}
 
 			decision := driver.Next(state.Capabilities().Clock.Now(), input)
-			if !decision.continueRunning {
+			if !decision.continues {
 				emitAttempt(ctx, state, retryExhaustedEvent(progress.number))
 				return exhaust(cause, input, decision.output)
 			}
@@ -90,7 +90,7 @@ func repeatRun[R, E, A, Out any](
 	return fx.FlatMap(func(value A) Effect[R, E, Out] {
 		return suspendRuntime(func(ctx context.Context, state *runtimecore.State, _ R) Effect[R, E, Out] {
 			decision := driver.Next(state.Capabilities().Clock.Now(), value)
-			if !decision.continueRunning {
+			if !decision.continues {
 				emitAttempt(ctx, state, repeatCompletedEvent(progress.number))
 				return Succeed[R, E](decision.output)
 			}

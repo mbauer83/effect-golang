@@ -42,7 +42,7 @@ func finalizeExit[R, E, A any](
 ) outcome.Cause {
 	environment := asEnvironment[R](interpretation.Environment)
 	cleanup := context.WithoutCancel(interpretation.Context)
-	released := finalize(exit).run(cleanup, interpretation.State, environment)
-	cause, _ := released.Cause()
+	result := finalize(exit).run(cleanup, interpretation.State, environment)
+	cause, _ := result.Cause()
 	return cause.node
 }

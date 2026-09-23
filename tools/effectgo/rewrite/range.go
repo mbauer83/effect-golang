@@ -79,12 +79,12 @@ func (em *emitter) iterationVariables(node *ast.RangeStmt, kind, collection, ind
 	var values []string
 	switch kind {
 	case "channel":
-		received, open := em.names.fresh("received"), em.names.fresh("open")
-		out := received + ", " + open + " := <-" + collection + "\nif !" + open + " {\n" + after + "\n}\n"
+		item, open := em.names.fresh("received"), em.names.fresh("open")
+		out := item + ", " + open + " := <-" + collection + "\nif !" + open + " {\n" + after + "\n}\n"
 		if node.Key == nil {
-			return out + "_ = " + received + "\n"
+			return out + "_ = " + item + "\n"
 		}
-		return out + em.bind(node, []ast.Expr{node.Key}, []string{received})
+		return out + em.bind(node, []ast.Expr{node.Key}, []string{item})
 	case "integer":
 		values = []string{index}
 	case "indexed":

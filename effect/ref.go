@@ -102,8 +102,8 @@ func Modify[R, A, B any](ref Ref[A], change func(A) (A, B)) Effect[R, Never, B] 
 	return From(func(context.Context, R) Exit[Never, B] {
 		ref.state.mutex.Lock()
 		defer ref.state.mutex.Unlock()
-		next, derived := change(ref.state.value)
+		next, result := change(ref.state.value)
 		ref.state.value = next
-		return ExitSuccess[Never](derived)
+		return ExitSuccess[Never](result)
 	})
 }

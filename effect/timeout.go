@@ -59,10 +59,10 @@ func timeoutResolver[E, A any](onTimeout Exit[E, A]) pairResolver[E, A] {
 			return Exit[E, A]{erased: pair.Left}
 		}
 
-		abandoned := pair.Left.Cause()
-		if abandoned.IsEmpty() || outcome.IsInduced(abandoned, cancelReason) {
+		workCause := pair.Left.Cause()
+		if workCause.IsEmpty() || outcome.IsInduced(workCause, cancelReason) {
 			return onTimeout
 		}
-		return Exit[E, A]{erased: outcome.Failure(onTimeout.erased.Cause().Then(abandoned))}
+		return Exit[E, A]{erased: outcome.Failure(onTimeout.erased.Cause().Then(workCause))}
 	}
 }

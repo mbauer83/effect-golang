@@ -77,9 +77,9 @@ func readAll(
 // summarize reassembles the concurrent results deterministically. ForEachParN
 // already preserves input order; sorting by name additionally makes the report
 // independent of the caller's argument order.
-func summarize(read []Source) Report {
-	report := Report{Sources: make([]string, 0, len(read))}
-	for _, source := range read {
+func summarize(sources []Source) Report {
+	report := Report{Sources: make([]string, 0, len(sources))}
+	for _, source := range sources {
 		report.Sources = append(report.Sources, source.Name)
 		report.Bytes += source.Bytes
 	}

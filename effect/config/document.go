@@ -32,7 +32,7 @@ func Document(expects []Expectation) string {
 	rows := rowsOf(expects)
 	widths := widthsOf(rows)
 
-	rendered := strings.Builder{}
+	text := strings.Builder{}
 	for _, row := range rows {
 		line := strings.Builder{}
 		line.WriteString("  ")
@@ -45,24 +45,24 @@ func Document(expects []Expectation) string {
 		}
 		// Trimmed, because a row whose last column is empty would otherwise
 		// carry the padding of the one before it to the end of the line.
-		rendered.WriteString(strings.TrimRight(line.String(), " "))
-		rendered.WriteString("\n")
+		text.WriteString(strings.TrimRight(line.String(), " "))
+		text.WriteString("\n")
 	}
-	return rendered.String()
+	return text.String()
 }
 
 // rowsOf lays one expectation out as its cells, sorted by path so a long list
 // reads as a reference rather than as the order somebody happened to compose
 // it in.
 func rowsOf(expects []Expectation) [][]string {
-	sorted := make([]Expectation, len(expects))
-	copy(sorted, expects)
-	sort.SliceStable(sorted, func(first int, second int) bool {
-		return Render(sorted[first].Path) < Render(sorted[second].Path)
+	byPath := make([]Expectation, len(expects))
+	copy(byPath, expects)
+	sort.SliceStable(byPath, func(first int, second int) bool {
+		return Render(byPath[first].Path) < Render(byPath[second].Path)
 	})
 
-	rows := make([][]string, 0, len(sorted))
-	for _, expectation := range sorted {
+	rows := make([][]string, 0, len(byPath))
+	for _, expectation := range byPath {
 		rows = append(rows, []string{
 			Render(expectation.Path),
 			expectation.Type,

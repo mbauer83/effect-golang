@@ -68,10 +68,10 @@ func upToFirstStep[In any](limit time.Duration) scheduleStep[In, time.Duration] 
 	}
 }
 
-func upToStep[In any](startedAt time.Time, limit time.Duration) scheduleStep[In, time.Duration] {
+func upToStep[In any](start time.Time, limit time.Duration) scheduleStep[In, time.Duration] {
 	return func(now time.Time, _ In) (ScheduleDecision[time.Duration], scheduleStep[In, time.Duration]) {
-		elapsed := normalizeDuration(now.Sub(startedAt))
-		return decideElapsed(elapsed, limit), upToStep[In](startedAt, limit)
+		elapsed := normalizeDuration(now.Sub(start))
+		return decideElapsed(elapsed, limit), upToStep[In](start, limit)
 	}
 }
 

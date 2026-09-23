@@ -72,18 +72,18 @@ func mergeAttributes(span []slog.Attr, record []slog.Attr) []slog.Attr {
 	if len(record) == 0 {
 		return span
 	}
-	stated := make(map[string]struct{}, len(record))
+	recordKeys := make(map[string]struct{}, len(record))
 	for _, field := range record {
-		stated[field.Key] = struct{}{}
+		recordKeys[field.Key] = struct{}{}
 	}
-	merged := make([]slog.Attr, 0, len(span)+len(record))
+	attrs := make([]slog.Attr, 0, len(span)+len(record))
 	for _, field := range span {
-		if _, repeated := stated[field.Key]; repeated {
+		if _, repeated := recordKeys[field.Key]; repeated {
 			continue
 		}
-		merged = append(merged, field)
+		attrs = append(attrs, field)
 	}
-	return append(merged, record...)
+	return append(attrs, record...)
 }
 
 func LogWarn[R, E any](message string, fields ...slog.Attr) Effect[R, E, Unit] {

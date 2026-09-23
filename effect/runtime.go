@@ -31,7 +31,7 @@ type Runtime struct {
 // A nil capability is rejected at construction rather than discovered as a
 // panic while an effect is running.
 func NewRuntime(options ...RuntimeOption) (*Runtime, error) {
-	configured := runtimeConfig{capabilities: capability.Set{
+	setup := runtimeConfig{capabilities: capability.Set{
 		Clock:       platform.LiveClock{},
 		FileSystem:  platform.LiveFileSystem{},
 		Logger:      platform.LiveLogger{Handler: slog.Default().Handler()},
@@ -46,16 +46,16 @@ func NewRuntime(options ...RuntimeOption) (*Runtime, error) {
 		if option == nil {
 			return nil, errors.New("effect: RuntimeOption must not be nil")
 		}
-		if err := option.apply(&configured); err != nil {
+		if err := option.apply(&setup); err != nil {
 			return nil, err
 		}
 	}
 
 	root := lifetime.NewScope(context.Background())
 	return &Runtime{
-		state:  runtimecore.NewState(configured.capabilities, root, configured.ledger),
+		state:  runtimecore.NewState(setup.capabilities, root, setup.ledger),
 		root:   root,
-		ledger: configured.ledger,
+		ledger: setup.ledger,
 	}, nil
 }
 
@@ -112,13 +112,13 @@ func (runtime *Runtime) LiveWork() LiveWork {
 
 func (runtime *Runtime) close(ctx context.Context) Cause[Never] {
 	runtime.reportRemainingWork(ctx)
-	closingAt := runtime.state.EmitStart(ctx, capability.EventRuntimeClosing)
+	start := runtime.state.EmitStart(ctx, capability.EventRuntimeClosing)
 	cleanup := runtime.root.Close(ctx, outcome.Success(Unit{}), lifetime.ErrRuntimeClosed)
 	cleanup = cleanup.Then(flushCapabilities(ctx, runtime.state))
 	runtime.state.EmitEnd(
 		ctx,
 		capability.EventRuntimeClosed,
-		closingAt,
+		start,
 		outcome.CleanupStatus(cleanup),
 	)
 	return Cause[Never]{node: cleanup}
@@ -128,8 +128,8 @@ func (runtime *Runtime) close(ctx context.Context) Cause[Never] {
 // Close interrupts it, which is the only moment at which that count is still
 // observable.
 func (runtime *Runtime) reportRemainingWork(ctx context.Context) {
-	remaining := runtime.ledger.Live()
-	if remaining.IsEmpty() {
+	live := runtime.ledger.Live()
+	if live.IsEmpty() {
 		return
 	}
 	runtime.state.Report(ctx, capability.RuntimeFault{
@@ -137,8 +137,8 @@ func (runtime *Runtime) reportRemainingWork(ctx context.Context) {
 		Operation: "close",
 		Err: fmt.Errorf(
 			"effect: %d fiber(s) and %d resource(s) were still owned at Close",
-			remaining.Fibers,
-			remaining.Resources,
+			live.Fibers,
+			live.Resources,
 		),
 	})
 }

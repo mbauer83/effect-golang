@@ -154,13 +154,13 @@ func appendLeaves(into []Failure, failure *node) []Failure {
 	}
 }
 
-// MissingOnly reports whether every leaf is a path nobody supplied.
+// IsMissingOnly reports whether every leaf is a path nobody supplied.
 //
 // What a default is allowed to stand in for. A value that was supplied and is
 // unreadable, or a source that was down, is not absence: silently defaulting
 // either is how a mistyped setting becomes a program running on numbers nobody
 // chose. The empty error is not missing anything, so it answers false.
-func (failure Error) MissingOnly() bool {
+func (failure Error) IsMissingOnly() bool {
 	leaves := failure.Failures()
 	if len(leaves) == 0 {
 		return false
@@ -193,9 +193,9 @@ func withPrefix(failure *node, path []string) *node {
 			right: withPrefix(failure.right, path),
 		}
 	}
-	moved := *failure
-	moved.path = append(slices.Clone(path), failure.path...)
-	return &moved
+	leaf := *failure
+	leaf.path = append(slices.Clone(path), failure.path...)
+	return &leaf
 }
 
 // Error renders the tree, keeping its shape: "and" for failures a description

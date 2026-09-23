@@ -135,8 +135,8 @@ func (scope *Scope) finishClose() {
 
 func runFinalizer(ctx context.Context, finalizer Finalizer, exit outcome.Exit) (cause outcome.Cause) {
 	defer func() {
-		if recovered := recover(); recovered != nil {
-			cause = outcome.DieCause(outcome.CaptureDefect(recovered))
+		if panicValue := recover(); panicValue != nil {
+			cause = outcome.DieCause(outcome.CaptureDefect(panicValue))
 		}
 	}()
 	return finalizer(ctx, exit)

@@ -36,8 +36,8 @@ func asFailure[E any](failure any) E {
 // to an interface-typed channel yields that channel's zero value instead of
 // panicking. No other mismatch is reachable from the typed constructors.
 func unerase[T any](value any) T {
-	typed, _ := value.(T)
-	return typed
+	result, _ := value.(T)
+	return result
 }
 
 // The lifters below are the complete set of places where a typed callback

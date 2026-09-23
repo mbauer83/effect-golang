@@ -84,7 +84,7 @@ func (source fallback) Value(ctx context.Context, path []string) (string, bool, 
 }
 
 func (source fallback) Children(ctx context.Context, path []string) ([]string, error) {
-	merged := []string{}
+	names := []string{}
 	seen := map[string]bool{}
 	for _, candidate := range source.sources {
 		children, err := candidate.Children(ctx, path)
@@ -94,11 +94,11 @@ func (source fallback) Children(ctx context.Context, path []string) ([]string, e
 		for _, child := range children {
 			if !seen[child] {
 				seen[child] = true
-				merged = append(merged, child)
+				names = append(names, child)
 			}
 		}
 	}
-	return merged, nil
+	return names, nil
 }
 
 // Beneath reads a source as though the description started at a path inside

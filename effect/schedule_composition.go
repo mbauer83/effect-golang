@@ -16,7 +16,7 @@ func andScheduleStep[In, Left, Right any](left scheduleStep[In, Left], right sch
 		rightDecision, nextRight := right(now, input)
 		output := ProductOf(leftDecision.output, rightDecision.output)
 		next := andScheduleStep(nextLeft, nextRight)
-		if !leftDecision.continueRunning || !rightDecision.continueRunning {
+		if !leftDecision.continues || !rightDecision.continues {
 			return stopSchedule(output), next
 		}
 		return continueSchedule(output, max(leftDecision.delay, rightDecision.delay)), next
@@ -50,8 +50,8 @@ func orScheduleStep[In, Left, Right any](
 		output := ScheduleUnion[Left, Right]{
 			Left:           leftDecision.output,
 			Right:          rightDecision.output,
-			LeftContinues:  leftDecision.continueRunning,
-			RightContinues: rightDecision.continueRunning,
+			LeftContinues:  leftDecision.continues,
+			RightContinues: rightDecision.continues,
 		}
 		next := orScheduleStep(nextLeft, nextRight)
 		if !output.LeftContinues && !output.RightContinues {
@@ -62,10 +62,10 @@ func orScheduleStep[In, Left, Right any](
 }
 
 func activeMinimumDelay[Left, Right any](left ScheduleDecision[Left], right ScheduleDecision[Right]) time.Duration {
-	if !left.continueRunning {
+	if !left.continues {
 		return right.delay
 	}
-	if !right.continueRunning {
+	if !right.continues {
 		return left.delay
 	}
 	return min(left.delay, right.delay)

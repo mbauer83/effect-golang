@@ -43,9 +43,9 @@ func Table[A any](name string, of Config[A]) Config[map[string]A] {
 			entries := make(map[string]A, len(children))
 			failure := Error{}
 			for _, child := range children {
-				value, refused := reader(here.under(child))
-				failure = failure.And(refused)
-				if refused.IsEmpty() {
+				value, refusal := reader(here.under(child))
+				failure = failure.And(refusal)
+				if refusal.IsEmpty() {
 					entries[child] = value
 				}
 			}
@@ -88,12 +88,12 @@ func Many[A any](name string, separator string, of Config[A]) Config[[]A] {
 			values := make([]A, 0, len(pieces))
 			failure := Error{}
 			for _, piece := range pieces {
-				value, refused := reader(cursor{
+				value, refusal := reader(cursor{
 					ctx:    here.ctx,
 					source: one(strings.TrimSpace(piece)),
 					path:   here.path,
 				})
-				failure = failure.And(refused)
+				failure = failure.And(refusal)
 				values = append(values, value)
 			}
 			if !failure.IsEmpty() {

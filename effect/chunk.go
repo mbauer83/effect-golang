@@ -47,11 +47,11 @@ func (chunk Chunk[A]) At(index int) A {
 // MapChunk transforms every value. It is a package function because its result
 // is built from the chunk's own type argument (golang/go#80172).
 func MapChunk[A, B any](chunk Chunk[A], transform func(A) B) Chunk[B] {
-	mapped := make([]B, 0, len(chunk.values))
+	values := make([]B, 0, len(chunk.values))
 	for _, value := range chunk.values {
-		mapped = append(mapped, transform(value))
+		values = append(values, transform(value))
 	}
-	return Chunk[B]{values: mapped}
+	return Chunk[B]{values: values}
 }
 
 // FoldChunk accumulates over the chunk's values in order. It is a package
@@ -65,13 +65,13 @@ func FoldChunk[A, S any](chunk Chunk[A], state S, combine func(S, A) S) S {
 
 // Filter keeps the values predicate accepts.
 func (chunk Chunk[A]) Filter(keep func(A) bool) Chunk[A] {
-	kept := make([]A, 0, len(chunk.values))
+	values := make([]A, 0, len(chunk.values))
 	for _, value := range chunk.values {
 		if keep(value) {
-			kept = append(kept, value)
+			values = append(values, value)
 		}
 	}
-	return Chunk[A]{values: kept}
+	return Chunk[A]{values: values}
 }
 
 // TakeFirst returns at most count values from the front.

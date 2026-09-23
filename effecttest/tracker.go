@@ -34,8 +34,8 @@ func (tracker *Tracker) Count(event string) int {
 	tracker.mutex.Lock()
 	defer tracker.mutex.Unlock()
 	total := 0
-	for _, recorded := range tracker.events {
-		if recorded == event {
+	for _, entry := range tracker.events {
+		if entry == event {
 			total++
 		}
 	}

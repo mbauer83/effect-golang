@@ -23,7 +23,7 @@ type loop struct {
 }
 
 func (em *emitter) newLoop(vars []*ast.Ident) (loop, bool) {
-	emitted := loop{run: em.names.fresh("iteration"), next: em.names.fresh("advance")}
+	result := loop{run: em.names.fresh("iteration"), next: em.names.fresh("advance")}
 	for _, ident := range vars {
 		object := em.info.Defs[ident]
 		if object == nil || ident.Name == "_" {
@@ -34,10 +34,10 @@ func (em *emitter) newLoop(vars []*ast.Ident) (loop, bool) {
 			em.decline("a loop variable has a type this file cannot name")
 			return loop{}, false
 		}
-		emitted.params = append(emitted.params, ident.Name+" "+typeText)
-		emitted.args = append(emitted.args, ident.Name)
+		result.params = append(result.params, ident.Name+" "+typeText)
+		result.args = append(result.args, ident.Name)
 	}
-	return emitted, true
+	return result, true
 }
 
 func (lp loop) signature(eff string) string {

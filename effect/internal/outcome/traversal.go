@@ -106,15 +106,15 @@ func MapCauseFailure(root Cause, transform func(any) any) Cause {
 	case CauseEmpty:
 		return Cause{}
 	case CauseFailure:
-		mapped := FailCause(transform(root.Failure))
-		mapped.Origin = root.Origin
-		return mapped
+		failure := FailCause(transform(root.Failure))
+		failure.Origin = root.Origin
+		return failure
 	case CauseDefect:
 		return DieCause(root.Defect)
 	case CauseInterrupt:
-		interrupted := InterruptCause(root.Interruption.Cause)
-		interrupted.Origin = root.Origin
-		return interrupted
+		interruption := InterruptCause(root.Interruption.Cause)
+		interruption.Origin = root.Origin
+		return interruption
 	default:
 		return composeLike(root,
 			MapCauseFailure(leftOf(root), transform),

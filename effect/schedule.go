@@ -12,9 +12,9 @@ type scheduleStep[In, Out any] func(time.Time, In) (ScheduleDecision[Out], sched
 
 // ScheduleDecision is one output and the decision to stop or continue later.
 type ScheduleDecision[Out any] struct {
-	output          Out
-	delay           time.Duration
-	continueRunning bool
+	output    Out
+	delay     time.Duration
+	continues bool
 }
 
 // Output returns the value emitted by this decision.
@@ -29,14 +29,14 @@ func (decision ScheduleDecision[Out]) Delay() time.Duration {
 
 // Continues reports whether another execution should occur.
 func (decision ScheduleDecision[Out]) Continues() bool {
-	return decision.continueRunning
+	return decision.continues
 }
 
 func continueSchedule[Out any](output Out, delay time.Duration) ScheduleDecision[Out] {
 	if delay < 0 {
 		delay = 0
 	}
-	return ScheduleDecision[Out]{output: output, delay: delay, continueRunning: true}
+	return ScheduleDecision[Out]{output: output, delay: delay, continues: true}
 }
 
 func stopSchedule[Out any](output Out) ScheduleDecision[Out] {
@@ -83,12 +83,12 @@ func (schedule Schedule[In, Out]) MapOutput[Out2 any](transform func(Out) Out2) 
 func mapScheduleStep[In, Out, Out2 any](step scheduleStep[In, Out], transform func(Out) Out2) scheduleStep[In, Out2] {
 	return func(now time.Time, input In) (ScheduleDecision[Out2], scheduleStep[In, Out2]) {
 		decision, next := step(now, input)
-		mapped := ScheduleDecision[Out2]{
-			output:          transform(decision.output),
-			delay:           decision.delay,
-			continueRunning: decision.continueRunning,
+		result := ScheduleDecision[Out2]{
+			output:    transform(decision.output),
+			delay:     decision.delay,
+			continues: decision.continues,
 		}
-		return mapped, mapScheduleStep(next, transform)
+		return result, mapScheduleStep(next, transform)
 	}
 }
 
@@ -103,7 +103,7 @@ func whileInputStep[In, Out any](step scheduleStep[In, Out], predicate func(In) 
 	return func(now time.Time, input In) (ScheduleDecision[Out], scheduleStep[In, Out]) {
 		decision, next := step(now, input)
 		if !predicate(input) {
-			decision.continueRunning = false
+			decision.continues = false
 			decision.delay = 0
 		}
 		return decision, whileInputStep(next, predicate)
@@ -121,7 +121,7 @@ func whileOutputStep[In, Out any](step scheduleStep[In, Out], predicate func(Out
 	return func(now time.Time, input In) (ScheduleDecision[Out], scheduleStep[In, Out]) {
 		decision, next := step(now, input)
 		if !predicate(decision.output) {
-			decision.continueRunning = false
+			decision.continues = false
 			decision.delay = 0
 		}
 		return decision, whileOutputStep(next, predicate)

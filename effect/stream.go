@@ -103,13 +103,13 @@ func StreamOf[R, E, A any](values ...A) Stream[R, E, A] {
 func StreamFromChunks[R, E, A any](chunks ...Chunk[A]) Stream[R, E, A] {
 	snapshot := slices.Clone(chunks)
 	return streamFromPull[R, E, A](func() pull[R, E, A] {
-		remaining := snapshot
+		rest := snapshot
 		return From(func(context.Context, R) Exit[E, Step[A]] {
-			if len(remaining) == 0 {
+			if len(rest) == 0 {
 				return ExitSuccess[E](EndOfStream[A]())
 			}
-			head := remaining[0]
-			remaining = remaining[1:]
+			head := rest[0]
+			rest = rest[1:]
 			return ExitSuccess[E](Emit(head))
 		})
 	})

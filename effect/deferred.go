@@ -51,11 +51,11 @@ func (deferred Deferred[E, A]) Complete[R any](exit Exit[E, A]) Effect[R, Never,
 // interruption. Waiting is itself interruptible.
 func (deferred Deferred[E, A]) Await[R any]() Effect[R, E, A] {
 	return From(func(ctx context.Context, _ R) Exit[E, A] {
-		fulfilled, ok := deferred.state.Await(ctx)
+		result, ok := deferred.state.Await(ctx)
 		if !ok {
 			return exitInterrupt[E, A](lifetime.CancellationReason(ctx))
 		}
-		return Exit[E, A]{erased: fulfilled}
+		return Exit[E, A]{erased: result}
 	})
 }
 

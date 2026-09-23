@@ -51,13 +51,13 @@ func forkFiber[R, E, A any](fx Effect[R, E, A], selectOwner scopeSelector) Effec
 		state *runtimecore.State,
 		env R,
 	) Exit[Never, Fiber[E, A]] {
-		started, accepted := runtimecore.StartFiber(selectOwner(state), ctx, state,
+		fiber, accepted := runtimecore.StartFiber(selectOwner(state), ctx, state,
 			eraseWork(fx, env),
 		)
 		if !accepted {
 			return exitInterrupt[Never, Fiber[E, A]](lifetime.ErrScopeClosed)
 		}
-		return ExitSuccess[Never](Fiber[E, A]{state: started})
+		return ExitSuccess[Never](Fiber[E, A]{state: fiber})
 	})
 }
 

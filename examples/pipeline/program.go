@@ -104,8 +104,8 @@ func splitRecords(content []byte) []string {
 	lines := strings.Split(strings.TrimSuffix(string(content), "\n"), "\n")
 	records := make([]string, 0, len(lines))
 	for _, line := range lines {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			records = append(records, trimmed)
+		if record := strings.TrimSpace(line); record != "" {
+			records = append(records, record)
 		}
 	}
 	return records
