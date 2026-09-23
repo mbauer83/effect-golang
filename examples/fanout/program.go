@@ -61,13 +61,11 @@ func Program(inputPath string, workers int) pipeline[Report] {
 }
 
 func openPipeline(scope effect.Scope, inputPath string, workers int) pipeline[Report] {
-	return effect.Zip(
-		io.ScopedQueue[string](scope, queueDepth, effect.SuspendWhenFull),
-		io.Hub[classification](scope, queueDepth, effect.SuspendWhenFull),
-	).FlatMap(func(channels effect.Product[effect.Queue[string], effect.Hub[classification]]) pipeline[Report] {
-		return io.Deferred[string]().FlatMap(func(label effect.Deferred[effect.IOError, string]) pipeline[Report] {
-			return run(scope, inputPath, workers, channels.First, channels.Second, label)
-		})
+	return effect.Gen(func(do *effect.Do[effect.Unit, effect.IOError]) Report {
+		records := do.Await(io.ScopedQueue[string](scope, queueDepth, effect.SuspendWhenFull))
+		results := do.Await(io.Hub[classification](scope, queueDepth, effect.SuspendWhenFull))
+		label := do.Await(io.Deferred[string]())
+		return do.Await(run(scope, inputPath, workers, records, results, label))
 	})
 }
 
@@ -81,22 +79,13 @@ func run(
 	results effect.Hub[classification],
 	label effect.Deferred[effect.IOError, string],
 ) pipeline[Report] {
-	return effect.Zip(
-		io.Subscribe(scope, results),
-		io.Subscribe(scope, results),
-	).FlatMap(func(feeds effect.Product[effect.Subscription[classification], effect.Subscription[classification]]) pipeline[Report] {
-		counter := io.Fork(countRecords(feeds.First, label))
-		warning := io.Fork(countWarnings(feeds.Second, label))
-		return effect.Zip(counter, warning).FlatMap(
-			func(reporters effect.Product[effect.Fiber[effect.IOError, Report], effect.Fiber[effect.IOError, warnings]]) pipeline[Report] {
-				return produceAndClassify(inputPath, workers, records, results, label).
-					AndThen(effect.Zip(
-						io.Join(reporters.First),
-						io.Join(reporters.Second),
-					)).
-					Map(combine)
-			},
-		)
+	return effect.Gen(func(do *effect.Do[effect.Unit, effect.IOError]) Report {
+		recordFeed := do.Await(io.Subscribe(scope, results))
+		warningFeed := do.Await(io.Subscribe(scope, results))
+		counter := do.Await(io.Fork(countRecords(recordFeed, label)))
+		warning := do.Await(io.Fork(countWarnings(warningFeed, label)))
+		do.Await(produceAndClassify(inputPath, workers, records, results, label))
+		return combine(do.Await(effect.Zip(io.Join(counter), io.Join(warning))))
 	})
 }
 
@@ -120,16 +109,15 @@ func produceAndClassify(
 	results effect.Hub[classification],
 	label effect.Deferred[effect.IOError, string],
 ) pipeline[effect.Unit] {
-	reader := io.Fork(readInto(inputPath, records, label))
-	return reader.FlatMap(func(reader effect.Fiber[effect.IOError, effect.Unit]) pipeline[effect.Unit] {
-		return effect.ForEachPar(workerIndices(workers), func(int) pipeline[effect.Unit] {
+	return effect.Gen(func(do *effect.Do[effect.Unit, effect.IOError]) effect.Unit {
+		reader := do.Await(io.Fork(readInto(inputPath, records, label)))
+		classify := effect.ForEachPar(workerIndices(workers), func(int) pipeline[effect.Unit] {
 			return classifyFrom(records, results)
-		}).
-			AndThen(io.Join(reader)).
-			// The same debt one stage further on: once nothing more will be
-			// published, the reporters have to be told, whether the workers
-			// finished or failed.
-			Ensuring(results.Shutdown[effect.Unit]())
+		})
+		// The same debt one stage further on: once nothing more will be
+		// published, the reporters have to be told, whether the workers
+		// finished or failed.
+		return do.Await(classify.AndThen(io.Join(reader)).Ensuring(results.Shutdown[effect.Unit]()))
 	})
 }
 
