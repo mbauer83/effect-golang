@@ -16,7 +16,7 @@ import (
 // EmitStart reports an opening boundary and returns its clock reading, which
 // the matching closing boundary uses to measure the interval.
 func (state *State) EmitStart(ctx context.Context, kind capability.EventKind) time.Time {
-	if !state.Observing() {
+	if !state.HasObserver() {
 		return state.capabilities.Clock.Now()
 	}
 	event := state.Event(kind)
@@ -32,7 +32,7 @@ func (state *State) EmitEnd(
 	startedAt time.Time,
 	status capability.EventStatus,
 ) {
-	if !state.Observing() {
+	if !state.HasObserver() {
 		return
 	}
 	event := state.Event(kind)
@@ -45,7 +45,7 @@ func (state *State) EmitEnd(
 // own, such as a scope beginning to close or a resource being acquired. The
 // resource itself is never included.
 func (state *State) EmitMark(ctx context.Context, kind capability.EventKind) {
-	if !state.Observing() {
+	if !state.HasObserver() {
 		return
 	}
 	state.Emit(ctx, state.Event(kind))

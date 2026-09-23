@@ -12,7 +12,7 @@ import (
 func (fx Effect[R, E, A]) CatchCause[E2 any](handler func(Cause[E]) Effect[R, E2, A]) Effect[R, E2, A] {
 	return fromInstructions[R, E2, A](&runtimecore.Recover{
 		Source: fx.instructions(),
-		Handle: erasedRecovery(handler),
+		Handle: eraseRecovery(handler),
 	})
 }
 
@@ -47,8 +47,8 @@ func CatchAllChannels[R, E, A, E2 any](fx Effect[R, E, A], handler func(E) Effec
 func originalFailure[E, E2 any](cause Cause[Either[E, E2]]) (E, bool) {
 	tagged, isLeaf := cause.Failure()
 	if !isLeaf {
-		var missing E
-		return missing, false
+		var zero E
+		return zero, false
 	}
 	return tagged.LeftValue()
 }

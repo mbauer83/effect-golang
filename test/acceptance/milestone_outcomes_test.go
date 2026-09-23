@@ -15,7 +15,7 @@ import (
 // release the resource that attempt acquired.
 
 func TestMilestoneNeverRetriesADefect(t *testing.T) {
-	runtime, _ := effecttest.NewTimedRuntime(t)
+	runtime, _ := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	operations := effect.For[effect.Unit, appError]()
 
@@ -39,7 +39,7 @@ func TestMilestoneNeverRetriesADefect(t *testing.T) {
 }
 
 func TestMilestoneNeverRetriesAnInterruptionAndStillReleases(t *testing.T) {
-	runtime, _ := effecttest.NewTimedRuntime(t)
+	runtime, _ := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	stop := errors.New("operator stopped the run")
 	ctx, cancel := context.WithCancelCause(context.Background())
@@ -78,7 +78,7 @@ func TestMilestoneBackoffIsInterruptibleUnderTheLiveClock(t *testing.T) {
 		return scope.AcquireRelease(
 			operations.Succeed(resource{Name: "handle"}),
 			func(resource) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
-				return effecttest.TrackedRelease[effect.Unit](tracker, "release handle")
+				return effecttest.TrackRelease[effect.Unit](tracker, "release handle")
 			},
 		).AndThen(operations.Fail[string](appError{Reason: "transient"}))
 	}).Retry(effect.IntersectSchedules(slow, effect.Spaced[appError](time.Hour)))

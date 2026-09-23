@@ -53,7 +53,7 @@ func (entry Entry) IsStorable() bool {
 // failure, because a miss is the ordinary state of a key nobody has asked for
 // yet. A store that failed on a miss would make every first request an error
 // to handle.
-type Cached struct {
+type Lookup struct {
 	Entity []byte
 	Found  bool
 }
@@ -66,7 +66,7 @@ type Cached struct {
 // three functions in this package that wrap one.
 type Store interface {
 	// Get is what is held under a key, and whether anything is.
-	Get(ctx context.Context, key string) (Cached, error)
+	Get(ctx context.Context, key string) (Lookup, error)
 	// Put stores a value for as long as it is worth serving, under what it is
 	// about as well as under its own key.
 	Put(ctx context.Context, entry Entry) error
@@ -80,22 +80,22 @@ type Store interface {
 
 // Fault is why a store could not answer.
 type Fault struct {
-	// Doing is what was being done, so a message says which of the three
+	// Op is what was being done, so a message says which of the three
 	// failed without the caller adding it.
-	Doing string
-	Key   string
-	Err   error
+	Op  string
+	Key string
+	Err error
 }
 
 func (fault Fault) Error() string {
-	said := "cache: " + fault.Doing
+	message := "cache: " + fault.Op
 	if fault.Key != "" {
-		said += " " + fault.Key
+		message += " " + fault.Key
 	}
 	if fault.Err != nil {
-		said += ": " + fault.Err.Error()
+		message += ": " + fault.Err.Error()
 	}
-	return said
+	return message
 }
 
 // Unwrap keeps the store's own error reachable, so a caller can tell a

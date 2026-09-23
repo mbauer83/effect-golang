@@ -17,15 +17,15 @@ type Barrier struct {
 }
 
 func NewBarrier(participants int) *Barrier {
-	meeting := &Barrier{}
-	meeting.participants.Add(participants)
-	return meeting
+	barrier := &Barrier{}
+	barrier.participants.Add(participants)
+	return barrier
 }
 
 // Arrive blocks until every participant has arrived.
-func (meeting *Barrier) Arrive() {
-	meeting.participants.Done()
-	meeting.participants.Wait()
+func (barrier *Barrier) Arrive() {
+	barrier.participants.Done()
+	barrier.participants.Wait()
 }
 
 // Blocker is cooperative work that reports when it has really begun.
@@ -34,10 +34,10 @@ func (meeting *Barrier) Arrive() {
 // starts is also correct runtime behaviour -- the work simply never runs -- but
 // it does not exercise interruption.
 type Blocker struct {
-	started  chan struct{}
-	release  chan struct{}
-	tracker  *Tracker
-	starting sync.Once
+	started   chan struct{}
+	release   chan struct{}
+	tracker   *Tracker
+	startOnce sync.Once
 }
 
 func NewBlocker(tracker *Tracker) *Blocker {
@@ -58,12 +58,12 @@ func (work *Blocker) Release() {
 	close(work.release)
 }
 
-// Blocking is an effect that waits until the Blocker is released or its context
+// Block is an effect that waits until the Blocker is released or its context
 // is canceled, recording which happened. It records "completed" on release and
 // "interrupted" on cancellation.
-func Blocking[R, E, A any](work *Blocker, completed A) effect.Effect[R, E, A] {
+func Block[R, E, A any](work *Blocker, completed A) effect.Effect[R, E, A] {
 	return effect.From(func(ctx context.Context, _ R) effect.Exit[E, A] {
-		work.starting.Do(func() { close(work.started) })
+		work.startOnce.Do(func() { close(work.started) })
 		select {
 		case <-work.release:
 			work.tracker.Record("completed")
@@ -75,40 +75,40 @@ func Blocking[R, E, A any](work *Blocker, completed A) effect.Effect[R, E, A] {
 	})
 }
 
-// TrackedResource acquires a named resource in scope and records both its
+// TrackResource acquires a named resource in scope and records both its
 // acquisition and its release, so a test can assert ordering and exactly-once
 // release.
-func TrackedResource[R, E any](scope effect.Scope, tracker *Tracker, name string) effect.Effect[R, E, string] {
+func TrackResource[R, E any](scope effect.Scope, tracker *Tracker, name string) effect.Effect[R, E, string] {
 	return scope.AcquireRelease(
 		effect.From(func(context.Context, R) effect.Exit[E, string] {
 			tracker.Record("acquire " + name)
 			return effect.ExitSuccess[E](name)
 		}),
 		func(resource string) effect.Effect[R, effect.Never, effect.Unit] {
-			return TrackedRelease[R](tracker, "release "+resource)
+			return TrackRelease[R](tracker, "release "+resource)
 		},
 	)
 }
 
-// TrackedRelease is an infallible release workflow that records one event.
-func TrackedRelease[R any](tracker *Tracker, event string) effect.Effect[R, effect.Never, effect.Unit] {
+// TrackRelease is an infallible release workflow that records one event.
+func TrackRelease[R any](tracker *Tracker, event string) effect.Effect[R, effect.Never, effect.Unit] {
 	return effect.AddFinalizer[R](func(context.Context) error {
 		tracker.Record(event)
 		return nil
 	})
 }
 
-// Panicking is an effect whose evaluation panics, which the runtime records as
+// Panic is an effect whose evaluation panics, which the runtime records as
 // a defect rather than letting it escape as a typed failure.
-func Panicking[R, E, A any](message string) effect.Effect[R, E, A] {
+func Panic[R, E, A any](message string) effect.Effect[R, E, A] {
 	return effect.From(func(context.Context, R) effect.Exit[E, A] {
 		panic(message)
 	})
 }
 
-// SelfInterrupting is an effect that reports its own interruption, for covering
+// InterruptSelf is an effect that reports its own interruption, for covering
 // the interrupted branch of an outcome table without arranging a cancellation.
-func SelfInterrupting[R, E, A any]() effect.Effect[R, E, A] {
+func InterruptSelf[R, E, A any]() effect.Effect[R, E, A] {
 	return effect.From(func(context.Context, R) effect.Exit[E, A] {
 		return effect.ExitCause[E, A](effect.InterruptCause[E](context.Canceled))
 	})

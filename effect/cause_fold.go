@@ -17,7 +17,7 @@ type CauseFolder[E, A any] struct {
 
 // Fold eliminates a cause without recursively growing the Go call stack.
 func (c Cause[E]) Fold[A any](folder CauseFolder[E, A]) A {
-	return outcome.FoldCause(c.node, erasedFolder(folder))
+	return outcome.FoldCause(c.node, eraseFolder(folder))
 }
 
 // Failures returns every typed failure from left to right.
@@ -52,9 +52,9 @@ func collectFromCause[E, A any](root Cause[E], selectValue func(Cause[E]) (A, bo
 	return values
 }
 
-// IsInterruptedOnly reports whether c is non-empty and every leaf is Interrupt.
-func (c Cause[E]) IsInterruptedOnly() bool {
-	return c.hasOnlyLeaves(CauseInterrupted)
+// HasInterruptsOnly reports whether c is non-empty and every leaf is Interrupt.
+func (c Cause[E]) HasInterruptsOnly() bool {
+	return c.hasOnlyLeaves(CauseInterrupt)
 }
 
 // IsFailureOnly reports whether c is non-empty and every leaf is Fail.

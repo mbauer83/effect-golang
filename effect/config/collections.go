@@ -34,7 +34,7 @@ func Table[A any](name string, of Config[A]) Config[map[string]A] {
 			// is an empty table, so nothing has to be supplied.
 			Optional: true,
 		}},
-		read: func(at reading) (map[string]A, Error) {
+		read: func(at cursor) (map[string]A, Error) {
 			here := at.under(name)
 			children, err := here.source.Children(here.ctx, here.path)
 			if err != nil {
@@ -74,21 +74,21 @@ func Many[A any](name string, separator string, of Config[A]) Config[[]A] {
 			Path: pathOf(name),
 			Type: typesIn(of.expects) + ` separated by "` + separator + `"`,
 		}},
-		read: func(at reading) ([]A, Error) {
-			var missing []A
+		read: func(at cursor) ([]A, Error) {
+			var zero []A
 			here := at.under(name)
 			raw, found, err := here.source.Value(here.ctx, here.path)
 			switch {
 			case err != nil:
-				return missing, Unavailable(err, here.path...)
+				return zero, Unavailable(err, here.path...)
 			case !found:
-				return missing, Missing(here.path...)
+				return zero, Missing(here.path...)
 			}
 			pieces := strings.Split(raw, separator)
 			values := make([]A, 0, len(pieces))
 			failure := Error{}
 			for _, piece := range pieces {
-				value, refused := reader(reading{
+				value, refused := reader(cursor{
 					ctx:    here.ctx,
 					source: one(strings.TrimSpace(piece)),
 					path:   here.path,
@@ -97,7 +97,7 @@ func Many[A any](name string, separator string, of Config[A]) Config[[]A] {
 				values = append(values, value)
 			}
 			if !failure.IsEmpty() {
-				return missing, failure
+				return zero, failure
 			}
 			return values, Error{}
 		},

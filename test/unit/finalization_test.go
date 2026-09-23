@@ -13,16 +13,16 @@ import (
 
 func TestEnsuringRunsForEveryOutcome(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
-	outcomes := map[string]scopedProgram{
+	outcomes := map[string]program{
 		"success":     operations.Succeed("done"),
 		"failure":     operations.Fail[string]("rejected"),
-		"defect":      effecttest.Panicking[effect.Unit, string, string]("body exploded"),
-		"interrupted": effecttest.SelfInterrupting[effect.Unit, string, string](),
+		"defect":      effecttest.Panic[effect.Unit, string, string]("body exploded"),
+		"interrupted": effecttest.InterruptSelf[effect.Unit, string, string](),
 	}
 
 	for name, body := range outcomes {
 		tracker := &effecttest.Tracker{}
-		effect.Run(context.Background(), effect.Unit{}, body.Ensuring(effecttest.TrackedRelease[effect.Unit](tracker, "finalized")))
+		effect.Run(context.Background(), effect.Unit{}, body.Ensuring(effecttest.TrackRelease[effect.Unit](tracker, "finalized")))
 		if got := tracker.Count("finalized"); got != 1 {
 			t.Fatalf("%s: expected exactly one finalization, got %d", name, got)
 		}
@@ -36,7 +36,7 @@ func TestEnsuringRunsAfterCallerCancellation(t *testing.T) {
 	cancel()
 
 	effect.Run(ctx, effect.Unit{}, operations.Succeed("unreachable").
-		Ensuring(effecttest.TrackedRelease[effect.Unit](tracker, "finalized")))
+		Ensuring(effecttest.TrackRelease[effect.Unit](tracker, "finalized")))
 
 	if got := tracker.Count("finalized"); got != 1 {
 		t.Fatalf("expected cleanup to survive caller cancellation, got %d", got)
@@ -49,7 +49,7 @@ func TestOnExitObservesTheOutcomeBeingFinalized(t *testing.T) {
 
 	program := operations.Fail[string]("rejected").OnExit(
 		func(exit effect.Exit[string, string]) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
-			return effecttest.TrackedRelease[effect.Unit](tracker, "rollback "+exit.String())
+			return effecttest.TrackRelease[effect.Unit](tracker, "rollback "+exit.String())
 		},
 	)
 
@@ -94,8 +94,8 @@ func TestNestedEnsuringRunsInnermostFirst(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 
 	program := operations.Succeed("done").
-		Ensuring(effecttest.TrackedRelease[effect.Unit](tracker, "inner")).
-		Ensuring(effecttest.TrackedRelease[effect.Unit](tracker, "outer"))
+		Ensuring(effecttest.TrackRelease[effect.Unit](tracker, "inner")).
+		Ensuring(effecttest.TrackRelease[effect.Unit](tracker, "outer"))
 
 	effect.Run(context.Background(), effect.Unit{}, program)
 	if got := tracker.Events(); !reflect.DeepEqual(got, []string{"inner", "outer"}) {

@@ -43,7 +43,7 @@ func LoadConfig[R, A any](description config.Config[A]) Effect[R, ConfigError, A
 		_ R,
 	) Exit[ConfigError, A] {
 		value, failure := config.Read(ctx, state.Capabilities().ConfigSource, description)
-		if exit, interrupted := interruptedExit[ConfigError, A](ctx); interrupted {
+		if exit, interrupted := interruptExit[ConfigError, A](ctx); interrupted {
 			return exit
 		}
 		if !failure.IsEmpty() {
@@ -53,7 +53,7 @@ func LoadConfig[R, A any](description config.Config[A]) Effect[R, ConfigError, A
 	})
 }
 
-// ReadingConfigFrom reads this effect's configuration from a source of its
+// WithConfigSource reads this effect's configuration from a source of its
 // own.
 //
 // The m side of the relation: one runtime, and parts of a program that are
@@ -61,12 +61,12 @@ func LoadConfig[R, A any](description config.Config[A]) Effect[R, ConfigError, A
 // document it shipped with while the program around it reads the environment,
 // and neither has to know that the other exists.
 //
-//	plugin.ReadingConfigFrom(config.Beneath(document, "plugins", "billing"))
+//	plugin.WithConfigSource(config.Beneath(document, "plugins", "billing"))
 //
 // Runtime-local and inherited, exactly as a span or a name is: work forked
 // inside this effect reads from the same source, and the effect after it does
 // not.
-func (fx Effect[R, E, A]) ReadingConfigFrom(source ConfigSource) Effect[R, E, A] {
+func (fx Effect[R, E, A]) WithConfigSource(source ConfigSource) Effect[R, E, A] {
 	if source == nil {
 		return fx
 	}

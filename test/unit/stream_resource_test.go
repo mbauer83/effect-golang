@@ -15,13 +15,13 @@ import (
 // holds is released when the consumer is finished with it -- including when the
 // consumer stopped early, failed, or was cancelled.
 
-// trackedSource is a stream whose source acquires a resource and records each
+// trackSource is a stream whose source acquires a resource and records each
 // value as it is read, so a test can see the release relative to the reads
 // rather than merely that both happened.
-func trackedSource(tracker *effecttest.Tracker, values ...int) effect.Stream[effect.Unit, string, int] {
+func trackSource(tracker *effecttest.Tracker, values ...int) effect.Stream[effect.Unit, string, int] {
 	return effect.StreamFromResource(
 		func(scope effect.Scope) effect.Effect[effect.Unit, string, []int] {
-			return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "source").
+			return effecttest.TrackResource[effect.Unit, string](scope, tracker, "source").
 				As(values)
 		},
 		func(held []int) effect.Stream[effect.Unit, string, int] {
@@ -36,7 +36,7 @@ func trackedSource(tracker *effecttest.Tracker, values ...int) effect.Stream[eff
 func TestAStreamReleasesItsSourceWhenTheConsumerIsDone(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 
-	if got := collect(t, trackedSource(tracker, 1, 2, 3)); !reflect.DeepEqual(got, []int{1, 2, 3}) {
+	if got := collect(t, trackSource(tracker, 1, 2, 3)); !reflect.DeepEqual(got, []int{1, 2, 3}) {
 		t.Fatalf("unexpected values: %v", got)
 	}
 	// The release must come after the reads. Asserting only that both happened
@@ -49,7 +49,7 @@ func TestAStreamReleasesItsSourceWhenTheConsumerIsDone(t *testing.T) {
 
 func TestAStreamReleasesItsSourceWhenTheConsumerStopsEarly(t *testing.T) {
 	tracker := &effecttest.Tracker{}
-	stream := trackedSource(tracker, 1, 2, 3, 4, 5).TakeStream(2)
+	stream := trackSource(tracker, 1, 2, 3, 4, 5).TakeStream(2)
 
 	if got := collect(t, stream); !reflect.DeepEqual(got, []int{1, 2}) {
 		t.Fatalf("unexpected values: %v", got)
@@ -61,7 +61,7 @@ func TestAStreamReleasesItsSourceWhenTheConsumerStopsEarly(t *testing.T) {
 
 func TestAStreamReleasesItsSourceWhenTheConsumerFails(t *testing.T) {
 	tracker := &effecttest.Tracker{}
-	stream := trackedSource(tracker, 1, 2, 3)
+	stream := trackSource(tracker, 1, 2, 3)
 
 	exit := effect.Run(context.Background(), effect.Unit{},
 		effect.RunForEach(stream, func(value int) effect.Effect[effect.Unit, string, effect.Unit] {
@@ -85,7 +85,7 @@ func TestAStreamReleasesItsSourceWhenTheCallerCancels(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(stop)
 
-	exit := effect.Run(ctx, effect.Unit{}, effect.RunCollect(trackedSource(tracker, 1, 2)))
+	exit := effect.Run(ctx, effect.Unit{}, effect.RunCollect(trackSource(tracker, 1, 2)))
 	cause, failed := exit.Cause()
 	if !failed {
 		t.Fatalf("expected interruption, got %v", exit)
@@ -103,8 +103,8 @@ func TestAStreamReleasesItsSourceWhenTheCallerCancels(t *testing.T) {
 func TestConcatenatedStreamsReleaseBothSources(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 	stream := effect.ConcatStreams(
-		trackedSource(tracker, 1),
-		trackedSource(tracker, 2),
+		trackSource(tracker, 1),
+		trackSource(tracker, 2),
 	)
 
 	if got := collect(t, stream); !reflect.DeepEqual(got, []int{1, 2}) {

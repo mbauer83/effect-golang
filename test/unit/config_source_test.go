@@ -35,8 +35,8 @@ func TestTheFirstSourceThatCarriesAPathAnswers(t *testing.T) {
 		})
 
 	held, failure := config.Read(context.Background(), config.Sources(
-		config.Fixed(map[string]string{"port": "9000"}),
-		config.Fixed(map[string]string{"host": "from.defaults", "port": "80"}),
+		config.FromMap(map[string]string{"port": "9000"}),
+		config.FromMap(map[string]string{"host": "from.defaults", "port": "80"}),
 	), described)
 
 	if !failure.IsEmpty() {
@@ -56,7 +56,7 @@ func TestASourceThatCannotBeConsultedIsNotAnAbsence(t *testing.T) {
 	down := errors.New("the store refused the connection")
 	_, failure := config.Read(context.Background(), config.Sources(
 		unavailable{err: down},
-		config.Fixed(map[string]string{"token": "from.defaults"}),
+		config.FromMap(map[string]string{"token": "from.defaults"}),
 	), config.Text("token"))
 
 	if failure.IsEmpty() {
@@ -102,8 +102,8 @@ func TestOneDescriptionReadsTwoSpellingsThroughRenaming(t *testing.T) {
 	// A description written in one vocabulary, read from a source that spells
 	// it another way, without saying it twice.
 	described := config.Nested("db", config.Text("maxConnections"))
-	source := config.Renaming(
-		config.Fixed(map[string]string{"db.max-connections": "16"}),
+	source := config.MapInput(
+		config.FromMap(map[string]string{"db.max-connections": "16"}),
 		kebab)
 
 	value, failure := config.Read(context.Background(), source, described)
@@ -128,12 +128,12 @@ func TestADescriptionCanBeMountedInsideADocument(t *testing.T) {
 	// The same description, twice, at two places in one source: what makes a
 	// component's settings reusable rather than a section of one program's
 	// file.
-	document := config.Fixed(map[string]string{
+	document := config.FromMap(map[string]string{
 		"services.billing.host": "billing.internal",
 		"services.search.host":  "search.internal",
 		"services.search.port":  "9200",
 	})
-	described := describedAddress()
+	described := addressDescription()
 
 	billing, failure := config.Read(context.Background(),
 		config.Beneath(document, "services", "billing"), described)
@@ -167,7 +167,7 @@ func TestATableReadsOneEntryPerKeyTheSourceHolds(t *testing.T) {
 
 	// Nothing beneath the name is an empty table and not a failure: a program
 	// with no limits configured has none.
-	empty, failure := config.Read(context.Background(), config.Fixed(nil),
+	empty, failure := config.Read(context.Background(), config.FromMap(nil),
 		config.Table("limits", config.Int("")))
 	if !failure.IsEmpty() || len(empty) != 0 {
 		t.Fatalf("expected an empty table, got %v and %v", empty, failure)
@@ -195,7 +195,7 @@ func TestATableOfGroupsReadsAFieldOfEachEntry(t *testing.T) {
 }
 
 func TestSeveralValuesHeldInOneKeyAreReadByTheEntryDescription(t *testing.T) {
-	source := config.Fixed(map[string]string{"ports": "8080, 8081,8082"})
+	source := config.FromMap(map[string]string{"ports": "8080, 8081,8082"})
 
 	ports, failure := config.Read(context.Background(), source,
 		config.Many("ports", ",", config.Port("")))
@@ -209,7 +209,7 @@ func TestSeveralValuesHeldInOneKeyAreReadByTheEntryDescription(t *testing.T) {
 	// A piece the entry description refuses is refused, and says so against
 	// the key it was in rather than against a position nobody can see.
 	_, refused := config.Read(context.Background(),
-		config.Fixed(map[string]string{"ports": "8080,0"}),
+		config.FromMap(map[string]string{"ports": "8080,0"}),
 		config.Many("ports", ",", config.Port("")))
 	leaves := refused.Failures()
 	if len(leaves) != 1 || config.Render(leaves[0].Path) != "ports" {

@@ -36,7 +36,7 @@ var records = []string{
 
 func TestFanoutDeliversEveryRecordToBothReporters(t *testing.T) {
 	inputPath := seedRecords(t, records...)
-	observer := &effecttest.RecordingObserver{}
+	observer := &effecttest.EventRecorder{}
 	runtime, err := effect.NewRuntime(
 		effect.WithObserver(observer),
 		effect.WithDebugTracking(),

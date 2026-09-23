@@ -70,9 +70,9 @@ func environmentKey(path []string) string {
 // WRITE: the shouting is the environment's convention, and a map a program
 // indexes should not carry it.
 func lowerCase(children []string) []string {
-	makeed := make([]string, 0, len(children))
+	names := make([]string, 0, len(children))
 	for _, child := range children {
-		makeed = append(makeed, strings.ToLower(child))
+		names = append(names, strings.ToLower(child))
 	}
-	return makeed
+	return names
 }

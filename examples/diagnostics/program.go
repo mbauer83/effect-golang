@@ -42,8 +42,8 @@ type stageProgram = effect.Effect[effect.Unit, StageError, string]
 // allocated per interpretation, so the returned Effect stays reusable.
 func Program() stageProgram {
 	return effect.Suspend(func() stageProgram {
-		meeting := newRendezvous(2)
-		return effect.ZipPar(rejectingStage(meeting), panickingStage(meeting)).
+		barrier := newRendezvous(2)
+		return effect.ZipPar(rejectionStage(barrier), panicStage(barrier)).
 			Map(func(both effect.Product[string, string]) string {
 				return both.First + both.Second
 			})
@@ -66,8 +66,8 @@ func (meeting *rendezvous) arrive() {
 	meeting.participants.Wait()
 }
 
-// rejectingStage fails with a typed domain error, then fails to clean up.
-func rejectingStage(meeting *rendezvous) stageProgram {
+// rejectionStage fails with a typed domain error, then fails to clean up.
+func rejectionStage(meeting *rendezvous) stageProgram {
 	operations := effect.For[effect.Unit, StageError]()
 	return operations.
 		From(func(context.Context, effect.Unit) effect.Exit[StageError, string] {
@@ -77,24 +77,24 @@ func rejectingStage(meeting *rendezvous) stageProgram {
 				Reason: "record is not well formed",
 			})
 		}).
-		Ensuring(failingCleanup("validate")).
-		Named("validate")
+		Ensuring(failCleanup("validate")).
+		WithName("validate")
 }
 
-// panickingStage panics, which the runtime records as a defect rather than
+// panicStage panics, which the runtime records as a defect rather than
 // letting it escape as a typed failure, and then fails to clean up.
-func panickingStage(meeting *rendezvous) stageProgram {
+func panicStage(meeting *rendezvous) stageProgram {
 	operations := effect.For[effect.Unit, StageError]()
 	return operations.
 		From(func(context.Context, effect.Unit) effect.Exit[StageError, string] {
 			meeting.arrive()
 			panic("index out of range in stage 'transform'")
 		}).
-		Ensuring(failingCleanup("transform")).
-		Named("transform")
+		Ensuring(failCleanup("transform")).
+		WithName("transform")
 }
 
-func failingCleanup(stage string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
+func failCleanup(stage string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
 	return effect.AddFinalizer[effect.Unit](func(context.Context) error {
 		return fmt.Errorf("%s: %w", stage, ErrCleanupFailed)
 	})
@@ -103,9 +103,9 @@ func failingCleanup(stage string) effect.Effect[effect.Unit, effect.Never, effec
 // Diagnosis is one outcome rendered for a human reader and for a structured
 // sink at the same time.
 type Diagnosis struct {
-	Rendered string
-	Report   effect.CauseReport
-	Status   effect.EventStatus
+	Text   string
+	Report effect.CauseReport
+	Status effect.EventStatus
 }
 
 // Diagnose eliminates an exit with a typed fold rather than by probing it.
@@ -117,15 +117,15 @@ func Diagnose(exit effect.Exit[StageError, string]) Diagnosis {
 	return exit.Fold(
 		func(cause effect.Cause[StageError]) Diagnosis {
 			return Diagnosis{
-				Rendered: cause.String(),
-				Report:   cause.Report(),
-				Status:   cause.Status(),
+				Text:   cause.String(),
+				Report: cause.Report(),
+				Status: cause.Status(),
 			}
 		},
 		func(value string) Diagnosis {
 			return Diagnosis{
-				Rendered: "Success(" + value + ")",
-				Status:   effect.EventStatusSuccess,
+				Text:   "Success(" + value + ")",
+				Status: effect.EventStatusSuccess,
 			}
 		},
 	)

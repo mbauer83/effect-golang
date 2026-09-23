@@ -46,7 +46,7 @@ func TestFailureDiagnosticsPreservesEveryFact(t *testing.T) {
 			t.Fatalf("expected a cleanup error to keep its wrapping, got %v", wrapped)
 		}
 	}
-	if cause.IsFailureOnly() || cause.IsInterruptedOnly() || !cause.ContainsDefect() {
+	if cause.IsFailureOnly() || cause.HasInterruptsOnly() || !cause.ContainsDefect() {
 		t.Fatalf("unexpected cause predicates for %v", cause)
 	}
 }
@@ -58,8 +58,8 @@ func TestFailureDiagnosticsRenderingIsDeterministic(t *testing.T) {
 		diagnosis := diagnostics.Diagnose(
 			effect.Run(context.Background(), effect.Unit{}, diagnostics.Program()),
 		)
-		if diagnosis.Rendered != wantRenderedCause {
-			t.Fatalf("unexpected rendering:\n%s", diagnosis.Rendered)
+		if diagnosis.Text != wantRenderedCause {
+			t.Fatalf("unexpected rendering:\n%s", diagnosis.Text)
 		}
 		if diagnosis.Status != effect.EventStatusDefect {
 			t.Fatalf("expected a defect status, got %q", diagnosis.Status)

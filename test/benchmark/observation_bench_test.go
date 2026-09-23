@@ -13,9 +13,9 @@ import (
 	"github.com/mbauer83/effect-golang/effect"
 )
 
-// spanning is a span-heavy workload, which is where observation costs what it
+// spanWorkload is a span-heavy workload, which is where observation costs what it
 // costs: the boundaries are the events.
-func spanning(depth int) effect.Effect[effect.Unit, effect.Never, int] {
+func spanWorkload(depth int) effect.Effect[effect.Unit, effect.Never, int] {
 	work := effect.Succeed[effect.Unit, effect.Never](0)
 	for at := range depth {
 		named := "stage"
@@ -27,9 +27,9 @@ func spanning(depth int) effect.Effect[effect.Unit, effect.Never, int] {
 	return work
 }
 
-func runSpanning(b *testing.B, runtime *effect.Runtime) {
+func runSpans(b *testing.B, runtime *effect.Runtime) {
 	b.Helper()
-	work := spanning(64)
+	work := spanWorkload(64)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
@@ -42,19 +42,19 @@ func BenchmarkSixtyFourSpansUnobserved(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	runSpanning(b, runtime)
+	runSpans(b, runtime)
 }
 
 func BenchmarkSixtyFourSpansObserved(b *testing.B) {
-	runtime, err := effect.NewRuntime(effect.WithObserver(counting{}))
+	runtime, err := effect.NewRuntime(effect.WithObserver(eventCounter{}))
 	if err != nil {
 		b.Fatal(err)
 	}
-	runSpanning(b, runtime)
+	runSpans(b, runtime)
 }
 
-// counting is the cheapest possible observer, so what the comparison shows is
+// eventCounter is the cheapest possible observer, so what the comparison shows is
 // the cost of observing at all rather than the cost of one tool.
-type counting struct{}
+type eventCounter struct{}
 
-func (counting) Observe(context.Context, effect.RuntimeEvent) {}
+func (eventCounter) Observe(context.Context, effect.RuntimeEvent) {}

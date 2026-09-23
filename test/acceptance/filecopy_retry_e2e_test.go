@@ -32,8 +32,8 @@ func TestRetryingFileCopyProgramRecoversFromTransientReadFailures(t *testing.T) 
 		},
 	}
 	clock := effecttest.NewManualClock(time.Unix(0, 0))
-	logger := &effecttest.RecordingLogger{}
-	observer := &effecttest.RecordingObserver{}
+	logger := &effecttest.LogRecorder{}
+	observer := &effecttest.EventRecorder{}
 	runtime, err := effect.NewRuntime(
 		effect.WithFileSystem(fileSystem),
 		effect.WithClock(clock),
@@ -53,7 +53,7 @@ func TestRetryingFileCopyProgramRecoversFromTransientReadFailures(t *testing.T) 
 		result <- runtime.Run(
 			context.Background(),
 			effect.Unit{},
-			filecopy.RetryingProgram("in", "out", policy),
+			filecopy.ProgramWithRetry("in", "out", policy),
 		)
 	}()
 

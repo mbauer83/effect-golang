@@ -87,7 +87,7 @@ you want that.
 ## Watch it happen
 
 Retry emits `retry_scheduled`, `retry_exhausted` and `retry_succeeded` events
-carrying the attempt number and the chosen delay. Install a `RecordingObserver`
+carrying the attempt number and the chosen delay. Install a `EventRecorder`
 in a test, or your own for production.
 
 ## Working example

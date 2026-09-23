@@ -38,13 +38,13 @@ func interruptionReason(ctx context.Context) error {
 	return lifetime.CancellationReason(ctx)
 }
 
-// interruptedExit reports an interruption exit when ctx is already canceled.
+// interruptExit reports an interruption exit when ctx is already canceled.
 // Built-in effects that call a Go API which cannot itself be canceled use it as
 // a checkpoint on both sides of the call.
-func interruptedExit[E, A any](ctx context.Context) (Exit[E, A], bool) {
+func interruptExit[E, A any](ctx context.Context) (Exit[E, A], bool) {
 	reason := interruptionReason(ctx)
 	if reason == nil {
 		return Exit[E, A]{}, false
 	}
-	return exitInterrupted[E, A](reason), true
+	return exitInterrupt[E, A](reason), true
 }

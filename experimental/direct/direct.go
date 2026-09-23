@@ -108,7 +108,7 @@ func evaluateBody[R, E, A any](binder *Binder[R, E], body func(*Binder[R, E]) A)
 	return effect.ExitSuccess[E](body(binder))
 }
 
-func settle[E, A any](state *progress[E], returned effect.Exit[E, A], recovered any) effect.Exit[E, A] {
+func settle[E, A any](state *progress[E], result effect.Exit[E, A], recovered any) effect.Exit[E, A] {
 	switch {
 	case recovered == state.token:
 		return effect.ExitCause[E, A](state.cause)
@@ -131,7 +131,7 @@ func settle[E, A any](state *progress[E], returned effect.Exit[E, A], recovered 
 			Stack: string(debug.Stack()),
 		}))
 	default:
-		return returned
+		return result
 	}
 }
 

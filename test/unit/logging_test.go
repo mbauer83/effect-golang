@@ -13,8 +13,8 @@ import (
 )
 
 func TestEveryLogLevelReachesTheRuntimeLoggerWithInheritedMetadata(t *testing.T) {
-	logger := &effecttest.RecordingLogger{}
-	clock := effecttest.NewManualClock(fixedMoment())
+	logger := &effecttest.LogRecorder{}
+	clock := effecttest.NewManualClock(clockStart())
 	runtime, err := effect.NewRuntime(effect.WithLogger(logger), effect.WithClock(clock))
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestEveryLogLevelReachesTheRuntimeLoggerWithInheritedMetadata(t *testing.T)
 		AndThen(operations.LogWarn("stale")).
 		AndThen(operations.LogError("giving up")).
 		Annotate(slog.String("component", "catalogue")).
-		Named("load-catalogue").
+		WithName("load-catalogue").
 		WithSpan("catalogue")
 
 	if exit := runtime.Run(context.Background(), effect.Unit{}, program); exit.IsFailure() {
@@ -50,7 +50,7 @@ func TestEveryLogLevelReachesTheRuntimeLoggerWithInheritedMetadata(t *testing.T)
 		if record.SpanID == 0 {
 			t.Fatalf("record %d lost its span identity: %#v", index, record)
 		}
-		if !record.Timestamp.Equal(fixedMoment()) {
+		if !record.Timestamp.Equal(clockStart()) {
 			t.Fatalf("record %d used a clock other than the runtime's: %v", index, record.Timestamp)
 		}
 		// Ordered fields: the inherited annotation precedes the call's own.
@@ -63,9 +63,9 @@ func TestEveryLogLevelReachesTheRuntimeLoggerWithInheritedMetadata(t *testing.T)
 	}
 }
 
-// fixedMoment is the manual clock's start, so every record's timestamp is
+// clockStart is the manual clock's start, so every record's timestamp is
 // checkable rather than merely present.
-func fixedMoment() time.Time {
+func clockStart() time.Time {
 	return time.Unix(1_700_000_000, 0).UTC()
 }
 
@@ -77,7 +77,7 @@ func TestARecordSaysAKeyOnce(t *testing.T) {
 	//
 	// The record's own wins, because it was written about this line while the
 	// inherited one was written about everything inside the span.
-	sink := &collectedRecords{}
+	sink := &recordSink{}
 	runtime, err := effect.NewRuntime(effect.WithLogger(sink))
 	if err != nil {
 		t.Fatal(err)
@@ -120,21 +120,21 @@ func TestARecordSaysAKeyOnce(t *testing.T) {
 	}
 }
 
-// collectedRecords is where a program's records go, kept so a test can read
+// recordSink is where a program's records go, kept so a test can read
 // them.
-type collectedRecords struct {
+type recordSink struct {
 	mutex   sync.Mutex
 	records []capability.LogRecord
 }
 
-func (sink *collectedRecords) Log(_ context.Context, record capability.LogRecord) error {
+func (sink *recordSink) Log(_ context.Context, record capability.LogRecord) error {
 	sink.mutex.Lock()
 	defer sink.mutex.Unlock()
 	sink.records = append(sink.records, record)
 	return nil
 }
 
-func (sink *collectedRecords) all() []capability.LogRecord {
+func (sink *recordSink) all() []capability.LogRecord {
 	sink.mutex.Lock()
 	defer sink.mutex.Unlock()
 	return append([]capability.LogRecord(nil), sink.records...)

@@ -32,11 +32,11 @@ func retryLoop[R, E, A, In, Out any](
 	fx Effect[R, E, A],
 	policy Schedule[In, Out],
 	eligible retryEligibility[E, In],
-	exhausted retryExhaustion[R, E, A, In, Out],
+	exhaust retryExhaustion[R, E, A, In, Out],
 ) Effect[R, E, A] {
 	return suspendRuntime(func(context.Context, *runtimecore.State, R) Effect[R, E, A] {
 		progress := &attemptProgress{number: 1}
-		attempt := retryAttempt(fx, policy.Start(), eligible, exhausted, progress)
+		attempt := retryAttempt(fx, policy.Start(), eligible, exhaust, progress)
 		return attempt.withExitObserver(reportRetryOutcome(progress))
 	})
 }
@@ -45,7 +45,7 @@ func retryAttempt[R, E, A, In, Out any](
 	fx Effect[R, E, A],
 	driver *ScheduleDriver[In, Out],
 	eligible retryEligibility[E, In],
-	exhausted retryExhaustion[R, E, A, In, Out],
+	exhaust retryExhaustion[R, E, A, In, Out],
 	progress *attemptProgress,
 ) Effect[R, E, A] {
 	return fx.CatchCause(func(cause Cause[E]) Effect[R, E, A] {
@@ -61,14 +61,14 @@ func retryAttempt[R, E, A, In, Out any](
 			decision := driver.Next(state.Capabilities().Clock.Now(), input)
 			if !decision.continueRunning {
 				emitAttempt(ctx, state, retryExhaustedEvent(progress.number))
-				return exhausted(cause, input, decision.output)
+				return exhaust(cause, input, decision.output)
 			}
 
 			emitAttempt(ctx, state, retryScheduledEvent(progress.number, decision.delay))
 			progress.number = nextCount(progress.number)
 			progress.repeated = true
 			return Sleep[R, E](decision.delay).AndThen(
-				retryAttempt(fx, driver, eligible, exhausted, progress),
+				retryAttempt(fx, driver, eligible, exhaust, progress),
 			)
 		})
 	})
@@ -104,7 +104,7 @@ func repeatRun[R, E, A, Out any](
 
 func reportRetryOutcome(progress *attemptProgress) exitObserver {
 	return func(interpretation runtimecore.Interpretation, exit outcome.Exit) outcome.Exit {
-		if exit.Succeeded() && progress.repeated {
+		if exit.IsSuccess() && progress.repeated {
 			emitAttempt(interpretation.Context, interpretation.State, retrySucceededEvent(progress.number))
 		}
 		return exit
@@ -112,7 +112,7 @@ func reportRetryOutcome(progress *attemptProgress) exitObserver {
 }
 
 func emitAttempt(ctx context.Context, state *runtimecore.State, describe attemptEvent) {
-	if !state.Observing() {
+	if !state.HasObserver() {
 		return
 	}
 	state.Emit(ctx, describe(state))

@@ -28,19 +28,19 @@ import (
 func Of[A any](name string, reads string, parse func(string) (A, error)) Config[A] {
 	return Config[A]{
 		expects: []Expectation{{Path: pathOf(name), Type: reads}},
-		read: func(at reading) (A, Error) {
-			var missing A
+		read: func(at cursor) (A, Error) {
+			var zero A
 			here := at.under(name)
 			raw, found, err := here.source.Value(here.ctx, here.path)
 			switch {
 			case err != nil:
-				return missing, Unavailable(err, here.path...)
+				return zero, Unavailable(err, here.path...)
 			case !found:
-				return missing, Missing(here.path...)
+				return zero, Missing(here.path...)
 			}
 			value, err := parse(raw)
 			if err != nil {
-				return missing, Invalid(err.Error(), here.path...)
+				return zero, Invalid(err.Error(), here.path...)
 			}
 			return value, Error{}
 		},
@@ -143,13 +143,13 @@ func Port(name string) Config[int] {
 // a log line, and the expectation is marked so a printed one shows the key
 // without the value.
 func SecretOf(name string) Config[Secret] {
-	described := Of(name, "a secret", func(raw string) (Secret, error) {
+	secret := Of(name, "a secret", func(raw string) (Secret, error) {
 		return Secret{value: raw}, nil
 	})
-	for at := range described.expects {
-		described.expects[at].Secret = true
+	for at := range secret.expects {
+		secret.expects[at].Secret = true
 	}
-	return described
+	return secret
 }
 
 // pathOf is a primitive's own path: one segment, or none when it reads the

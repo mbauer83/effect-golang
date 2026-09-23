@@ -26,7 +26,7 @@ func TestScopedLayerResourcesLiveAsLongAsTheirConsumer(t *testing.T) {
 				},
 			),
 			func(string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
-				return effecttest.TrackedRelease[effect.Unit](tracker, "close connection")
+				return effecttest.TrackRelease[effect.Unit](tracker, "close connection")
 			},
 		)
 	})
@@ -57,10 +57,10 @@ func TestDaemonFiberOutlivesRunAndIsBoundedByClose(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var daemon forkedFiber
+	var daemon programFiber
 	exit := runtime.Run(context.Background(), effect.Unit{},
-		operations.ForkDaemon(effecttest.Blocking[effect.Unit, string](work, "finished")).FlatMap(
-			func(fiber forkedFiber) forkedProgram {
+		operations.ForkDaemon(effecttest.Block[effect.Unit, string](work, "finished")).FlatMap(
+			func(fiber programFiber) program {
 				daemon = fiber
 				work.AwaitStart()
 				return operations.Succeed("run finished")
@@ -95,7 +95,7 @@ func TestCapabilityOverridesAreIsolatedBetweenConcurrentRuntimes(t *testing.T) {
 		start := time.Unix(int64(index)*1000, 0)
 		waiters.Go(func() {
 			clock := effecttest.NewManualClock(start)
-			logger := &effecttest.RecordingLogger{}
+			logger := &effecttest.LogRecorder{}
 			runtime, err := effect.NewRuntime(effect.WithClock(clock), effect.WithLogger(logger))
 			if err != nil {
 				t.Error(err)
@@ -135,17 +135,17 @@ func TestNilCapabilityIsRejectedAtConstruction(t *testing.T) {
 	}
 }
 
-type bufferingLogger struct {
+type bufferLogger struct {
 	mutex   sync.Mutex
 	flushed int
 	failure error
 }
 
-func (logger *bufferingLogger) Log(context.Context, effect.LogRecord) error {
+func (logger *bufferLogger) Log(context.Context, effect.LogRecord) error {
 	return nil
 }
 
-func (logger *bufferingLogger) Flush(context.Context) error {
+func (logger *bufferLogger) Flush(context.Context) error {
 	logger.mutex.Lock()
 	defer logger.mutex.Unlock()
 	logger.flushed++
@@ -153,7 +153,7 @@ func (logger *bufferingLogger) Flush(context.Context) error {
 }
 
 func TestCloseFlushesBufferingCapabilities(t *testing.T) {
-	logger := &bufferingLogger{}
+	logger := &bufferLogger{}
 	runtime, err := effect.NewRuntime(effect.WithLogger(logger))
 	if err != nil {
 		t.Fatal(err)
@@ -169,7 +169,7 @@ func TestCloseFlushesBufferingCapabilities(t *testing.T) {
 
 func TestCloseReportsAFailedFlushAsADefect(t *testing.T) {
 	broken := errors.New("queue drain failed")
-	logger := &bufferingLogger{failure: broken}
+	logger := &bufferLogger{failure: broken}
 	runtime, err := effect.NewRuntime(effect.WithLogger(logger))
 	if err != nil {
 		t.Fatal(err)
@@ -181,19 +181,19 @@ func TestCloseReportsAFailedFlushAsADefect(t *testing.T) {
 	}
 }
 
-type failingLogger struct {
+type faultyLogger struct {
 	failure error
 }
 
-func (logger failingLogger) Log(context.Context, effect.LogRecord) error {
+func (logger faultyLogger) Log(context.Context, effect.LogRecord) error {
 	return logger.failure
 }
 
 func TestLoggerFailureIsReportedToDiagnosticsAndNotToTheProgram(t *testing.T) {
 	broken := errors.New("sink unavailable")
-	diagnostics := &effecttest.RecordingDiagnostics{}
+	diagnostics := &effecttest.DiagnosticsRecorder{}
 	runtime, err := effect.NewRuntime(
-		effect.WithLogger(failingLogger{failure: broken}),
+		effect.WithLogger(faultyLogger{failure: broken}),
 		effect.WithDiagnostics(diagnostics),
 	)
 	if err != nil {

@@ -17,7 +17,7 @@ import "slices"
 // this type, which is what lets fields of different types sit in one list
 // without a top type anywhere.
 type Field[S any] struct {
-	read    func(at reading, into *S) Error
+	read    func(at cursor, into *S) Error
 	expects []Expectation
 }
 
@@ -32,7 +32,7 @@ func Setting[S, A any](of Config[A], assign func(*S, A)) Field[S] {
 	read := of.reader()
 	return Field[S]{
 		expects: of.expects,
-		read: func(at reading, into *S) Error {
+		read: func(at cursor, into *S) Error {
 			value, failure := read(at)
 			if !failure.IsEmpty() {
 				return failure
@@ -45,7 +45,7 @@ func Setting[S, A any](of Config[A], assign func(*S, A)) Field[S] {
 
 // Struct describes a settings type from its fields.
 //
-//	func DescribedStore() config.Config[Store] {
+//	func StoreDescription() config.Config[Store] {
 //	    return config.Nested("db", config.Struct(
 //	        config.Setting(config.NonEmptyText("host"),
 //	            func(store *Store, host string) { store.Host = host }),
@@ -62,28 +62,28 @@ func Setting[S, A any](of Config[A], assign func(*S, A)) Field[S] {
 // The value is built into a fresh S and returned only if every field
 // succeeded, so a half-assembled settings type never escapes.
 func Struct[S any](fields ...Field[S]) Config[S] {
-	heldValue := slices.Clone(fields)
+	snapshot := slices.Clone(fields)
 	expects := []Expectation{}
-	for _, field := range heldValue {
+	for _, field := range snapshot {
 		expects = append(expects, field.expects...)
 	}
 	return Config[S]{
 		expects: expects,
-		read: func(at reading) (S, Error) {
-			var built S
+		read: func(at cursor) (S, Error) {
+			var value S
 			failure := Error{}
-			for _, field := range heldValue {
+			for _, field := range snapshot {
 				if field.read == nil {
 					failure = failure.And(errZeroDescription)
 					continue
 				}
-				failure = failure.And(field.read(at, &built))
+				failure = failure.And(field.read(at, &value))
 			}
 			if !failure.IsEmpty() {
-				var missing S
-				return missing, failure
+				var zero S
+				return zero, failure
 			}
-			return built, Error{}
+			return value, Error{}
 		},
 	}
 }

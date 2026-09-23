@@ -40,7 +40,7 @@ func finalizeExit[R, E, A any](
 	finalize func(Exit[E, A]) Effect[R, Never, Unit],
 	exit Exit[E, A],
 ) outcome.Cause {
-	environment := typedEnvironment[R](interpretation.Environment)
+	environment := asEnvironment[R](interpretation.Environment)
 	cleanup := context.WithoutCancel(interpretation.Context)
 	released := finalize(exit).run(cleanup, interpretation.State, environment)
 	cause, _ := released.Cause()

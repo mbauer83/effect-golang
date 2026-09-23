@@ -10,21 +10,21 @@ import (
 	"github.com/mbauer83/effect-golang/effect/cache"
 )
 
-// moving is a clock a test holds.
-type moving struct {
+// manualClock is a clock a test holds.
+type manualClock struct {
 	at time.Time
 }
 
-func (clock *moving) now() time.Time { return clock.at }
+func (clock *manualClock) now() time.Time { return clock.at }
 
-func (clock *moving) past(by time.Duration) { clock.at = clock.at.Add(by) }
+func (clock *manualClock) past(by time.Duration) { clock.at = clock.at.Add(by) }
 
-func ticking() *moving {
-	return &moving{at: time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)}
+func newManualClock() *manualClock {
+	return &manualClock{at: time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)}
 }
 
 func TestAValueIsKeptUntilItStopsBeingWorthKeeping(t *testing.T) {
-	clock := ticking()
+	clock := newManualClock()
 	memory := cache.NewLRU[string](8, clock.now)
 
 	memory.Put("film:603", "tmdb:603", "The Matrix", time.Hour)
@@ -45,7 +45,7 @@ func TestTheLeastRecentlyUsedGoesFirst(t *testing.T) {
 	// Least recently *used*, which is what makes a read count as use: the
 	// handful being looked at all afternoon stay, and the one somebody opened
 	// once does not.
-	clock := ticking()
+	clock := newManualClock()
 	memory := cache.NewLRU[int](2, clock.now)
 
 	memory.Put("first", "", 1, time.Hour)
@@ -69,7 +69,7 @@ func TestTheLeastRecentlyUsedGoesFirst(t *testing.T) {
 func TestEverythingAboutOneSubjectIsForgottenAtOnce(t *testing.T) {
 	// What somebody asking for a thing to be looked up again means: not "drop
 	// these four keys" but "find out about this thing again".
-	clock := ticking()
+	clock := newManualClock()
 	memory := cache.NewLRU[string](8, clock.now)
 	memory.Put("scores:603", "tmdb:603", "83%", time.Hour)
 	memory.Put("editions:603", "tmdb:603", "4K", time.Hour)
@@ -91,7 +91,7 @@ func TestEverythingAboutOneSubjectIsForgottenAtOnce(t *testing.T) {
 }
 
 func TestAFilingWithNoLifetimeIsRefusedRatherThanKeptForever(t *testing.T) {
-	store := cache.NewHeld(8, ticking().now)
+	store := cache.NewMemoryStore(8, newManualClock().now)
 
 	err := store.Put(context.Background(), cache.Entry{Key: "film:603", Entity: []byte("x")})
 
@@ -106,7 +106,7 @@ func TestAFilingWithNoLifetimeIsRefusedRatherThanKeptForever(t *testing.T) {
 func TestAMissIsAnAnswerAndNotAFailure(t *testing.T) {
 	// The ordinary state of a key nobody has asked for yet: a store that
 	// failed on a miss would make every first request an error to handle.
-	store := cache.NewHeld(8, ticking().now)
+	store := cache.NewMemoryStore(8, newManualClock().now)
 
 	kept, err := store.Get(context.Background(), "film:nobody-asked")
 
@@ -119,7 +119,7 @@ func TestAMissIsAnAnswerAndNotAFailure(t *testing.T) {
 }
 
 func TestForgettingWhatWasNeverKeptIsNotAFailure(t *testing.T) {
-	store := cache.NewHeld(8, ticking().now)
+	store := cache.NewMemoryStore(8, newManualClock().now)
 
 	if err := store.Invalidate(context.Background(), "tmdb:999"); err != nil {
 		t.Fatalf("expected forgetting nothing to be no failure, got %v", err)

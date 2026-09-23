@@ -36,9 +36,22 @@ re-read this document and audit the change against it.
 ## Naming
 
 The rule that decides cases: **name a thing for what it is, not for how it
-came to be.** A function that answers with a value is named for the value. Only
-a command -- something called for its effect, answering with nothing -- may be
-named with a verb.
+came to be.** Types, fields, variables and parameters are nouns. A function or
+method is read as the completion of "when called, this will ...": an imperative
+verb (`registerRelease`, `foldSteps`, `Assemble`, `Validate`), a `With...`
+derivation (`WithName`, `WithDescription`), a `New...` constructor, a noun for
+the value it answers with (`Origin`, `Types`), or a predicate (`IsEmpty`,
+`HasInterruptsOnly`). Never a gerund, a participle or a past tense:
+`Interpreting`, `concatenated`, `steppingStream`, `Assembled`, `Documented` and
+`NewHeld` all fail it.
+
+Where Effect or ZIO already name an operation, use their name
+(`~/workspace/personal/effect-sources`): `Scoped`, `Spaced`, `Jittered`,
+`Ensuring`, `Nested`, `FromMap`, `MapInput`, `WithDescription`, `Validate`,
+`HasInterruptsOnly`. Those few that are participles stay, because a reader
+coming from either library looks for exactly that word. Events are the other
+exception: an event is a thing that happened, so `EventFiberStarted` is past
+tense, while the method that records one is a command (`RecordFiberStart`).
 
 - A set of dependencies is named by the services in it, in the vocabulary a
   consumer uses to ask for them. `Repositories`, `ProviderGateways`, `Caches`.
@@ -52,10 +65,13 @@ named with a verb.
   `Everything`, `Stuff`, `Data`, `Info`, `Manager`, `Helper` say nothing a
   reader could not have guessed, and they read as prose rather than as
   vocabulary.
-- No gerunds or participles for functions. A gerund names an activity, and a
-  function that answers with a `ScannedDisc` is not an activity. `Tracking`,
-  `LogViewing` and `isRated` are fine: the first is a noun this domain has,
-  the second is a command, the third is a predicate.
+- No gerunds or participles for functions or types. A gerund names an
+  activity, and a function that answers with a `ScannedDisc` is not an
+  activity; a type holding a group of dependencies is a `Group`, not a
+  `Building`, and an in-memory store is a `MemoryStore`, not a `Held`.
+  `Tracking`, `LogViewing` and `isRated` are fine: the first is a noun this
+  domain has, the second is a command, the third is a predicate. A bool
+  local such as `found` or `closed` is a predicate too.
 - Established pattern names -- Repository, Gateway, Policy, Cache, ReadModel --
   are earned suffixes and not decoration. Use one when the thing is one.
 

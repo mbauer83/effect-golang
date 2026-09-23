@@ -3,13 +3,13 @@
 Install an observer per runtime:
 
 ```go
-observer := &effecttest.RecordingObserver{}
+observer := &effecttest.EventRecorder{}
 runtime, err := effect.NewRuntime(effect.WithObserver(observer))
 ```
 
 Effects expose three observation boundaries:
 
-- `Named(name)` supplies a stable operation name to nested records and events.
+- `WithName(name)` supplies a stable operation name to nested records and events.
 - `Annotate(attrs...)` supplies ordered `slog.Attr` metadata.
 - `WithSpan(name, attrs...)` emits start/end events and correlates nested work.
 
@@ -17,7 +17,7 @@ Logging uses the same metadata:
 
 ```go
 program := operations.LogInfo("loaded", slog.Int("count", count)).
-    Named("load-catalog").
+    WithName("load-catalog").
     Annotate(slog.String("component", "catalog")).
     WithSpan("catalog-load")
 ```
@@ -79,7 +79,7 @@ reported to the runtime `Diagnostics` sink and never widen `E` or become a
 defect:
 
 ```go
-diagnostics := &effecttest.RecordingDiagnostics{}
+diagnostics := &effecttest.DiagnosticsRecorder{}
 runtime, err := effect.NewRuntime(effect.WithDiagnostics(diagnostics))
 ```
 

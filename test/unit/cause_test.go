@@ -46,7 +46,7 @@ func TestCausePreservesSequentialAndParallelStructure(t *testing.T) {
 	if len(interruptions) != 1 || !errors.Is(interruptions[0].Cause, stop) {
 		t.Fatalf("unexpected interruptions: %#v", interruptions)
 	}
-	if !cause.ContainsDefect() || cause.IsInterruptedOnly() {
+	if !cause.ContainsDefect() || cause.HasInterruptsOnly() {
 		t.Fatalf("unexpected cause predicates for %v", cause)
 	}
 }
@@ -97,7 +97,7 @@ func TestInterruptedOnlyIncludesComposedInterruptions(t *testing.T) {
 	cause := effect.InterruptCause[string](context.Canceled).Both(
 		effect.InterruptCause[string](context.DeadlineExceeded),
 	)
-	if !cause.IsInterruptedOnly() {
+	if !cause.HasInterruptsOnly() {
 		t.Fatalf("expected interruption-only cause, got %v", cause)
 	}
 }

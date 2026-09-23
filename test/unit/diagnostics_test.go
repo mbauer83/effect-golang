@@ -35,7 +35,7 @@ func TestCauseReportPreservesTreeShapeForExporters(t *testing.T) {
 		t.Fatalf("unexpected defect child: %#v", defect)
 	}
 	interruption := parallel.Children[1]
-	if interruption.Kind != effect.CauseInterrupted || !strings.Contains(interruption.Detail, "timed out") {
+	if interruption.Kind != effect.CauseInterrupt || !strings.Contains(interruption.Detail, "timed out") {
 		t.Fatalf("unexpected interruption child: %#v", interruption)
 	}
 }
@@ -57,7 +57,7 @@ func TestCauseStatusRanksDefectAboveInterruption(t *testing.T) {
 
 func TestCauseRenderingIncludesPanicStacksOnlyWhenAsked(t *testing.T) {
 	exit := effect.Run(context.Background(), effect.Unit{},
-		effecttest.Panicking[effect.Unit, string, string]("body exploded"))
+		effecttest.Panic[effect.Unit, string, string]("body exploded"))
 
 	cause, failed := exit.Cause()
 	if !failed {
@@ -83,7 +83,7 @@ func TestCauseRenderingIncludesPanicStacksOnlyWhenAsked(t *testing.T) {
 func TestDebugTrackingReportsWorkAProgramLeftRunning(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
 	tracker := &effecttest.Tracker{}
-	diagnostics := &effecttest.RecordingDiagnostics{}
+	diagnostics := &effecttest.DiagnosticsRecorder{}
 	work := effecttest.NewBlocker(tracker)
 
 	runtime, err := effect.NewRuntime(
@@ -95,7 +95,7 @@ func TestDebugTrackingReportsWorkAProgramLeftRunning(t *testing.T) {
 	}
 
 	runtime.Run(context.Background(), effect.Unit{},
-		operations.ForkDaemon(effecttest.Blocking[effect.Unit, string](work, "finished")).FlatMap(func(forkedFiber) forkedProgram {
+		operations.ForkDaemon(effecttest.Block[effect.Unit, string](work, "finished")).FlatMap(func(programFiber) program {
 			work.AwaitStart()
 			return operations.Succeed("run finished")
 		}),
@@ -122,7 +122,7 @@ func TestDebugTrackingReportsWorkAProgramLeftRunning(t *testing.T) {
 func TestDebugTrackingSeesNoLeakForAWellScopedProgram(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
 	tracker := &effecttest.Tracker{}
-	diagnostics := &effecttest.RecordingDiagnostics{}
+	diagnostics := &effecttest.DiagnosticsRecorder{}
 
 	runtime, err := effect.NewRuntime(
 		effect.WithDebugTracking(),
@@ -132,8 +132,8 @@ func TestDebugTrackingSeesNoLeakForAWellScopedProgram(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	program := effect.Scoped(func(scope effect.Scope) forkedProgram {
-		return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "handle").FlatMap(func(string) forkedProgram {
+	program := effect.Scoped(func(scope effect.Scope) program {
+		return effecttest.TrackResource[effect.Unit, string](scope, tracker, "handle").FlatMap(func(string) program {
 			return operations.Fork(operations.Succeed("child")).FlatMap(operations.Join)
 		})
 	})
@@ -190,7 +190,7 @@ func TestCauseRenderingIsTotalForAwkwardValues(t *testing.T) {
 }
 
 func TestSpanEventsCarryTheirCallSite(t *testing.T) {
-	observer := &effecttest.RecordingObserver{}
+	observer := &effecttest.EventRecorder{}
 	runtime, err := effect.NewRuntime(effect.WithObserver(observer))
 	if err != nil {
 		t.Fatal(err)

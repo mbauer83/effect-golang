@@ -57,7 +57,7 @@ func WithInterpreter[R, E, A any](body func(Interpreter[R, E]) Exit[E, A]) Effec
 // own type arguments (golang/go#80172).
 func Interpret[R, E, A any](interpreter Interpreter[R, E], fx Effect[R, E, A]) Exit[E, A] {
 	if interpreter.validity == nil || !interpreter.validity.live {
-		panic(fmt.Errorf("effect: Interpreter used after its Interpreting body returned"))
+		panic(fmt.Errorf("effect: Interpreter used after its WithInterpreter body returned"))
 	}
 	return fx.run(interpreter.ctx, interpreter.state, interpreter.environment)
 }

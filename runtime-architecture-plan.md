@@ -326,7 +326,7 @@ Defects()
 Interruptions()
 
 IsEmpty()
-IsInterruptedOnly()
+HasInterruptsOnly()
 
 Then(...)
 Both(...)
@@ -1402,7 +1402,7 @@ documented backpressure/drop policy.
 Provide effect-level operations along these lines:
 
 ```go
-fx.Named(name)
+fx.WithName(name)
 fx.WithSpan(name, attributes...)
 fx.Annotate(key, value)
 ```

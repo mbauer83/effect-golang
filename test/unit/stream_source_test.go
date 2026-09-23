@@ -114,13 +114,13 @@ func TestADeferredCompletedWithAnInterruptionHandsItToEveryWaiter(t *testing.T) 
 
 	exit := effect.Run(context.Background(), effect.Unit{}, program)
 	cause, failed := exit.Cause()
-	if !failed || !cause.IsInterruptedOnly() {
+	if !failed || !cause.HasInterruptsOnly() {
 		t.Fatalf("expected the handed interruption, got %v", exit)
 	}
 }
 
 func TestTheInterpreterSeamLetsACallerWriteItsOwnCombinator(t *testing.T) {
-	// What Interpreting is for: a combinator this package does not provide,
+	// What WithInterpreter is for: a combinator this package does not provide,
 	// evaluating sub-effects in the current interpretation so they see its
 	// capabilities, scope and cancellation.
 	firstSucceeding := func(candidates ...effect.Effect[effect.Unit, string, int]) effect.Effect[effect.Unit, string, int] {

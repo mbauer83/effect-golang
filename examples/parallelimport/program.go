@@ -40,7 +40,7 @@ func Program(sources []string, lockPath string, readers int) effect.Effect[effec
 		return acquireLock(io, scope, lockPath).
 			AndThen(readAll(io, sources, readers)).
 			Map(summarize).
-			Named("parallel-import").
+			WithName("parallel-import").
 			WithSpan("parallel-import", slog.Int("sources", len(sources)))
 	})
 }
@@ -57,7 +57,7 @@ func acquireLock(
 			// failure to remove it becomes a defect rather than being dropped.
 			return io.FailuresAsDefects(io.Remove(path))
 		},
-	).Named("acquire-import-lock")
+	).WithName("acquire-import-lock")
 }
 
 func readAll(
@@ -70,7 +70,7 @@ func readAll(
 			Map(func(content []byte) Source {
 				return Source{Name: filepath.Base(path), Bytes: len(content)}
 			}).
-			Named("read-source")
+			WithName("read-source")
 	})
 }
 

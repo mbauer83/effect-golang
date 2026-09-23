@@ -6,29 +6,29 @@ they are two things, and they are in one reference because a program that reads
 somebody else's service wants both.
 
 ```go
-cache.Recalling[A](most, time.Now)          // *Recollection[A], typed, in this process
-cache.Holding(most, time.Now)               // *Held, a Store in this process
-cache.Read[R](store, key)                   // Effect[R, cache.Fault, Kept]
-cache.Write[R](store, filing)               // Effect[R, cache.Fault, Unit]
+cache.NewLRU[A](most, time.Now)             // *LRU[A], typed, in this process
+cache.NewMemoryStore(most, time.Now)        // *MemoryStore, a Store in this process
+cache.Read[R](store, key)                   // Effect[R, cache.Fault, Lookup]
+cache.Write[R](store, entry)                // Effect[R, cache.Fault, Unit]
 cache.Drop[R](store, about)                 // Effect[R, cache.Fault, Unit]
 
-rate.Holding(time.Now)                      // *Held, a Limiter in this process
-rate.Waiting[R](limiter, allowance, longest) // Effect[R, rate.Fault, Unit]
+rate.NewMemoryLimiter(time.Now)                // *MemoryLimiter, a Limiter in this process
+rate.AwaitTurn[R](limiter, allowance, longest) // Effect[R, rate.Fault, Unit]
 ```
 
 ```go
-keeping := cache.Recalling[Panel](500, time.Now)
-if panel, held := keeping.Remembered(film); held {
+panels := cache.NewLRU[Panel](500, time.Now)
+if panel, found := panels.Get(film); found {
     return panel
 }
 // ... read the providers, then
-keeping.Remember(film, subject, panel, 12*time.Hour)
+panels.Put(film, subject, panel, 12*time.Hour)
 ```
 
 ## Two faces, because two things are wanted
 
 Within one process a caller wants the value it already had: typed, with no
-encoding and no failure to handle. `Recollection[A]` is that.
+encoding and no failure to handle. `LRU[A]` is that.
 
 Between processes a caller wants an answer another instance already got, which
 means bytes, a network, and something that can go wrong. `Store` is that, and
@@ -54,7 +54,7 @@ to move, and waiting out a twelve-hour lifetime is not a test.
 
 ## A miss is an answer
 
-`Kept` carries whether anything was found. A miss is the ordinary state of a
+`Lookup` carries whether anything was found. A miss is the ordinary state of a
 key nobody has asked for yet, and a store that failed on one would make every
 first request an error to handle.
 
@@ -72,7 +72,7 @@ all told yes. A reservation hands each caller a moment nothing else has been
 given, so a caller that waits for its moment and then proceeds is within the
 rate whatever else is happening beside it.
 
-It returns the wait rather than performing it, and `rate.Waiting` performs it.
+It returns the wait rather than performing it, and `rate.AwaitTurn` performs it.
 So the waiting happens in the interpretation, where the runtime's clock and its
 cancellation are: a caller abandoned while waiting for its turn is abandoned,
 and a test can move time rather than spend it.
@@ -85,14 +85,14 @@ allowance tolerates. The first `Most` requests in a period go at once and
 everything after them is spaced, and a spent allowance comes back one turn at a
 time rather than all at once on a window boundary.
 
-`Waiting` refuses rather than sleeps when the turn is further off than the
+`AwaitTurn` refuses rather than sleeps when the turn is further off than the
 caller said it would wait for: a request that would wait four minutes is one
 whose caller has long since gone, and a refusal somebody can be shown beats a
 page that never arrives.
 
 ## The in-process limiter is honestly wrong for four containers
 
-`rate.Holding` is correct for a program that runs as one instance. Four
+`rate.MemoryLimiter` is correct for a program that runs as one instance. Four
 instances would each keep their own count and together ask at four times the
 rate one of them agreed to. That is what a shared limiter is for, and it is why
 this is a port.

@@ -39,12 +39,12 @@ import (
 // cannot change either, and an environment handed to a fiber stays what it
 // was.
 type Services struct {
-	held map[reflect.Type]any
+	byType map[reflect.Type]any
 }
 
 // Empty is an environment holding nothing.
 func Empty() Services {
-	return Services{held: map[reflect.Type]any{}}
+	return Services{byType: map[reflect.Type]any{}}
 }
 
 // With is this environment and one more dependency, found by its own type.
@@ -55,22 +55,22 @@ func Empty() Services {
 // so -- given.With[catalog.Repository](films) -- and one that does not gets a
 // dependency nobody asks for, which Complete reports.
 func (services Services) With[A any](service A) Services {
-	held := make(map[reflect.Type]any, len(services.held)+1)
-	for named, existing := range services.held {
-		held[named] = existing
+	byType := make(map[reflect.Type]any, len(services.byType)+1)
+	for named, existing := range services.byType {
+		byType[named] = existing
 	}
-	held[reflect.TypeFor[A]()] = service
-	return Services{held: held}
+	byType[reflect.TypeFor[A]()] = service
+	return Services{byType: byType}
 }
 
 // Resolve is one dependency, and whether this environment holds it.
 func Resolve[A any](services Services) (A, bool) {
-	var nothing A
-	held, present := services.held[reflect.TypeFor[A]()]
+	var zero A
+	value, present := services.byType[reflect.TypeFor[A]()]
 	if !present {
-		return nothing, false
+		return zero, false
 	}
-	service, sameType := held.(A)
+	service, sameType := value.(A)
 	return service, sameType
 }
 
@@ -80,31 +80,31 @@ func Holds[A any](services Services) bool {
 	return present
 }
 
-// Named is the types this environment holds, sorted, for a report that has to
+// Types is the types this environment holds, sorted, for a report that has to
 // say what a program was given.
-func (services Services) Named() []string {
-	named := make([]string, 0, len(services.held))
-	for held := range services.held {
-		named = append(named, held.String())
+func (services Services) Types() []string {
+	types := make([]string, 0, len(services.byType))
+	for dependency := range services.byType {
+		types = append(types, dependency.String())
 	}
-	sort.Strings(named)
-	return named
+	sort.Strings(types)
+	return types
 }
 
-// Missing is a dependency a program needs and was not given.
-type Missing struct {
-	Wanted string
-	Given  []string
+// MissingDependency is a dependency a program needs and was not given.
+type MissingDependency struct {
+	Type      string
+	Available []string
 }
 
-func (missing Missing) Error() string {
-	return "env: no dependency of type " + missing.Wanted + " was provided; this program was given " +
-		strings.Join(missing.Given, ", ")
+func (missing MissingDependency) Error() string {
+	return "env: no dependency of type " + missing.Type + " was provided; this program was given " +
+		strings.Join(missing.Available, ", ")
 }
 
-// missingOf is the report for a type this environment does not hold.
-func missingOf[A any](services Services) Missing {
-	return Missing{Wanted: reflect.TypeFor[A]().String(), Given: services.Named()}
+// missingDependency is the report for a type this environment does not hold.
+func missingDependency[A any](services Services) MissingDependency {
+	return MissingDependency{Type: reflect.TypeFor[A]().String(), Available: services.Types()}
 }
 
 // WithAll is this environment and every dependency another one holds.
@@ -118,12 +118,12 @@ func missingOf[A any](services Services) Missing {
 // are one set, so composing two groups is this at every arity, with nothing
 // to project through and no order to preserve.
 func (services Services) WithAll(other Services) Services {
-	held := make(map[reflect.Type]any, len(services.held)+len(other.held))
-	for named, existing := range services.held {
-		held[named] = existing
+	byType := make(map[reflect.Type]any, len(services.byType)+len(other.byType))
+	for named, existing := range services.byType {
+		byType[named] = existing
 	}
-	for named, existing := range other.held {
-		held[named] = existing
+	for named, existing := range other.byType {
+		byType[named] = existing
 	}
-	return Services{held: held}
+	return Services{byType: byType}
 }

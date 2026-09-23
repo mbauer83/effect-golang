@@ -16,19 +16,19 @@ import (
 // provided, and the environment that comes out holds every group's work rather
 // than the last one's.
 
-type opened struct{ named string }
+type connection struct{ named string }
 type films struct{ from string }
-type kept struct{ size int }
+type recordCache struct{ size int }
 
 func TestALaterGroupReadsWhatAnEarlierOneProvided(t *testing.T) {
-	database := env.Adding[error](effect.Succeed[env.Services, error](
-		env.Empty().With(opened{named: "films.db"})))
-	records := env.Adding[error](env.Needing[error]().Service[opened]().
-		Map(func(open opened) env.Services {
+	database := env.GroupFromEffect[error](effect.Succeed[env.Services, error](
+		env.Empty().With(connection{named: "films.db"})))
+	records := env.GroupFromEffect[error](env.ResolverFor[error]().Service[connection]().
+		Map(func(open connection) env.Services {
 			return env.Empty().With(films{from: open.named})
 		}))
 
-	assembled := ranToCompletion(t, env.Assembled(database, records).Build().Provide(env.Empty()))
+	assembled := ranToCompletion(t, env.Assemble(database, records).Build().Provide(env.Empty()))
 
 	found, present := env.Resolve[films](assembled)
 	if !present {
@@ -40,28 +40,28 @@ func TestALaterGroupReadsWhatAnEarlierOneProvided(t *testing.T) {
 }
 
 func TestAssemblingKeepsEveryGroupsWork(t *testing.T) {
-	assembled := ranToCompletion(t, env.Assembled(
-		env.Held[error](env.Empty().With(opened{named: "films.db"})),
-		env.Held[error](env.Empty().With(films{from: "somewhere"})),
-		env.Held[error](env.Empty().With(kept{size: 500})),
+	assembled := ranToCompletion(t, env.Assemble(
+		env.GroupOf[error](env.Empty().With(connection{named: "films.db"})),
+		env.GroupOf[error](env.Empty().With(films{from: "somewhere"})),
+		env.GroupOf[error](env.Empty().With(recordCache{size: 500})),
 	).Build().Provide(env.Empty()))
 
 	for _, held := range []bool{
-		env.Holds[opened](assembled), env.Holds[films](assembled), env.Holds[kept](assembled),
+		env.Holds[connection](assembled), env.Holds[films](assembled), env.Holds[recordCache](assembled),
 	} {
 		if !held {
-			t.Fatalf("assembling three groups kept %v", assembled.Named())
+			t.Fatalf("assembling three groups kept %v", assembled.Types())
 		}
 	}
 }
 
 func TestTheLaterGroupWinsACollision(t *testing.T) {
-	assembled := ranToCompletion(t, env.Assembled(
-		env.Held[error](env.Empty().With(kept{size: 1})),
-		env.Held[error](env.Empty().With(kept{size: 500})),
+	assembled := ranToCompletion(t, env.Assemble(
+		env.GroupOf[error](env.Empty().With(recordCache{size: 1})),
+		env.GroupOf[error](env.Empty().With(recordCache{size: 500})),
 	).Build().Provide(env.Empty()))
 
-	found, _ := env.Resolve[kept](assembled)
+	found, _ := env.Resolve[recordCache](assembled)
 	if found.size != 500 {
 		t.Fatalf("the earlier group won: %+v", found)
 	}
@@ -99,7 +99,7 @@ func ranToCompletion[A any](t *testing.T, fx effect.Effect[effect.Unit, error, A
 // problems.
 func TestOneAbsenceIsReportedOnce(t *testing.T) {
 	err := env.Complete(env.Empty(),
-		env.Want[films](), env.Want[films](), env.Want[films](), env.Want[kept]())
+		env.Want[films](), env.Want[films](), env.Want[films](), env.Want[recordCache]())
 
 	var absent env.Incomplete
 	if !errors.As(err, &absent) {

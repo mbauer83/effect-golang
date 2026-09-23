@@ -11,10 +11,10 @@ import (
 // a nil receiver, which is how a runtime without tracking pays nothing beyond a
 // nil check.
 type Ledger struct {
-	fibersStarted   atomic.Int64
-	fibersCompleted atomic.Int64
-	acquired        atomic.Int64
-	released        atomic.Int64
+	fiberStarts      atomic.Int64
+	fiberCompletions atomic.Int64
+	acquisitions     atomic.Int64
+	releases         atomic.Int64
 }
 
 // LiveWork is a snapshot of work that has been started or acquired and has not
@@ -29,27 +29,27 @@ func (work LiveWork) IsEmpty() bool {
 	return work.Fibers == 0 && work.Resources == 0
 }
 
-func (ledger *Ledger) FiberStarted() {
+func (ledger *Ledger) RecordFiberStart() {
 	if ledger != nil {
-		ledger.fibersStarted.Add(1)
+		ledger.fiberStarts.Add(1)
 	}
 }
 
-func (ledger *Ledger) FiberCompleted() {
+func (ledger *Ledger) RecordFiberCompletion() {
 	if ledger != nil {
-		ledger.fibersCompleted.Add(1)
+		ledger.fiberCompletions.Add(1)
 	}
 }
 
-func (ledger *Ledger) ResourceAcquired() {
+func (ledger *Ledger) RecordAcquisition() {
 	if ledger != nil {
-		ledger.acquired.Add(1)
+		ledger.acquisitions.Add(1)
 	}
 }
 
-func (ledger *Ledger) ResourceReleased() {
+func (ledger *Ledger) RecordRelease() {
 	if ledger != nil {
-		ledger.released.Add(1)
+		ledger.releases.Add(1)
 	}
 }
 
@@ -60,7 +60,7 @@ func (ledger *Ledger) Live() LiveWork {
 		return LiveWork{}
 	}
 	return LiveWork{
-		Fibers:    ledger.fibersStarted.Load() - ledger.fibersCompleted.Load(),
-		Resources: ledger.acquired.Load() - ledger.released.Load(),
+		Fibers:    ledger.fiberStarts.Load() - ledger.fiberCompletions.Load(),
+		Resources: ledger.acquisitions.Load() - ledger.releases.Load(),
 	}
 }

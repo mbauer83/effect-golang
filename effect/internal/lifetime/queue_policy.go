@@ -8,43 +8,43 @@ package lifetime
 // full; returning a waiter means the offer must park until room appears. The
 // method stays unexported, so only this package can implement the interface.
 type FullQueuePolicy[A any] interface {
-	admit(queue *Queue[A], value A) (accepted bool, waiter *waitingOfferer[A])
+	admit(queue *Queue[A], value A) (accepted bool, waiter *offerWaiter[A])
 }
 
-// Suspending makes an offer wait until room appears, which is the only policy
+// BackPressure makes an offer wait until room appears, which is the only policy
 // that applies backpressure to the producer.
-func Suspending[A any]() FullQueuePolicy[A] {
-	return suspending[A]{}
+func BackPressure[A any]() FullQueuePolicy[A] {
+	return backPressure[A]{}
 }
 
-// DroppingNewest refuses the incoming value, keeping the backlog intact.
-func DroppingNewest[A any]() FullQueuePolicy[A] {
-	return droppingNewest[A]{}
+// DropNewest refuses the incoming value, keeping the backlog intact.
+func DropNewest[A any]() FullQueuePolicy[A] {
+	return dropNewest[A]{}
 }
 
-// DroppingOldest discards the oldest queued value to make room, keeping the
+// DropOldest discards the oldest queued value to make room, keeping the
 // most recent, which is what a queue of current-state updates wants.
-func DroppingOldest[A any]() FullQueuePolicy[A] {
-	return droppingOldest[A]{}
+func DropOldest[A any]() FullQueuePolicy[A] {
+	return dropOldest[A]{}
 }
 
-type suspending[A any] struct{}
+type backPressure[A any] struct{}
 
-func (suspending[A]) admit(queue *Queue[A], value A) (bool, *waitingOfferer[A]) {
-	waiter := &waitingOfferer[A]{value: value, admitted: make(chan bool, 1)}
+func (backPressure[A]) admit(queue *Queue[A], value A) (bool, *offerWaiter[A]) {
+	waiter := &offerWaiter[A]{value: value, admission: make(chan bool, 1)}
 	queue.offerers = append(queue.offerers, waiter)
 	return false, waiter
 }
 
-type droppingNewest[A any] struct{}
+type dropNewest[A any] struct{}
 
-func (droppingNewest[A]) admit(*Queue[A], A) (bool, *waitingOfferer[A]) {
+func (dropNewest[A]) admit(*Queue[A], A) (bool, *offerWaiter[A]) {
 	return false, nil
 }
 
-type droppingOldest[A any] struct{}
+type dropOldest[A any] struct{}
 
-func (droppingOldest[A]) admit(queue *Queue[A], value A) (bool, *waitingOfferer[A]) {
+func (dropOldest[A]) admit(queue *Queue[A], value A) (bool, *offerWaiter[A]) {
 	queue.items = append(queue.items[1:], value)
 	return true, nil
 }

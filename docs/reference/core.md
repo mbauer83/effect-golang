@@ -95,7 +95,7 @@ A failed exit contains one compositional `Cause[E]`:
 - `CauseEmpty`: composition identity and zero value;
 - `CauseFailure`: expected typed `E`;
 - `CauseDefect`: panic captured with a stack;
-- `CauseInterrupted`: context cancellation or deadline with its cause;
+- `CauseInterrupt`: context cancellation or deadline with its cause;
 - `CauseThen`: sequential failure composition;
 - `CauseBoth`: parallel failure composition.
 

@@ -51,7 +51,7 @@ func (fiber Fiber[E, A]) Await[R any]() Effect[R, Never, Exit[E, A]] {
 	return fromRuntime(func(ctx context.Context, _ *runtimecore.State, _ R) Exit[Never, Exit[E, A]] {
 		exit, completed := fiber.state.Await(ctx)
 		if !completed {
-			return exitInterrupted[Never, Exit[E, A]](lifetime.CancellationReason(ctx))
+			return exitInterrupt[Never, Exit[E, A]](lifetime.CancellationReason(ctx))
 		}
 		return ExitSuccess[Never](Exit[E, A]{erased: exit})
 	})
@@ -64,7 +64,7 @@ func (fiber Fiber[E, A]) Join[R any]() Effect[R, E, A] {
 	return fromRuntime(func(ctx context.Context, _ *runtimecore.State, _ R) Exit[E, A] {
 		exit, completed := fiber.state.Await(ctx)
 		if !completed {
-			return exitInterrupted[E, A](lifetime.CancellationReason(ctx))
+			return exitInterrupt[E, A](lifetime.CancellationReason(ctx))
 		}
 		return Exit[E, A]{erased: exit}
 	})

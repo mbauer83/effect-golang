@@ -41,7 +41,7 @@ func TestSuspendWhenFullAppliesBackpressure(t *testing.T) {
 					queueOperations.Offer(queue, 1))
 
 				return queueOperations.Fork(queueOperations.Offer(queue, 2).As("offered")).
-					FlatMap(func(producer forkedFiber) queueProgram[string] {
+					FlatMap(func(producer programFiber) queueProgram[string] {
 						if _, done := producer.Poll(); done {
 							t.Error("expected the producer to wait for room")
 						}

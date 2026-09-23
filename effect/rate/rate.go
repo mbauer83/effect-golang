@@ -55,7 +55,7 @@ type Limiter interface {
 	// it: nothing when there is room now, and the wait until the reserved
 	// moment when there is not.
 	//
-	// It reserves nothing and answers ErrQueued when the turn would be later
+	// It reserves nothing and answers ErrLimitExceeded when the turn would be later
 	// than longest, and that decision is here rather than in the caller
 	// because it cannot be made anywhere else: a caller that asked for a turn
 	// and then declined to wait for it would have spent an allowance on a
@@ -85,11 +85,11 @@ type Fault struct {
 }
 
 func (fault Fault) Error() string {
-	said := "rate: " + fault.Allowance
+	message := "rate: " + fault.Allowance
 	if fault.Err != nil {
-		said += ": " + fault.Err.Error()
+		message += ": " + fault.Err.Error()
 	}
-	return said
+	return message
 }
 
 // Unwrap keeps the limiter's own error reachable, so a caller can tell a

@@ -51,11 +51,11 @@ func RaceFirst[R, E, A any](fx Effect[R, E, A], that Effect[R, E, A]) Effect[R, 
 }
 
 func settleOnFailure(exit outcome.Exit) bool {
-	return !exit.Succeeded()
+	return !exit.IsSuccess()
 }
 
 func settleOnSuccess(exit outcome.Exit) bool {
-	return exit.Succeeded()
+	return exit.IsSuccess()
 }
 
 func settleAlways(outcome.Exit) bool {
@@ -65,74 +65,74 @@ func settleAlways(outcome.Exit) bool {
 // pairResolver assembles the composition's own exit from both branches'
 // terminal exits. induced is the reason this composition uses when it cancels a
 // branch, so a resolver can tell an induced interruption from a real failure.
-type pairResolver[E, A any] func(pair outcome.PairOutcome, induced error) Exit[E, A]
+type pairResolver[E, A any] func(pair outcome.PairOutcome, cancelReason error) Exit[E, A]
 
 func pairResults[R, E, A, B, C any](
 	fx Effect[R, E, A],
 	that Effect[R, E, B],
 	settle runtimecore.SettlePolicy,
-	induced error,
+	cancelReason error,
 	resolve pairResolver[E, C],
 ) Effect[R, E, C] {
 	return fromRuntime(func(ctx context.Context, state *runtimecore.State, env R) Exit[E, C] {
 		pair, cleanup := runtimecore.RunPair(
 			runtimecore.Interpretation{Context: ctx, State: state, Environment: env},
-			erasedWork(fx, env),
-			erasedWork(that, env),
+			eraseWork(fx, env),
+			eraseWork(that, env),
 			settle,
-			induced,
+			cancelReason,
 		)
-		return composeCleanup(resolve(pair, induced), cleanup)
+		return composeCleanup(resolve(pair, cancelReason), cleanup)
 	})
 }
 
-func bothResults[E, A, B any](pair outcome.PairOutcome, induced error) Exit[E, Product[A, B]] {
-	if pair.Left.Succeeded() && pair.Right.Succeeded() {
+func bothResults[E, A, B any](pair outcome.PairOutcome, cancelReason error) Exit[E, Product[A, B]] {
+	if pair.Left.IsSuccess() && pair.Right.IsSuccess() {
 		return ExitSuccess[E](ProductOf(
-			typedValue[A](pair.Left.Value()),
-			typedValue[B](pair.Right.Value()),
+			asValue[A](pair.Left.Value()),
+			asValue[B](pair.Right.Value()),
 		))
 	}
-	return failedPair[E, Product[A, B]](pair, induced)
+	return pairFailure[E, Product[A, B]](pair, cancelReason)
 }
 
-func firstSuccess[E, A any](pair outcome.PairOutcome, induced error) Exit[E, A] {
-	if winner, ok := preferredSuccess(pair); ok {
+func firstSuccess[E, A any](pair outcome.PairOutcome, cancelReason error) Exit[E, A] {
+	if winner, ok := pickSuccess(pair); ok {
 		return Exit[E, A]{erased: winner}
 	}
-	return failedPair[E, A](pair, induced)
+	return pairFailure[E, A](pair, cancelReason)
 }
 
-// preferredSuccess picks the successful branch, and the earlier completion when
+// pickSuccess picks the successful branch, and the earlier completion when
 // both succeeded before either could be canceled.
-func preferredSuccess(pair outcome.PairOutcome) (outcome.Exit, bool) {
+func pickSuccess(pair outcome.PairOutcome) (outcome.Exit, bool) {
 	switch {
-	case pair.Left.Succeeded() && pair.Right.Succeeded():
+	case pair.Left.IsSuccess() && pair.Right.IsSuccess():
 		if pair.First == outcome.RightSide {
 			return pair.Right, true
 		}
 		return pair.Left, true
-	case pair.Left.Succeeded():
+	case pair.Left.IsSuccess():
 		return pair.Left, true
-	case pair.Right.Succeeded():
+	case pair.Right.IsSuccess():
 		return pair.Right, true
 	default:
 		return outcome.Exit{}, false
 	}
 }
 
-func firstCompletion[E, A any](pair outcome.PairOutcome, induced error) Exit[E, A] {
+func firstCompletion[E, A any](pair outcome.PairOutcome, cancelReason error) Exit[E, A] {
 	if pair.First == outcome.RightSide {
 		return Exit[E, A]{erased: pair.Right}
 	}
 	if pair.First == outcome.LeftSide {
 		return Exit[E, A]{erased: pair.Left}
 	}
-	return failedPair[E, A](pair, induced)
+	return pairFailure[E, A](pair, cancelReason)
 }
 
-func failedPair[E, A any](pair outcome.PairOutcome, induced error) Exit[E, A] {
+func pairFailure[E, A any](pair outcome.PairOutcome, cancelReason error) Exit[E, A] {
 	return Exit[E, A]{erased: outcome.Failure(
-		outcome.CombineParallelCauses(pair, induced),
+		outcome.CombineParallelCauses(pair, cancelReason),
 	)}
 }

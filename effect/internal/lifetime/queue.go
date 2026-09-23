@@ -21,8 +21,8 @@ type Queue[A any] struct {
 	items    []A
 	capacity int
 	policy   FullQueuePolicy[A]
-	takers   []*waitingTaker[A]
-	offerers []*waitingOfferer[A]
+	takers   []*takeWaiter[A]
+	offerers []*offerWaiter[A]
 	closed   bool
 }
 
@@ -106,7 +106,7 @@ func (queue *Queue[A]) Take(ctx context.Context) (A, bool, bool) {
 		return drained, false, false
 	}
 
-	waiter := &waitingTaker[A]{ready: make(chan A, 1)}
+	waiter := &takeWaiter[A]{ready: make(chan A, 1)}
 	queue.takers = append(queue.takers, waiter)
 	queue.mutex.Unlock()
 	return queue.awaitValue(ctx, waiter)
@@ -132,7 +132,7 @@ func (queue *Queue[A]) admitOneOfferer() {
 	offerer := queue.offerers[0]
 	queue.offerers = queue.offerers[1:]
 	queue.items = append(queue.items, offerer.value)
-	offerer.admitted <- true
+	offerer.admission <- true
 }
 
 // TakeAvailable removes up to limit values that are already waiting, without
@@ -203,7 +203,7 @@ func (queue *Queue[A]) Shutdown() {
 		close(taker.ready)
 	}
 	for _, offerer := range offerers {
-		close(offerer.admitted)
+		close(offerer.admission)
 	}
 }
 

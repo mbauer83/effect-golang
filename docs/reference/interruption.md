@@ -42,7 +42,7 @@ defect, is still composed into the result.
 ## Cancellation does not widen E
 
 Interruption lives in `Cause`, never in `E`. Neither does a defect. A canceled
-effect's `Exit` is a failure whose cause is `Interrupt`, and `IsInterruptedOnly`
+effect's `Exit` is a failure whose cause is `Interrupt`, and `HasInterruptsOnly`
 distinguishes it from a domain failure.
 
 ## Cleanup

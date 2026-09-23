@@ -16,9 +16,9 @@ func TestDeferredIsObservedByEveryWaiter(t *testing.T) {
 
 	// A channel would hand the value to whoever received first. A Deferred
 	// stores it and broadcasts, so every waiter sees the same outcome.
-	program := effect.Scoped(func(effect.Scope) forkedProgram {
+	program := effect.Scoped(func(effect.Scope) program {
 		return operations.Deferred[string]().FlatMap(
-			func(pending effect.Deferred[string, string]) forkedProgram {
+			func(pending effect.Deferred[string, string]) program {
 				var observers sync.WaitGroup
 				seen := make([]string, waiters)
 				for index := range waiters {
@@ -54,7 +54,7 @@ func TestDeferredIsFulfilledOnlyOnce(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
 
 	program := operations.Deferred[string]().FlatMap(
-		func(pending effect.Deferred[string, string]) forkedProgram {
+		func(pending effect.Deferred[string, string]) program {
 			first := effect.Run(context.Background(), effect.Unit{},
 				pending.Succeed[effect.Unit]("first"))
 			second := effect.Run(context.Background(), effect.Unit{},
@@ -80,7 +80,7 @@ func TestDeferredAdoptsATypedFailure(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
 
 	program := operations.Deferred[string]().FlatMap(
-		func(pending effect.Deferred[string, string]) forkedProgram {
+		func(pending effect.Deferred[string, string]) program {
 			effect.Run(context.Background(), effect.Unit{}, pending.Fail[effect.Unit]("rejected"))
 			return pending.Await[effect.Unit]()
 		},
@@ -103,7 +103,7 @@ func TestDeferredAwaitIsInterruptible(t *testing.T) {
 	cancel(stop)
 
 	program := operations.Deferred[string]().FlatMap(
-		func(pending effect.Deferred[string, string]) forkedProgram {
+		func(pending effect.Deferred[string, string]) program {
 			return pending.Await[effect.Unit]()
 		},
 	)
@@ -122,12 +122,12 @@ func TestDeferredDoneInteroperatesWithAnOrdinarySelect(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
 	tracker := &effecttest.Tracker{}
 
-	program := effect.Scoped(func(effect.Scope) forkedProgram {
+	program := effect.Scoped(func(effect.Scope) program {
 		return operations.Deferred[string]().FlatMap(
-			func(pending effect.Deferred[string, string]) forkedProgram {
+			func(pending effect.Deferred[string, string]) program {
 				supply := operations.WidenError(pending.Succeed[effect.Unit]("ready").As("done"))
 				return operations.Fork(supply).
-					FlatMap(func(forkedFiber) forkedProgram {
+					FlatMap(func(programFiber) program {
 						<-pending.Done()
 						observed, ok := pending.Poll()
 						if !ok {

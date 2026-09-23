@@ -21,13 +21,13 @@ type address struct {
 	Timeout time.Duration
 }
 
-// describedAddress is one description used by several tests, because that is
+// addressDescription is one description used by several tests, because that is
 // how a program uses one: written once, read against whatever source the
 // deployment or the test has.
-func describedAddress() config.Config[address] {
+func addressDescription() config.Config[address] {
 	return config.ZipWith(
 		config.ZipWith(
-			config.NonEmptyText("host").Documented("the address to listen on"),
+			config.NonEmptyText("host").WithDescription("the address to listen on"),
 			config.Port("port").WithDefault(8080),
 			func(host string, port int) address {
 				return address{Host: host, Port: port}
@@ -41,7 +41,7 @@ func describedAddress() config.Config[address] {
 
 func read[A any](t *testing.T, values map[string]string, description config.Config[A]) (A, config.Error) {
 	t.Helper()
-	return config.Read(context.Background(), config.Fixed(values), description)
+	return config.Read(context.Background(), config.FromMap(values), description)
 }
 
 func TestADescriptionReadsWhatTheSourceHolds(t *testing.T) {
@@ -49,7 +49,7 @@ func TestADescriptionReadsWhatTheSourceHolds(t *testing.T) {
 		"host":    "0.0.0.0",
 		"port":    "9000",
 		"timeout": "250ms",
-	}, describedAddress())
+	}, addressDescription())
 
 	if !failure.IsEmpty() {
 		t.Fatalf("expected the settings to read, got %v", failure)
@@ -64,7 +64,7 @@ func TestADefaultStandsInForAbsenceOnly(t *testing.T) {
 	// supplied is what a default is for; a value that was supplied and cannot
 	// be read is a mistake, and standing in for it would start the program on
 	// a number nobody chose and say nothing.
-	held, failure := read(t, map[string]string{"host": "localhost"}, describedAddress())
+	held, failure := read(t, map[string]string{"host": "localhost"}, addressDescription())
 	if !failure.IsEmpty() {
 		t.Fatalf("expected the defaults to stand in, got %v", failure)
 	}
@@ -75,7 +75,7 @@ func TestADefaultStandsInForAbsenceOnly(t *testing.T) {
 	_, refused := read(t, map[string]string{
 		"host": "localhost",
 		"port": "eighty-eighty",
-	}, describedAddress())
+	}, addressDescription())
 	if refused.IsEmpty() {
 		t.Fatal("expected a port that is not a number to be refused")
 	}
@@ -132,8 +132,8 @@ func TestABlankValueIsNotAValue(t *testing.T) {
 
 func TestNestedDescriptionsReadBeneathTheirName(t *testing.T) {
 	described := config.ZipWith(
-		config.Nested("primary", describedAddress()),
-		config.Nested("replica", describedAddress()),
+		config.Nested("primary", addressDescription()),
+		config.Nested("replica", addressDescription()),
 		func(primary address, replica address) []address {
 			return []address{primary, replica}
 		})
@@ -200,7 +200,7 @@ func TestAbsenceIsFoldedIntoTheValuesOwnType(t *testing.T) {
 
 func TestAValidatedValueSaysWhatWasWanted(t *testing.T) {
 	described := config.Int("workers").
-		Validated("at least one worker", func(count int) bool { return count >= 1 })
+		Validate("at least one worker", func(count int) bool { return count >= 1 })
 
 	if _, failure := read(t, map[string]string{"workers": "4"}, described); !failure.IsEmpty() {
 		t.Fatalf("expected four workers to pass, got %v", failure)

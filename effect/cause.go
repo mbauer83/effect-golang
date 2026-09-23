@@ -7,8 +7,8 @@ import (
 // CauseKind identifies one node in a compositional effect failure.
 type CauseKind = outcome.CauseKind
 
-// Raised is where a failure came from.
-type Raised = outcome.Raised
+// Origin is where a failure came from.
+type Origin = outcome.Origin
 
 const (
 	// CauseEmpty is the identity for sequential and parallel composition.
@@ -17,8 +17,8 @@ const (
 	CauseFailure = outcome.CauseFailure
 	// CauseDefect is an unexpected panic or explicitly raised defect.
 	CauseDefect = outcome.CauseDefect
-	// CauseInterrupted is cooperative interruption, normally via context cancellation.
-	CauseInterrupted = outcome.CauseInterrupted
+	// CauseInterrupt is cooperative interruption, normally via context cancellation.
+	CauseInterrupt = outcome.CauseInterrupt
 	// CauseThen composes failures that happened sequentially.
 	CauseThen = outcome.CauseThen
 	// CauseBoth composes failures that happened independently in parallel.
@@ -70,13 +70,13 @@ func (c Cause[E]) Both(that Cause[E]) Cause[E] {
 	return Cause[E]{node: c.node.Both(that.node)}
 }
 
-// Raised is where this failure came from: the line that produced it and the
+// Origin is where this failure came from: the line that produced it and the
 // span it was produced inside.
 //
 // Empty for a composite, whose leaves each have their own, and for a defect,
 // which carries a stack instead.
-func (c Cause[E]) Raised() Raised {
-	return c.node.Raised
+func (c Cause[E]) Origin() Origin {
+	return c.node.Origin
 }
 
 // Kind returns the node category.
@@ -92,10 +92,10 @@ func (c Cause[E]) IsEmpty() bool {
 // Failure returns the typed failure only when c is exactly one Fail node.
 func (c Cause[E]) Failure() (E, bool) {
 	if c.node.Kind != CauseFailure {
-		var missing E
-		return missing, false
+		var zero E
+		return zero, false
 	}
-	return typedFailure[E](c.node.Failure), true
+	return asFailure[E](c.node.Failure), true
 }
 
 // Defect returns the defect only when c is exactly one Die node.
@@ -105,12 +105,12 @@ func (c Cause[E]) Defect() (Defect, bool) {
 
 // Interruption returns the interruption only when c is exactly one Interrupt node.
 func (c Cause[E]) Interruption() (Interruption, bool) {
-	return c.node.Interruption, c.node.Kind == CauseInterrupted
+	return c.node.Interruption, c.node.Kind == CauseInterrupt
 }
 
 // MapFailure transforms every typed failure while preserving cause structure.
 func (c Cause[E]) MapFailure[E2 any](f func(E) E2) Cause[E2] {
-	return Cause[E2]{node: erasedFailureTransform(f)(c.node)}
+	return Cause[E2]{node: eraseFailureTransform(f)(c.node)}
 }
 
 // branches returns both children, treating a missing child as the empty cause

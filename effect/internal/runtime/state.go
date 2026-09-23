@@ -77,9 +77,9 @@ func (state *State) Root() *lifetime.Scope {
 
 // WithScope derives state whose nested work is owned by scope.
 func (state *State) WithScope(scope *lifetime.Scope) *State {
-	derived := *state
-	derived.scope = scope
-	return &derived
+	next := *state
+	next.scope = scope
+	return &next
 }
 
 // WithConfigSource derives state whose nested effects read their settings
@@ -90,9 +90,9 @@ func (state *State) WithScope(scope *lifetime.Scope) *State {
 // program doing the reading, so a plugin can be configured from its own
 // document while the program around it reads the environment.
 func (state *State) WithConfigSource(source capability.ConfigSource) *State {
-	derived := *state
-	derived.capabilities.ConfigSource = source
-	return &derived
+	next := *state
+	next.capabilities.ConfigSource = source
+	return &next
 }
 
 // Metadata returns a defensive snapshot of current observation metadata.
@@ -102,18 +102,18 @@ func (state *State) Metadata() Metadata {
 	return metadata
 }
 
-// Named derives state with a user-facing operation name.
-func (state *State) Named(name string) *State {
-	derived := *state
-	derived.metadata.Operation = name
-	return &derived
+// WithName derives state with a user-facing operation name.
+func (state *State) WithName(name string) *State {
+	next := *state
+	next.metadata.Operation = name
+	return &next
 }
 
-// Annotated derives state with ordered structured attributes.
-func (state *State) Annotated(attributes []slog.Attr) *State {
-	derived := *state
-	derived.metadata.Attributes = append(slices.Clone(state.metadata.Attributes), attributes...)
-	return &derived
+// WithAttributes derives state with ordered structured attributes.
+func (state *State) WithAttributes(attributes []slog.Attr) *State {
+	next := *state
+	next.metadata.Attributes = append(slices.Clone(state.metadata.Attributes), attributes...)
+	return &next
 }
 
 // SpanBoundary describes one named observation boundary. Grouping its parts
@@ -124,26 +124,26 @@ type SpanBoundary struct {
 	Attributes []slog.Attr
 }
 
-// Spanned derives state with a fresh runtime-local span identity.
-func (state *State) Spanned(boundary SpanBoundary) *State {
-	derived := *state
-	derived.metadata.ParentID = state.metadata.SpanID
-	derived.metadata.SpanID = state.identifiers.spans.Add(1)
-	derived.metadata.Operation = boundary.Name
-	derived.metadata.Source = boundary.Source
-	derived.metadata.Attributes = append(slices.Clone(state.metadata.Attributes), boundary.Attributes...)
-	return &derived
+// WithSpan derives state with a fresh runtime-local span identity.
+func (state *State) WithSpan(boundary SpanBoundary) *State {
+	next := *state
+	next.metadata.ParentID = state.metadata.SpanID
+	next.metadata.SpanID = state.identifiers.spans.Add(1)
+	next.metadata.Operation = boundary.Name
+	next.metadata.Source = boundary.Source
+	next.metadata.Attributes = append(slices.Clone(state.metadata.Attributes), boundary.Attributes...)
+	return &next
 }
 
-// Forked derives state for a child fiber: it inherits names, annotations and
+// ForChild derives state for a child fiber: it inherits names, annotations and
 // span identity, and records the identity reserved for it plus its parent's.
-func (state *State) Forked(scope *lifetime.Scope, fiberID uint64) *State {
-	derived := *state
-	derived.scope = scope
-	derived.metadata.ParentFiber = state.metadata.FiberID
-	derived.metadata.FiberID = fiberID
-	derived.metadata.Attributes = slices.Clone(state.metadata.Attributes)
-	return &derived
+func (state *State) ForChild(scope *lifetime.Scope, fiberID uint64) *State {
+	next := *state
+	next.scope = scope
+	next.metadata.ParentFiber = state.metadata.FiberID
+	next.metadata.FiberID = fiberID
+	next.metadata.Attributes = slices.Clone(state.metadata.Attributes)
+	return &next
 }
 
 // NextFiberID reserves the next runtime-local fiber identity.
@@ -151,8 +151,8 @@ func (state *State) NextFiberID() uint64 {
 	return state.identifiers.fibers.Add(1)
 }
 
-// Observing reports whether event construction is necessary.
-func (state *State) Observing() bool {
+// HasObserver reports whether event construction is necessary.
+func (state *State) HasObserver() bool {
 	return state.capabilities.Observer != nil
 }
 

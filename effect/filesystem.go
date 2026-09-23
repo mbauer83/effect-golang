@@ -17,7 +17,7 @@ type fileOperation struct {
 func filesystemEffect[R, A any](operation fileOperation, execute func(context.Context, FileSystem) (A, error)) Effect[R, IOError, A] {
 	return fromRuntime(func(ctx context.Context, state *runtimecore.State, _ R) Exit[IOError, A] {
 		value, err := execute(ctx, state.Capabilities().FileSystem)
-		if exit, interrupted := interruptedExit[IOError, A](ctx); interrupted {
+		if exit, interrupted := interruptExit[IOError, A](ctx); interrupted {
 			return exit
 		}
 		if err != nil {
@@ -42,9 +42,9 @@ func ReadFile[R any](path string) Effect[R, IOError, []byte] {
 // WriteFile writes a complete file through the runtime FileSystem. The input is
 // copied when the effect is constructed so later caller mutation cannot alter it.
 func WriteFile[R any](path string, data []byte, permissions fs.FileMode) Effect[R, IOError, Unit] {
-	ownedData := bytes.Clone(data)
+	snapshot := bytes.Clone(data)
 	return filesystemEffect[R](fileOperation{name: IOWriteFile, path: path}, func(ctx context.Context, fileSystem FileSystem) (Unit, error) {
-		return Unit{}, fileSystem.WriteFile(ctx, path, ownedData, permissions)
+		return Unit{}, fileSystem.WriteFile(ctx, path, snapshot, permissions)
 	})
 }
 

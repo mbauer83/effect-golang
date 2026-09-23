@@ -24,7 +24,7 @@ func TestCheckoutComposesDependentSteps(t *testing.T) {
 	// Both sequencing styles are held to the same assertions, so the claim that
 	// they differ only in layout is checked rather than stated.
 	for style, program := range checkout.Styles() {
-		observer := &effecttest.RecordingObserver{}
+		observer := &effecttest.EventRecorder{}
 		runtime, err := effect.NewRuntime(effect.WithObserver(observer))
 		if err != nil {
 			t.Fatal(err)
@@ -109,7 +109,7 @@ func TestCheckoutStopsBeforeTheFirstStepWhenAlreadyCanceled(t *testing.T) {
 
 		exit := effect.Run(ctx, catalog(), program("c-1", []string{"widget"}))
 		cause, failed := exit.Cause()
-		if !failed || !cause.IsInterruptedOnly() {
+		if !failed || !cause.HasInterruptsOnly() {
 			t.Fatalf("%s: expected an interruption-only cause, got %v", style, exit)
 		}
 	}

@@ -18,17 +18,17 @@ func TestExplicitInterruptWaitsForChildFinalizers(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
-	child := effect.Scoped(func(inner effect.Scope) forkedProgram {
-		return effecttest.TrackedResource[effect.Unit, string](inner, tracker, "child-handle").AndThen(effecttest.Blocking[effect.Unit, string](work, "finished"))
+	child := effect.Scoped(func(inner effect.Scope) program {
+		return effecttest.TrackResource[effect.Unit, string](inner, tracker, "child-handle").AndThen(effecttest.Block[effect.Unit, string](work, "finished"))
 	})
 
-	program := effect.Scoped(func(effect.Scope) forkedProgram {
-		return operations.Fork(child).FlatMap(func(fiber forkedFiber) forkedProgram {
+	program := effect.Scoped(func(effect.Scope) program {
+		return operations.Fork(child).FlatMap(func(fiber programFiber) program {
 			work.AwaitStart()
 			return operations.Interrupt(fiber).Map(
 				func(terminal effect.Exit[string, string]) string {
 					cause, failed := terminal.Cause()
-					if !failed || !cause.IsInterruptedOnly() {
+					if !failed || !cause.HasInterruptsOnly() {
 						t.Errorf("expected an interrupted child, got %v", terminal)
 					}
 					if got := tracker.Count("release child-handle"); got != 1 {
@@ -50,8 +50,8 @@ func TestScopeClosureCancelsAndAwaitsItsChildren(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
-	program := effect.Scoped(func(effect.Scope) forkedProgram {
-		return operations.Fork(effecttest.Blocking[effect.Unit, string](work, "finished")).FlatMap(func(forkedFiber) forkedProgram {
+	program := effect.Scoped(func(effect.Scope) program {
+		return operations.Fork(effecttest.Block[effect.Unit, string](work, "finished")).FlatMap(func(programFiber) program {
 			work.AwaitStart()
 			return operations.Succeed("body finished")
 		})
@@ -73,9 +73,9 @@ func TestParentCancellationPreservesTheCancellationCause(t *testing.T) {
 	stop := errors.New("shutdown requested")
 	ctx, cancel := context.WithCancelCause(context.Background())
 
-	var child forkedFiber
-	program := effect.Scoped(func(effect.Scope) forkedProgram {
-		return operations.Fork(effecttest.Blocking[effect.Unit, string](work, "finished")).FlatMap(func(fiber forkedFiber) forkedProgram {
+	var child programFiber
+	program := effect.Scoped(func(effect.Scope) program {
+		return operations.Fork(effecttest.Block[effect.Unit, string](work, "finished")).FlatMap(func(fiber programFiber) program {
 			child = fiber
 			work.AwaitStart()
 			cancel(stop)
@@ -108,15 +108,15 @@ func TestDeeplyNestedFibersAllTerminate(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
 	tracker := &effecttest.Tracker{}
 
-	var nest func(remaining int) forkedProgram
-	nest = func(remaining int) forkedProgram {
+	var nest func(remaining int) program
+	nest = func(remaining int) program {
 		if remaining == 0 {
 			return operations.From(func(context.Context, effect.Unit) effect.Exit[string, string] {
 				tracker.Record("leaf")
 				return effect.ExitSuccess[string]("leaf")
 			})
 		}
-		return effect.Scoped(func(effect.Scope) forkedProgram {
+		return effect.Scoped(func(effect.Scope) program {
 			return operations.Fork(nest(remaining - 1)).FlatMap(operations.Join)
 		})
 	}
@@ -136,7 +136,7 @@ func TestForkIntoClosedScopeStartsNoWork(t *testing.T) {
 
 	var escaped effect.Scope
 	effect.Run(context.Background(), effect.Unit{}, effect.Scoped(
-		func(scope effect.Scope) forkedProgram {
+		func(scope effect.Scope) program {
 			escaped = scope
 			return operations.Succeed("opened")
 		},

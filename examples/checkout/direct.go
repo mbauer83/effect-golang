@@ -27,7 +27,7 @@ func DirectProgram(customerID string, items []string) workflowEffect[Quote] {
 		basket := direct.Bind(bind, loadBasket(customer, items))
 		return direct.Bind(bind, price(customer, basket))
 	}).
-		Named("checkout").
+		WithName("checkout").
 		WithSpan("checkout", slog.String("customer", customerID))
 }
 

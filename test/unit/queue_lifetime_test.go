@@ -54,7 +54,7 @@ func TestQueueShutdownIsSafeFromTheConsumerSideAndIdempotent(t *testing.T) {
 					}
 					return "consumed"
 				})
-				return queueOperations.Fork(blocked).FlatMap(func(consumer forkedFiber) queueProgram[string] {
+				return queueOperations.Fork(blocked).FlatMap(func(consumer programFiber) queueProgram[string] {
 					shutdown := queue.Shutdown[effect.Unit]()
 					effect.Run(context.Background(), effect.Unit{}, shutdown)
 					effect.Run(context.Background(), effect.Unit{}, shutdown)

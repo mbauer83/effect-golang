@@ -13,8 +13,8 @@ import (
 
 func TestRetryEventsInheritSpanNameAndAnnotations(t *testing.T) {
 	clock := effecttest.NewManualClock(time.Unix(0, 0))
-	logger := &effecttest.RecordingLogger{}
-	observer := &effecttest.RecordingObserver{}
+	logger := &effecttest.LogRecorder{}
+	observer := &effecttest.EventRecorder{}
 	runtime, err := effect.NewRuntime(
 		effect.WithClock(clock),
 		effect.WithLogger(logger),
@@ -36,7 +36,7 @@ func TestRetryEventsInheritSpanNameAndAnnotations(t *testing.T) {
 		Tap(func(value int) effect.Effect[effect.Unit, string, effect.Unit] {
 			return operations.LogInfo("loaded", slog.Int("value", value))
 		}).
-		Named("load-record").
+		WithName("load-record").
 		Annotate(slog.String("component", "catalog")).
 		WithSpan("catalog-load")
 
@@ -69,18 +69,18 @@ func TestRetryEventsInheritSpanNameAndAnnotations(t *testing.T) {
 	}
 }
 
-type panickingObserver struct{}
+type panicObserver struct{}
 
-func (panickingObserver) Observe(context.Context, effect.RuntimeEvent) {
+func (panicObserver) Observe(context.Context, effect.RuntimeEvent) {
 	panic("observer unavailable")
 }
 
 func TestObserverPanicIsContainedAndReportedToDiagnostics(t *testing.T) {
-	logger := &effecttest.RecordingLogger{}
-	diagnostics := &effecttest.RecordingDiagnostics{}
+	logger := &effecttest.LogRecorder{}
+	diagnostics := &effecttest.DiagnosticsRecorder{}
 	runtime, err := effect.NewRuntime(
 		effect.WithLogger(logger),
-		effect.WithObserver(panickingObserver{}),
+		effect.WithObserver(panicObserver{}),
 		effect.WithDiagnostics(diagnostics),
 	)
 	if err != nil {

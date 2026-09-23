@@ -8,13 +8,13 @@ config.Config[A]                                    // a description
 effect.LoadConfig[R, A](description)                 // Effect[R, ConfigError, A]
 effect.ConfigLayer[RIn, A](description)              // Layer[RIn, ConfigError, A]
 effect.WithConfigSource(source)                      // a RuntimeOption
-fx.ReadingConfigFrom(source)                         // one part of a program
+fx.WithConfigSource(source)                         // one part of a program
 ```
 
 ```go
 described := config.Nested("db", config.Struct(
     config.Setting(
-        config.NonEmptyText("host").Documented("the address of the primary"),
+        config.NonEmptyText("host").WithDescription("the address of the primary"),
         func(store *Store, host string) { store.Host = host }),
     config.Setting(
         config.Port("port").WithDefault(5432),
@@ -166,7 +166,7 @@ config.Table(name, of)                    // one entry per key the source holds
 config.Many(name, separator, of)          // several values held in one key
 
 description.Map(f)                        description.MapOrFail(f)
-description.Validated(message, keep)      description.Documented(doc)
+description.Validate(message, keep)      description.WithDescription(doc)
 description.WithDefault(value)            description.OrElse(that)
 config.Optional(of, supplied, absent)
 ```
@@ -214,10 +214,10 @@ description is better than a value that might not be there at every use.
 ```go
 config.Environment()                      // the process environment
 config.EnvironmentOf(entries...)          // a fixed one, for a test
-config.Fixed(map[string]string{...})      // values a program already holds
+config.FromMap(map[string]string{...})      // values a program already holds
 config.Sources(first, second, ...)        // the first that carries a path answers
 config.Beneath(source, path...)           // mount a description inside a document
-config.Renaming(source, spell)            // one description, another spelling
+config.MapInput(source, spell)            // one description, another spelling
 ```
 
 `Environment` spells a path in upper case with underscores — `db.host` is
@@ -248,7 +248,7 @@ a document or a store has nothing to get wrong but the reading.
 
 Both directions are the point, and neither needs the other to know about it.
 
-**n providers, one view.** `Sources` composes them; `Beneath` and `Renaming`
+**n providers, one view.** `Sources` composes them; `Beneath` and `MapInput`
 adapt a source's shape and spelling to what a description says. One description
 reads a value the environment supplied and a value the shipped defaults
 supplied and cannot tell which was which.
@@ -259,7 +259,7 @@ its own layer. `ZipLayers` puts two of them beside each other, `ThenLayers`
 feeds one into the next, and a consumer that needs a setting its layer does not
 build will not compile.
 
-**m consumers, m providers.** `ReadingConfigFrom` gives one part of a program a
+**m consumers, m providers.** `WithConfigSource` gives one part of a program a
 source of its own — a plugin configured from the document it shipped with while
 the program around it reads the environment. It is runtime-local and inherited
 exactly as a span or a name is: work forked inside it reads from the same
@@ -303,7 +303,7 @@ component that has already been given it: that is a `Ref` or a `Hub`, and it is
 the program's decision which.
 
 **Formats.** No YAML, no TOML, no dotenv. Each is a decoder that produces a
-flat map, which is `config.Fixed`, and a module that pulled in a parser would
+flat map, which is `config.FromMap`, and a module that pulled in a parser would
 make every program that only reads the environment carry it.
 
 **Struct decoding from a schema.** The natural next step, and it belongs in

@@ -13,18 +13,18 @@ import (
 	runtimecore "github.com/mbauer83/effect-golang/effect/internal/runtime"
 )
 
-// Named supplies a stable operation name to nested logs and runtime events.
-func (fx Effect[R, E, A]) Named(name string) Effect[R, E, A] {
+// WithName supplies a stable operation name to nested logs and runtime events.
+func (fx Effect[R, E, A]) WithName(name string) Effect[R, E, A] {
 	return fx.withState(func(state *runtimecore.State) *runtimecore.State {
-		return state.Named(name)
+		return state.WithName(name)
 	})
 }
 
 // Annotate adds ordered structured metadata to nested logs and runtime events.
 func (fx Effect[R, E, A]) Annotate(attributes ...slog.Attr) Effect[R, E, A] {
-	ownedAttributes := slices.Clone(attributes)
+	snapshot := slices.Clone(attributes)
 	return fx.withState(func(state *runtimecore.State) *runtimecore.State {
-		return state.Annotated(ownedAttributes)
+		return state.WithAttributes(snapshot)
 	})
 }
 
@@ -41,8 +41,8 @@ func (fx Effect[R, E, A]) WithSpan(name string, attributes ...slog.Attr) Effect[
 		Attributes: slices.Clone(attributes),
 	}
 	return suspendRuntime(func(ctx context.Context, state *runtimecore.State, _ R) Effect[R, E, A] {
-		span := state.Spanned(boundary)
-		if !span.Observing() {
+		span := state.WithSpan(boundary)
+		if !span.HasObserver() {
 			return fx.withState(replaceState(span))
 		}
 		started := span.Event(capability.EventSpanStarted)
@@ -96,12 +96,12 @@ func replaceState(state *runtimecore.State) func(*runtimecore.State) *runtimecor
 // reification.
 type exitObserver = func(runtimecore.Interpretation, outcome.Exit) outcome.Exit
 
-func endSpan(startedAt time.Time) exitObserver {
+func endSpan(start time.Time) exitObserver {
 	return func(interpretation runtimecore.Interpretation, exit outcome.Exit) outcome.Exit {
 		interpretation.State.EmitEnd(
 			interpretation.Context,
 			capability.EventSpanEnded,
-			startedAt,
+			start,
 			outcome.ExitStatus(exit),
 		)
 		return exit

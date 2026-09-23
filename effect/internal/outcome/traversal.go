@@ -36,7 +36,7 @@ func FoldCause[A any](root Cause, folder CauseFolder[A]) A {
 		if current.stage == combineResults {
 			left, right := results[len(results)-2], results[len(results)-1]
 			results = results[:len(results)-2]
-			results = append(results, combineFolded(folder, current.cause.Kind, left, right))
+			results = append(results, combineFolds(folder, current.cause.Kind, left, right))
 			continue
 		}
 
@@ -60,14 +60,14 @@ func foldLeaf[A any](folder CauseFolder[A], leaf Cause) A {
 		return folder.Failure(leaf.Failure)
 	case CauseDefect:
 		return folder.Defect(leaf.Defect)
-	case CauseInterrupted:
+	case CauseInterrupt:
 		return folder.Interruption(leaf.Interruption)
 	default:
 		return folder.Empty()
 	}
 }
 
-func combineFolded[A any](folder CauseFolder[A], kind CauseKind, left A, right A) A {
+func combineFolds[A any](folder CauseFolder[A], kind CauseKind, left A, right A) A {
 	if kind == CauseThen {
 		return folder.Then(left, right)
 	}
@@ -107,23 +107,23 @@ func MapCauseFailure(root Cause, transform func(any) any) Cause {
 		return Cause{}
 	case CauseFailure:
 		mapped := FailCause(transform(root.Failure))
-		mapped.Raised = root.Raised
+		mapped.Origin = root.Origin
 		return mapped
 	case CauseDefect:
 		return DieCause(root.Defect)
-	case CauseInterrupted:
+	case CauseInterrupt:
 		interrupted := InterruptCause(root.Interruption.Cause)
-		interrupted.Raised = root.Raised
+		interrupted.Origin = root.Origin
 		return interrupted
 	default:
-		return composedLike(root,
+		return composeLike(root,
 			MapCauseFailure(leftOf(root), transform),
 			MapCauseFailure(rightOf(root), transform))
 	}
 }
 
-// composedLike is two causes composed the way this one was.
-func composedLike(root Cause, left Cause, right Cause) Cause {
+// composeLike is two causes composed the way this one was.
+func composeLike(root Cause, left Cause, right Cause) Cause {
 	if root.Kind == CauseBoth {
 		return left.Both(right)
 	}

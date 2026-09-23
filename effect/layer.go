@@ -24,13 +24,13 @@ func LayerFromEffect[RIn, E, ROut any](build Effect[RIn, E, ROut]) Layer[RIn, E,
 // being released the moment construction finishes. Layers therefore use the
 // same single lifetime mechanism as fibers and ordinary scoped resources.
 func LayerScoped[RIn, E, ROut any](build func(Scope) Effect[RIn, E, ROut]) Layer[RIn, E, ROut] {
-	return LayerFromEffect(usingCurrentScope(build))
+	return LayerFromEffect(withCurrentScope(build))
 }
 
-// usingCurrentScope hands the ambient dynamic scope to use. It is how a layer
+// withCurrentScope hands the ambient dynamic scope to use. It is how a layer
 // registers a finalizer in its consumer's lifetime rather than in one of its
 // own that would already have closed.
-func usingCurrentScope[R, E, A any](use func(Scope) Effect[R, E, A]) Effect[R, E, A] {
+func withCurrentScope[R, E, A any](use func(Scope) Effect[R, E, A]) Effect[R, E, A] {
 	return suspendRuntime(func(_ context.Context, state *runtimecore.State, _ R) Effect[R, E, A] {
 		return use(Scope{state: state.Scope()})
 	})
@@ -73,8 +73,8 @@ func ThenLayers[RIn, E, ROut, E2, ROut2 any](
 	next Layer[ROut, E2, ROut2],
 ) Layer[RIn, Either[E, E2], ROut2] {
 	return LayerFromEffect(layer.build.MapError(Left[E, E2]).FlatMap(
-		func(provided ROut) Effect[RIn, Either[E, E2], ROut2] {
-			return next.build.MapError(Right[E, E2]).ContramapEnv(constantEnvironment[RIn](provided))
+		func(output ROut) Effect[RIn, Either[E, E2], ROut2] {
+			return next.build.MapError(Right[E, E2]).ContramapEnv(constantEnvironment[RIn](output))
 		},
 	))
 }
@@ -97,8 +97,8 @@ func ZipLayers[RIn, E, ROut, RIn2, E2, ROut2 any](
 // use rather than when construction returned.
 func ProvideLayer[R, E, A, RIn, LE any](fx Effect[R, E, A], layer Layer[RIn, LE, R]) Effect[RIn, Either[LE, E], A] {
 	return Scoped(func(Scope) Effect[RIn, Either[LE, E], A] {
-		return layer.build.MapError(Left[LE, E]).FlatMap(func(provided R) Effect[RIn, Either[LE, E], A] {
-			return fx.MapError(Right[LE, E]).ContramapEnv(constantEnvironment[RIn](provided))
+		return layer.build.MapError(Left[LE, E]).FlatMap(func(output R) Effect[RIn, Either[LE, E], A] {
+			return fx.MapError(Right[LE, E]).ContramapEnv(constantEnvironment[RIn](output))
 		})
 	})
 }
@@ -108,8 +108,8 @@ func ProvideLayer[R, E, A, RIn, LE any](fx Effect[R, E, A], layer Layer[RIn, LE,
 // layer's resources the same consumer lifetime as ProvideLayer.
 func (fx Effect[R, E, A]) ProvideLayerSame[RIn any](layer Layer[RIn, E, R]) Effect[RIn, E, A] {
 	return Scoped(func(Scope) Effect[RIn, E, A] {
-		return layer.build.FlatMap(func(provided R) Effect[RIn, E, A] {
-			return fx.ContramapEnv(constantEnvironment[RIn](provided))
+		return layer.build.FlatMap(func(output R) Effect[RIn, E, A] {
+			return fx.ContramapEnv(constantEnvironment[RIn](output))
 		})
 	})
 }

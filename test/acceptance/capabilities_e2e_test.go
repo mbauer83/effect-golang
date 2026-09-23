@@ -24,8 +24,8 @@ func TestFileCopyProgramExercisesBaseCapabilities(t *testing.T) {
 
 	start := time.Date(2026, time.September, 7, 12, 0, 0, 0, time.UTC)
 	clock := effecttest.NewManualClock(start)
-	logger := &effecttest.RecordingLogger{}
-	observer := &effecttest.RecordingObserver{}
+	logger := &effecttest.LogRecorder{}
+	observer := &effecttest.EventRecorder{}
 	runtime, err := effect.NewRuntime(
 		effect.WithClock(clock),
 		effect.WithLogger(logger),

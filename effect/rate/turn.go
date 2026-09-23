@@ -16,8 +16,8 @@ var (
 	// which is refused rather than treated as unlimited: a service asked at
 	// an unstated rate is one that eventually blocks the program asking.
 	ErrUnstated = errors.New("an allowance is a count and a period, under a name")
-	// ErrQueued is a turn further off than the caller said it would wait for.
-	ErrQueued = errors.New("the queue is longer than this program will wait")
+	// ErrLimitExceeded is a turn further off than the caller said it would wait for.
+	ErrLimitExceeded = errors.New("the queue is longer than this program will wait")
 )
 
 // AwaitTurn is this program's turn, waited for.
@@ -49,7 +49,7 @@ func AwaitTurn[R any](
 			}
 			return effect.Sleep[R, Fault](wait)
 		}).
-		Named("rate wait")
+		WithName("rate wait")
 }
 
 // reserveTurn is the turn itself, without the waiting.
@@ -67,9 +67,9 @@ func reserveTurn[R any](
 			return limiter.Turn(ctx, allowance, longest)
 		},
 		func(err error) Fault {
-			var already Fault
-			if errors.As(err, &already) {
-				return already
+			var existing Fault
+			if errors.As(err, &existing) {
+				return existing
 			}
 			return Fault{Allowance: allowance.Name, Err: err}
 		},

@@ -66,15 +66,15 @@ func NewUnboundedQueue[R, A any]() Effect[R, Never, Queue[A]] {
 // it forever. Prefer this form unless the queue is meant to outlive the scope
 // that filled it.
 func (scope Scope) Queue[R, A any](capacity int, whenFull WhenFull) Effect[R, Never, Queue[A]] {
-	return scopedQueue[R](scope, NewQueue[R, A](capacity, whenFull))
+	return acquireQueue[R](scope, NewQueue[R, A](capacity, whenFull))
 }
 
 // UnboundedQueue creates an unbounded queue bound to this scope's lifetime.
 func (scope Scope) UnboundedQueue[R, A any]() Effect[R, Never, Queue[A]] {
-	return scopedQueue[R](scope, NewUnboundedQueue[R, A]())
+	return acquireQueue[R](scope, NewUnboundedQueue[R, A]())
 }
 
-func scopedQueue[R, A any](scope Scope, create Effect[R, Never, Queue[A]]) Effect[R, Never, Queue[A]] {
+func acquireQueue[R, A any](scope Scope, create Effect[R, Never, Queue[A]]) Effect[R, Never, Queue[A]] {
 	return scope.AcquireRelease(create, func(queue Queue[A]) Effect[R, Never, Unit] {
 		return queue.Shutdown[R]()
 	})
@@ -86,11 +86,11 @@ func scopedQueue[R, A any](scope Scope, create Effect[R, Never, Queue[A]]) Effec
 func fullQueuePolicy[A any](whenFull WhenFull) lifetime.FullQueuePolicy[A] {
 	switch whenFull {
 	case DropNewestWhenFull:
-		return lifetime.DroppingNewest[A]()
+		return lifetime.DropNewest[A]()
 	case DropOldestWhenFull:
-		return lifetime.DroppingOldest[A]()
+		return lifetime.DropOldest[A]()
 	default:
-		return lifetime.Suspending[A]()
+		return lifetime.BackPressure[A]()
 	}
 }
 
@@ -100,7 +100,7 @@ func (queue Queue[A]) Offer[R any](value A) Effect[R, Never, bool] {
 	return From(func(ctx context.Context, _ R) Exit[Never, bool] {
 		accepted, interrupted := queue.state.Offer(ctx, value)
 		if interrupted {
-			return exitInterrupted[Never, bool](lifetime.CancellationReason(ctx))
+			return exitInterrupt[Never, bool](lifetime.CancellationReason(ctx))
 		}
 		return ExitSuccess[Never](accepted)
 	})
@@ -113,7 +113,7 @@ func (queue Queue[A]) Take[R any]() Effect[R, Never, Receive[A]] {
 	return From(func(ctx context.Context, _ R) Exit[Never, Receive[A]] {
 		value, ok, interrupted := queue.state.Take(ctx)
 		if interrupted {
-			return exitInterrupted[Never, Receive[A]](lifetime.CancellationReason(ctx))
+			return exitInterrupt[Never, Receive[A]](lifetime.CancellationReason(ctx))
 		}
 		return ExitSuccess[Never](Receive[A]{Value: value, OK: ok})
 	})
@@ -135,7 +135,7 @@ func (queue Queue[A]) TakeUpTo[R any](limit int) Effect[R, Never, []A] {
 	return From(func(ctx context.Context, _ R) Exit[Never, []A] {
 		batch, interrupted := queue.state.TakeUpTo(ctx, limit)
 		if interrupted {
-			return exitInterrupted[Never, []A](lifetime.CancellationReason(ctx))
+			return exitInterrupt[Never, []A](lifetime.CancellationReason(ctx))
 		}
 		return ExitSuccess[Never](batch)
 	})

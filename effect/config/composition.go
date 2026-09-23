@@ -35,12 +35,12 @@ func ZipWith[A, B, C any](
 	readFirst, readSecond := first.reader(), second.reader()
 	return Config[C]{
 		expects: append(slices.Clone(first.expects), second.expects...),
-		read: func(at reading) (C, Error) {
-			var missing C
+		read: func(at cursor) (C, Error) {
+			var zero C
 			left, leftFailure := readFirst(at)
 			right, rightFailure := readSecond(at)
 			if failure := leftFailure.And(rightFailure); !failure.IsEmpty() {
-				return missing, failure
+				return zero, failure
 			}
 			return combine(left, right), Error{}
 		},
@@ -57,16 +57,16 @@ func All[A any](descriptions ...Config[A]) Config[[]A] {
 	for _, description := range descriptions {
 		expects = append(expects, description.expects...)
 	}
-	makeed := make([]func(reading) (A, Error), 0, len(descriptions))
+	readers := make([]func(cursor) (A, Error), 0, len(descriptions))
 	for _, description := range descriptions {
-		makeed = append(makeed, description.reader())
+		readers = append(readers, description.reader())
 	}
 	return Config[[]A]{
 		expects: expects,
-		read: func(at reading) ([]A, Error) {
-			values := make([]A, 0, len(makeed))
+		read: func(at cursor) ([]A, Error) {
+			values := make([]A, 0, len(readers))
 			failure := Error{}
-			for _, read := range makeed {
+			for _, read := range readers {
 				value, refused := read(at)
 				failure = failure.And(refused)
 				values = append(values, value)
@@ -93,8 +93,8 @@ func All[A any](descriptions ...Config[A]) Config[[]A] {
 func Nested[A any](name string, of Config[A]) Config[A] {
 	reader := of.reader()
 	return Config[A]{
-		expects: nestedExpectations(name, of.expects),
-		read: func(at reading) (A, Error) {
+		expects: prefixExpectations(name, of.expects),
+		read: func(at cursor) (A, Error) {
 			value, failure := reader(at.under(name))
 			return value, failure
 		},
@@ -118,7 +118,7 @@ func (description Config[A]) WithDefault(value A) Config[A] {
 	}
 	return Config[A]{
 		expects: stood,
-		read: func(at reading) (A, Error) {
+		read: func(at cursor) (A, Error) {
 			read, failure := reader(at)
 			if failure.MissingOnly() {
 				return value, Error{}
@@ -147,7 +147,7 @@ func (description Config[A]) OrElse(that Config[A]) Config[A] {
 	}
 	return Config[A]{
 		expects: append(optional, that.expects...),
-		read: func(at reading) (A, Error) {
+		read: func(at cursor) (A, Error) {
 			value, failure := reader(at)
 			if failure.IsEmpty() {
 				return value, Error{}
@@ -156,8 +156,8 @@ func (description Config[A]) OrElse(that Config[A]) Config[A] {
 			if refused.IsEmpty() {
 				return alternative, Error{}
 			}
-			var missing A
-			return missing, failure.Or(refused)
+			var zero A
+			return zero, failure.Or(refused)
 		},
 	}
 }
@@ -187,14 +187,14 @@ func Optional[A, B any](
 	}
 	return Config[B]{
 		expects: optional,
-		read: func(at reading) (B, Error) {
+		read: func(at cursor) (B, Error) {
 			value, failure := reader(at)
 			switch {
 			case failure.MissingOnly():
 				return absent(), Error{}
 			case !failure.IsEmpty():
-				var missing B
-				return missing, failure
+				var zero B
+				return zero, failure
 			}
 			return supplied(value), Error{}
 		},

@@ -38,31 +38,31 @@ func (fx Effect[R, E, A]) TimeoutTo(duration time.Duration, fallback A) Effect[R
 	return raceTheClock(fx, duration, ExitSuccess[E](fallback))
 }
 
-func raceTheClock[R, E, A any](fx Effect[R, E, A], duration time.Duration, elapsed Exit[E, A]) Effect[R, E, A] {
+func raceTheClock[R, E, A any](fx Effect[R, E, A], duration time.Duration, onTimeout Exit[E, A]) Effect[R, E, A] {
 	return pairResults(
 		fx,
 		Sleep[R, E](duration),
 		settleAlways,
 		lifetime.ErrTimedOut,
-		timedResult(elapsed),
+		timeoutResolver(onTimeout),
 	)
 }
 
-// timedResult resolves a timed race. When the clock wins, anything the
+// timeoutResolver resolves a timed race. When the clock wins, anything the
 // abandoned work reported beyond the interruption this timeout induced -- a
 // finalizer defect, for instance -- is still composed into the result, because
 // a timeout must not hide a cleanup failure.
-func timedResult[E, A any](elapsed Exit[E, A]) pairResolver[E, A] {
-	return func(pair outcome.PairOutcome, induced error) Exit[E, A] {
-		clockWon := pair.First == outcome.RightSide && pair.Right.Succeeded()
+func timeoutResolver[E, A any](onTimeout Exit[E, A]) pairResolver[E, A] {
+	return func(pair outcome.PairOutcome, cancelReason error) Exit[E, A] {
+		clockWon := pair.First == outcome.RightSide && pair.Right.IsSuccess()
 		if !clockWon {
 			return Exit[E, A]{erased: pair.Left}
 		}
 
 		abandoned := pair.Left.Cause()
-		if abandoned.IsEmpty() || outcome.WasInduced(abandoned, induced) {
-			return elapsed
+		if abandoned.IsEmpty() || outcome.IsInduced(abandoned, cancelReason) {
+			return onTimeout
 		}
-		return Exit[E, A]{erased: outcome.Failure(elapsed.erased.Cause().Then(abandoned))}
+		return Exit[E, A]{erased: outcome.Failure(onTimeout.erased.Cause().Then(abandoned))}
 	}
 }

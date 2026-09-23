@@ -76,7 +76,7 @@ func TestDirectStyleShortCircuitsOnATypedFailure(t *testing.T) {
 
 func TestDirectStylePropagatesDefectsAndInterruptionUnchanged(t *testing.T) {
 	defecting := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		return direct.Bind(bind, effecttest.Panicking[effect.Unit, string, string]("source exploded"))
+		return direct.Bind(bind, effecttest.Panic[effect.Unit, string, string]("source exploded"))
 	})
 	exit := effect.Run(context.Background(), effect.Unit{}, defecting)
 	if cause, failed := exit.Cause(); !failed || !cause.ContainsDefect() {
@@ -118,12 +118,12 @@ func TestDirectStyleUsesTheSurroundingRuntimeAndScope(t *testing.T) {
 	// interpretation: a bound effect must see the runtime's capabilities and the
 	// enclosing scope, not a fresh runtime with live defaults.
 	tracker := &effecttest.Tracker{}
-	logger := &effecttest.RecordingLogger{}
-	runtime, clock := effecttest.NewTimedRuntime(t, effect.WithLogger(logger))
+	logger := &effecttest.LogRecorder{}
+	runtime, clock := effecttest.NewManualClockRuntime(t, effect.WithLogger(logger))
 
 	program := effect.Scoped(func(scope effect.Scope) directProgram {
 		return direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-			held := direct.Bind(bind, effecttest.TrackedResource[effect.Unit, string](scope, tracker, "handle"))
+			held := direct.Bind(bind, effecttest.TrackResource[effect.Unit, string](scope, tracker, "handle"))
 			direct.Bind(bind, directOperations.LogInfo("bound "+held))
 			return direct.Bind(bind, directOperations.Now().Map(
 				func(moment time.Time) string { return moment.Format(time.RFC3339) },

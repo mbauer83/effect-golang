@@ -15,8 +15,8 @@ const (
 	CauseFailure
 	// CauseDefect is an unexpected panic or explicitly raised defect.
 	CauseDefect
-	// CauseInterrupted is cooperative interruption, normally via context cancellation.
-	CauseInterrupted
+	// CauseInterrupt is cooperative interruption, normally via context cancellation.
+	CauseInterrupt
 	// CauseThen composes failures that happened sequentially.
 	CauseThen
 	// CauseBoth composes failures that happened independently in parallel.
@@ -32,7 +32,7 @@ func (kind CauseKind) String() string {
 		return "Fail"
 	case CauseDefect:
 		return "Die"
-	case CauseInterrupted:
+	case CauseInterrupt:
 		return "Interrupt"
 	case CauseThen:
 		return "Then"
@@ -65,19 +65,19 @@ type Cause struct {
 	Failure      any
 	Defect       Defect
 	Interruption Interruption
-	Raised       Raised
+	Origin       Origin
 	Left         *Cause
 	Right        *Cause
 }
 
-// Raised is where a failure came from.
+// Origin is where a failure came from.
 //
 // A typed failure carries no stack, deliberately: it is an expected outcome
 // and not a crash, so paying for a stack at every one would be paying for a
 // crash report at every 404. What it needs instead is the two things a reader
 // actually asks -- which line produced this, and what was going on at the
 // time -- and both are one string each.
-type Raised struct {
+type Origin struct {
 	// Source is the file and line that produced the failure.
 	Source string
 	// Operation is the innermost named span it was produced inside, which is
@@ -86,31 +86,31 @@ type Raised struct {
 }
 
 // IsKnown reports whether anything is known about where a failure came from.
-func (raised Raised) IsKnown() bool {
-	return raised.Source != "" || raised.Operation != ""
+func (origin Origin) IsKnown() bool {
+	return origin.Source != "" || origin.Operation != ""
 }
 
 // String renders where a failure came from, for a reader who wants to open it.
-func (raised Raised) String() string {
+func (origin Origin) String() string {
 	switch {
-	case raised.Source != "" && raised.Operation != "":
-		return raised.Source + " in " + raised.Operation
-	case raised.Source != "":
-		return raised.Source
+	case origin.Source != "" && origin.Operation != "":
+		return origin.Source + " in " + origin.Operation
+	case origin.Source != "":
+		return origin.Source
 	default:
-		return raised.Operation
+		return origin.Operation
 	}
 }
 
-// RaisedAt is this cause with where it came from recorded, on the leaves that
+// WithOrigin is this cause with where it came from recorded, on the leaves that
 // do not have it yet.
 //
 // Only where it is missing, because a failure is raised once and travels: a
 // boundary that translated a store's fault into the domain's did not move the
 // line it happened on, and overwriting it with the line of the translation
 // would point a reader at the adapter instead of at the cause.
-func (c Cause) RaisedAt(raised Raised) Cause {
-	if !raised.IsKnown() {
+func (c Cause) WithOrigin(origin Origin) Cause {
+	if !origin.IsKnown() {
 		return c
 	}
 	switch c.Kind {
@@ -119,35 +119,35 @@ func (c Cause) RaisedAt(raised Raised) Cause {
 	case CauseThen, CauseBoth:
 		composed := c
 		if c.Left != nil {
-			left := c.Left.RaisedAt(raised)
+			left := c.Left.WithOrigin(origin)
 			composed.Left = &left
 		}
 		if c.Right != nil {
-			right := c.Right.RaisedAt(raised)
+			right := c.Right.WithOrigin(origin)
 			composed.Right = &right
 		}
 		return composed
 	default:
-		c.Raised = c.Raised.filledFrom(raised)
+		c.Origin = c.Origin.fillFrom(origin)
 		return c
 	}
 }
 
-// filledFrom is this with whatever it does not know taken from that.
+// fillFrom is this with whatever it does not know taken from that.
 //
 // Field by field rather than all or nothing, because the two halves are
 // learned in different places: the line is known where the failure is written
 // and the span only when it is run. An all-or-nothing merge meant whichever
 // was recorded first shut the other out -- and since the line is recorded
 // first, every failure ended up with a line and no span.
-func (raised Raised) filledFrom(other Raised) Raised {
-	if raised.Source == "" {
-		raised.Source = other.Source
+func (origin Origin) fillFrom(other Origin) Origin {
+	if origin.Source == "" {
+		origin.Source = other.Source
 	}
-	if raised.Operation == "" {
-		raised.Operation = other.Operation
+	if origin.Operation == "" {
+		origin.Operation = other.Operation
 	}
-	return raised
+	return origin
 }
 
 // FailCause constructs an expected typed failure.
@@ -162,7 +162,7 @@ func DieCause(defect Defect) Cause {
 
 // InterruptCause constructs a cooperative interruption.
 func InterruptCause(reason error) Cause {
-	return Cause{Kind: CauseInterrupted, Interruption: Interruption{Cause: reason}}
+	return Cause{Kind: CauseInterrupt, Interruption: Interruption{Cause: reason}}
 }
 
 // IsEmpty reports whether c is the composition identity.
@@ -200,7 +200,7 @@ func Child(branch *Cause) Cause {
 	return *branch
 }
 
-// CapturedDefect records a recovered panic value together with its stack.
-func CapturedDefect(recovered any) Defect {
-	return Defect{Value: recovered, Stack: string(debug.Stack())}
+// CaptureDefect records a recovered panic value together with its stack.
+func CaptureDefect(value any) Defect {
+	return Defect{Value: value, Stack: string(debug.Stack())}
 }

@@ -19,7 +19,7 @@ func MapStreamChunks[R, E, A, B any](
 	stream Stream[R, E, A],
 	transform func(Chunk[A]) Chunk[B],
 ) Stream[R, E, B] {
-	return steppingStream(stream, func(step Step[A]) Step[B] {
+	return mapSteps(stream, func(step Step[A]) Step[B] {
 		chunk, more := step.Chunk()
 		if !more {
 			return EndOfStream[B]()
@@ -68,11 +68,11 @@ func CollectStreamEffect[R, E, A, B any](
 ) Stream[R, E, B] {
 	return MapStreamChunks(MapStreamEffect(stream, transform),
 		func(chunk Chunk[Chunk[B]]) Chunk[B] {
-			collected := make([]B, 0, chunk.Len())
+			result := make([]B, 0, chunk.Len())
 			for _, values := range chunk.Values() {
-				collected = append(collected, values.Values()...)
+				result = append(result, values.Values()...)
 			}
-			return Chunk[B]{values: collected}
+			return Chunk[B]{values: result}
 		})
 }
 
@@ -107,10 +107,10 @@ func (stream Stream[R, E, A]) FilterStream(keep func(A) bool) Stream[R, E, A] {
 // terminates, and the source's resources are released when the consumer's scope
 // closes.
 func (stream Stream[R, E, A]) TakeStream(count int) Stream[R, E, A] {
-	return stagedStream(stream, func() streamStage[A] {
+	return applyStage(stream, func() streamStage[A] {
 		remaining := count
 		return streamStage[A]{
-			Ended: func() bool { return remaining < 1 },
+			HasEnded: func() bool { return remaining < 1 },
 			Rewrite: func(step Step[A]) Step[A] {
 				chunk, more := step.Chunk()
 				// The budget is checked here as well as in the gate. Emitting an
@@ -119,9 +119,9 @@ func (stream Stream[R, E, A]) TakeStream(count int) Stream[R, E, A] {
 				if !more || remaining < 1 {
 					return EndOfStream[A]()
 				}
-				taken := chunk.TakeFirst(remaining)
-				remaining -= taken.Len()
-				return Emit(taken)
+				head := chunk.TakeFirst(remaining)
+				remaining -= head.Len()
+				return Emit(head)
 			},
 		}
 	})
@@ -129,18 +129,18 @@ func (stream Stream[R, E, A]) TakeStream(count int) Stream[R, E, A] {
 
 // DropStream discards the first count values.
 func (stream Stream[R, E, A]) DropStream(count int) Stream[R, E, A] {
-	return stagedStream(stream, func() streamStage[A] {
+	return applyStage(stream, func() streamStage[A] {
 		remaining := count
 		return streamStage[A]{
-			Ended: withoutEnd,
+			HasEnded: withoutEnd,
 			Rewrite: func(step Step[A]) Step[A] {
 				chunk, more := step.Chunk()
 				if !more || remaining < 1 {
 					return step
 				}
-				keptValue := chunk.DropFirst(remaining)
-				remaining -= chunk.Len() - keptValue.Len()
-				return Emit(keptValue)
+				rest := chunk.DropFirst(remaining)
+				remaining -= chunk.Len() - rest.Len()
+				return Emit(rest)
 			},
 		}
 	})
@@ -148,18 +148,18 @@ func (stream Stream[R, E, A]) DropStream(count int) Stream[R, E, A] {
 
 // TakeStreamWhile ends the stream at the first value predicate rejects.
 func (stream Stream[R, E, A]) TakeStreamWhile(keep func(A) bool) Stream[R, E, A] {
-	return stagedStream(stream, func() streamStage[A] {
+	return applyStage(stream, func() streamStage[A] {
 		ended := false
 		return streamStage[A]{
-			Ended: func() bool { return ended },
+			HasEnded: func() bool { return ended },
 			Rewrite: func(step Step[A]) Step[A] {
 				chunk, more := step.Chunk()
 				if !more || ended {
 					return EndOfStream[A]()
 				}
-				keptValue, rejected := chunk.TakeWhile(keep)
+				prefix, rejected := chunk.TakeWhile(keep)
 				ended = rejected
-				return Emit(keptValue)
+				return Emit(prefix)
 			},
 		}
 	})
@@ -170,8 +170,8 @@ func (stream Stream[R, E, A]) TakeStreamWhile(keep func(A) bool) Stream[R, E, A]
 func ConcatStreams[R, E, A any](first Stream[R, E, A], second Stream[R, E, A]) Stream[R, E, A] {
 	return streamFromOpen(func(scope Scope) Effect[R, E, pull[R, E, A]] {
 		return Zip(first.open(scope), second.open(scope)).Map(
-			func(pulls Product[pull[R, E, A], pull[R, E, A]]) pull[R, E, A] {
-				return concatPulls(pulls.First, pulls.Second)
+			func(pair Product[pull[R, E, A], pull[R, E, A]]) pull[R, E, A] {
+				return concatPulls(pair.First, pair.Second)
 			},
 		)
 	})
@@ -193,8 +193,8 @@ func concatPulls[R, E, A any](first pull[R, E, A], second pull[R, E, A]) pull[R,
 	})
 }
 
-// steppingStream rewrites each step with a stateless transform.
-func steppingStream[R, E, A, B any](
+// mapSteps rewrites each step with a stateless transform.
+func mapSteps[R, E, A, B any](
 	stream Stream[R, E, A],
 	rewrite func(Step[A]) Step[B],
 ) Stream[R, E, B] {
@@ -212,17 +212,17 @@ func steppingStream[R, E, A, B any](
 // optimisation: taking three values from a blocking source must not wait for a
 // fourth, and taking three from an effect must not evaluate it a fourth time.
 type streamStage[A any] struct {
-	Ended   func() bool
-	Rewrite func(Step[A]) Step[A]
+	HasEnded func() bool
+	Rewrite  func(Step[A]) Step[A]
 }
 
 func withoutEnd() bool {
 	return false
 }
 
-// stagedStream applies a stage that carries per-run state, built once per run so
+// applyStage applies a stage that carries per-run state, built once per run so
 // one Stream value stays reusable.
-func stagedStream[R, E, A any](
+func applyStage[R, E, A any](
 	stream Stream[R, E, A],
 	newStage func() streamStage[A],
 ) Stream[R, E, A] {
@@ -230,7 +230,7 @@ func stagedStream[R, E, A any](
 		return stream.open(scope).Map(func(next pull[R, E, A]) pull[R, E, A] {
 			stage := newStage()
 			return Suspend(func() pull[R, E, A] {
-				if stage.Ended() {
+				if stage.HasEnded() {
 					return Succeed[R, E](EndOfStream[A]())
 				}
 				return next.Map(stage.Rewrite)

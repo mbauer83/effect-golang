@@ -70,7 +70,7 @@ func subscribe[R, A any](hub Hub[A]) Effect[R, Never, Subscription[A]] {
 	return From(func(context.Context, R) Exit[Never, Subscription[A]] {
 		inbox, token, subscribed := hub.state.Subscribe()
 		if !subscribed {
-			return exitInterrupted[Never, Subscription[A]](lifetime.ErrHubShutdown)
+			return exitInterrupt[Never, Subscription[A]](lifetime.ErrHubShutdown)
 		}
 		return ExitSuccess[Never](Subscription[A]{hub: hub.state, token: token, inbox: inbox})
 	})
@@ -96,7 +96,7 @@ func (hub Hub[A]) Publish[R any](value A) Effect[R, Never, bool] {
 	return From(func(ctx context.Context, _ R) Exit[Never, bool] {
 		accepted, interrupted := hub.state.Publish(ctx, value)
 		if interrupted {
-			return exitInterrupted[Never, bool](lifetime.CancellationReason(ctx))
+			return exitInterrupt[Never, bool](lifetime.CancellationReason(ctx))
 		}
 		return ExitSuccess[Never](accepted)
 	})
@@ -128,7 +128,7 @@ func (subscription Subscription[A]) Take[R any]() Effect[R, Never, Receive[A]] {
 	return From(func(ctx context.Context, _ R) Exit[Never, Receive[A]] {
 		value, ok, interrupted := subscription.inbox.Take(ctx)
 		if interrupted {
-			return exitInterrupted[Never, Receive[A]](lifetime.CancellationReason(ctx))
+			return exitInterrupt[Never, Receive[A]](lifetime.CancellationReason(ctx))
 		}
 		return ExitSuccess[Never](Receive[A]{Value: value, OK: ok})
 	})
@@ -149,7 +149,7 @@ func (subscription Subscription[A]) TakeUpTo[R any](limit int) Effect[R, Never, 
 	return From(func(ctx context.Context, _ R) Exit[Never, []A] {
 		batch, interrupted := subscription.inbox.TakeUpTo(ctx, limit)
 		if interrupted {
-			return exitInterrupted[Never, []A](lifetime.CancellationReason(ctx))
+			return exitInterrupt[Never, []A](lifetime.CancellationReason(ctx))
 		}
 		return ExitSuccess[Never](batch)
 	})

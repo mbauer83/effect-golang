@@ -85,7 +85,7 @@ func (machine *interpreter) evaluate(node Node) outcome.Exit {
 			node = instruction.Source
 		case *WithEnvironment:
 			machine.push(environmentFrame{environment: machine.environment})
-			adapted, defect := adaptedEnvironment(instruction.Adapt, machine.environment)
+			adapted, defect := adaptEnvironment(instruction.Adapt, machine.environment)
 			if defect != nil {
 				return outcome.Failure(outcome.DieCause(*defect))
 			}
@@ -93,7 +93,7 @@ func (machine *interpreter) evaluate(node Node) outcome.Exit {
 			node = instruction.Source
 		case *WithContext:
 			machine.push(contextFrame{ctx: machine.ctx})
-			derived, defect := derivedContext(instruction.Derive, machine.ctx)
+			derived, defect := deriveContext(instruction.Derive, machine.ctx)
 			if defect != nil {
 				return outcome.Failure(outcome.DieCause(*defect))
 			}
@@ -101,14 +101,14 @@ func (machine *interpreter) evaluate(node Node) outcome.Exit {
 			node = instruction.Source
 		case *WithState:
 			machine.push(stateFrame{state: machine.state})
-			derived, defect := derivedState(instruction.Derive, machine.state)
+			derived, defect := deriveState(instruction.Derive, machine.state)
 			if defect != nil {
 				return outcome.Failure(outcome.DieCause(*defect))
 			}
 			machine.state = derived
 			node = instruction.Source
 		case *Suspend:
-			created, defect := suspendedNode(instruction, machine.interpretation())
+			created, defect := createNode(instruction, machine.interpretation())
 			if defect != nil {
 				return outcome.Failure(outcome.DieCause(*defect))
 			}
@@ -134,11 +134,11 @@ func (machine *interpreter) settle(node Node) outcome.Exit {
 		// a failure records its line where it is written and the span it was
 		// inside where it is run, and the second is what says which request
 		// or which stage rather than which line.
-		return outcome.Failure(instruction.Cause.RaisedAt(outcome.Raised{
+		return outcome.Failure(instruction.Cause.WithOrigin(outcome.Origin{
 			Operation: machine.state.Metadata().Operation,
 		}))
 	case *Eval:
-		return evaluatedLeaf(instruction, machine.interpretation())
+		return evalLeaf(instruction, machine.interpretation())
 	default:
 		return outcome.Failure(outcome.DieCause(outcome.Defect{Value: fmt.Errorf("effect: unsupported instruction %T", node)}))
 	}
@@ -156,30 +156,30 @@ func (machine *interpreter) resume(exit outcome.Exit) (Node, outcome.Exit, bool)
 		case contextFrame:
 			machine.ctx = continuation.ctx
 		case transformFrame:
-			if exit.Succeeded() {
-				exit = transformedExit(continuation.apply, exit.Value())
+			if exit.IsSuccess() {
+				exit = transformExit(continuation.apply, exit.Value())
 			}
 		case transformCauseFrame:
-			if !exit.Succeeded() {
-				exit = transformedCause(continuation.apply, exit.Cause())
+			if !exit.IsSuccess() {
+				exit = transformCause(continuation.apply, exit.Cause())
 			}
 		case exitHookFrame:
-			exit = observedExit(continuation.observe, machine.interpretation(), exit)
+			exit = observeExit(continuation.observe, machine.interpretation(), exit)
 		case bindFrame:
-			if !exit.Succeeded() {
+			if !exit.IsSuccess() {
 				continue
 			}
-			node, defect := continuedNode(continuation.continueWith, exit.Value())
+			node, defect := continueNode(continuation.continueWith, exit.Value())
 			if defect != nil {
 				exit = outcome.Failure(outcome.DieCause(*defect))
 				continue
 			}
 			return node, exit, true
 		case recoverFrame:
-			if exit.Succeeded() {
+			if exit.IsSuccess() {
 				continue
 			}
-			node, defect := recoveredNode(continuation.handle, exit.Cause())
+			node, defect := handleCause(continuation.handle, exit.Cause())
 			if defect != nil {
 				exit = outcome.Failure(exit.Cause().Then(outcome.DieCause(*defect)))
 				continue

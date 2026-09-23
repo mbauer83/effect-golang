@@ -53,7 +53,7 @@ func (deferred Deferred[E, A]) Await[R any]() Effect[R, E, A] {
 	return From(func(ctx context.Context, _ R) Exit[E, A] {
 		fulfilled, ok := deferred.state.Await(ctx)
 		if !ok {
-			return exitInterrupted[E, A](lifetime.CancellationReason(ctx))
+			return exitInterrupt[E, A](lifetime.CancellationReason(ctx))
 		}
 		return Exit[E, A]{erased: fulfilled}
 	})

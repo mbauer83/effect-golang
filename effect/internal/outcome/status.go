@@ -5,7 +5,7 @@ import "github.com/mbauer83/effect-golang/effect/capability"
 // ExitStatus classifies a terminal exit into the bounded vocabulary that
 // runtime events and metric labels may safely carry.
 func ExitStatus(exit Exit) capability.EventStatus {
-	if exit.Succeeded() {
+	if exit.IsSuccess() {
 		return capability.EventStatusSuccess
 	}
 	return CauseStatus(exit.Cause())
@@ -21,7 +21,7 @@ func CauseStatus(cause Cause) capability.EventStatus {
 		case CauseDefect:
 			status = capability.EventStatusDefect
 			return false
-		case CauseInterrupted:
+		case CauseInterrupt:
 			status = capability.EventStatusInterrupted
 		}
 		return true

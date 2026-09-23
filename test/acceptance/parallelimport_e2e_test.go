@@ -38,7 +38,7 @@ func TestParallelImportReleasesItsLockAfterEveryReader(t *testing.T) {
 	})
 	lockPath := filepath.Join(workspace, "import.lock")
 
-	observer := &effecttest.RecordingObserver{}
+	observer := &effecttest.EventRecorder{}
 	runtime, err := effect.NewRuntime(
 		effect.WithObserver(observer),
 		effect.WithDebugTracking(),
@@ -77,7 +77,7 @@ func TestParallelImportReleasesItsLockAfterEveryReader(t *testing.T) {
 	})
 }
 
-func assertObservedKinds(t *testing.T, observer *effecttest.RecordingObserver, required map[effect.EventKind]bool) {
+func assertObservedKinds(t *testing.T, observer *effecttest.EventRecorder, required map[effect.EventKind]bool) {
 	t.Helper()
 	seen := map[effect.EventKind]bool{}
 	for _, event := range observer.Events() {

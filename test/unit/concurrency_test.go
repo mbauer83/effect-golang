@@ -10,10 +10,10 @@ import (
 	"github.com/mbauer83/effect-golang/effecttest"
 )
 
-func meeting(meetingPoint *effecttest.Barrier, tracker *effecttest.Tracker, name string, result effect.Exit[string, string]) forkedProgram {
+func meet(barrier *effecttest.Barrier, tracker *effecttest.Tracker, name string, result effect.Exit[string, string]) program {
 	return effect.For[effect.Unit, string]().From(
 		func(context.Context, effect.Unit) effect.Exit[string, string] {
-			meetingPoint.Arrive()
+			barrier.Arrive()
 			tracker.Record(name)
 			return result
 		},
@@ -25,8 +25,8 @@ func TestZipParEvaluatesBothBranchesConcurrently(t *testing.T) {
 	meetingPoint := effecttest.NewBarrier(2)
 
 	program := effect.ZipPar(
-		meeting(meetingPoint, tracker, "left", effect.ExitSuccess[string]("first")),
-		meeting(meetingPoint, tracker, "right", effect.ExitSuccess[string]("second")),
+		meet(meetingPoint, tracker, "left", effect.ExitSuccess[string]("first")),
+		meet(meetingPoint, tracker, "right", effect.ExitSuccess[string]("second")),
 	)
 
 	exit := effect.Run(context.Background(), effect.Unit{}, program)
@@ -44,8 +44,8 @@ func TestZipParPreservesTwoIndependentFailures(t *testing.T) {
 	meetingPoint := effecttest.NewBarrier(2)
 
 	program := effect.ZipPar(
-		meeting(meetingPoint, tracker, "left", effect.ExitFailure[string, string]("left failed")),
-		meeting(meetingPoint, tracker, "right", effect.ExitFailure[string, string]("right failed")),
+		meet(meetingPoint, tracker, "left", effect.ExitFailure[string, string]("left failed")),
+		meet(meetingPoint, tracker, "right", effect.ExitFailure[string, string]("right failed")),
 	)
 
 	exit := effect.Run(context.Background(), effect.Unit{}, program)
@@ -66,7 +66,7 @@ func TestZipParDoesNotReportInducedSiblingInterruption(t *testing.T) {
 
 	program := effect.ZipPar(
 		operations.Fail[string]("left failed"),
-		effecttest.Blocking[effect.Unit, string](work, "finished"),
+		effecttest.Block[effect.Unit, string](work, "finished"),
 	)
 
 	exit := effect.Run(context.Background(), effect.Unit{}, program)
@@ -87,8 +87,8 @@ func TestZipParAwaitsTheCanceledSiblingsCleanup(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
-	sibling := effect.Scoped(func(scope effect.Scope) forkedProgram {
-		return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "sibling-handle").AndThen(effecttest.Blocking[effect.Unit, string](work, "finished"))
+	sibling := effect.Scoped(func(scope effect.Scope) program {
+		return effecttest.TrackResource[effect.Unit, string](scope, tracker, "sibling-handle").AndThen(effecttest.Block[effect.Unit, string](work, "finished"))
 	})
 	slowFailure := operations.From(func(context.Context, effect.Unit) effect.Exit[string, string] {
 		work.AwaitStart()
@@ -133,8 +133,8 @@ func TestRaceFailsWithBothCausesWhenNeitherSucceeds(t *testing.T) {
 	meetingPoint := effecttest.NewBarrier(2)
 
 	program := effect.Race(
-		meeting(meetingPoint, tracker, "left", effect.ExitFailure[string, string]("left failed")),
-		meeting(meetingPoint, tracker, "right", effect.ExitFailure[string, string]("right failed")),
+		meet(meetingPoint, tracker, "left", effect.ExitFailure[string, string]("left failed")),
+		meet(meetingPoint, tracker, "right", effect.ExitFailure[string, string]("right failed")),
 	)
 
 	exit := effect.Run(context.Background(), effect.Unit{}, program)
@@ -149,8 +149,8 @@ func TestRaceFirstLetsTheFirstCompletionWinEvenWhenItFailed(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
-	loser := effect.Scoped(func(scope effect.Scope) forkedProgram {
-		return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "loser-handle").AndThen(effecttest.Blocking[effect.Unit, string](work, "finished"))
+	loser := effect.Scoped(func(scope effect.Scope) program {
+		return effecttest.TrackResource[effect.Unit, string](scope, tracker, "loser-handle").AndThen(effecttest.Block[effect.Unit, string](work, "finished"))
 	})
 	fastFailure := operations.From(func(context.Context, effect.Unit) effect.Exit[string, string] {
 		work.AwaitStart()
@@ -210,11 +210,11 @@ func TestParallelCompositionPropagatesCallerCancellation(t *testing.T) {
 	}()
 
 	exit := effect.Run(ctx, effect.Unit{}, effect.ZipPar(
-		effecttest.Blocking[effect.Unit, string](left, "finished"),
-		effecttest.Blocking[effect.Unit, string](right, "finished"),
+		effecttest.Block[effect.Unit, string](left, "finished"),
+		effecttest.Block[effect.Unit, string](right, "finished"),
 	))
 	cause, failed := exit.Cause()
-	if !failed || !cause.IsInterruptedOnly() {
+	if !failed || !cause.HasInterruptsOnly() {
 		t.Fatalf("expected an interruption-only cause, got %v", exit)
 	}
 	if got := tracker.Count("interrupted"); got != 2 {

@@ -65,11 +65,11 @@ operations.CheckInterrupt().AndThen(nextChunk())
 
 ## Do not confuse interruption with failure
 
-Interruption never widens `E`. Use `IsInterruptedOnly` rather than inspecting a
+Interruption never widens `E`. Use `HasInterruptsOnly` rather than inspecting a
 failure that is not there:
 
 ```go
-if cause.IsInterruptedOnly() {
+if cause.HasInterruptsOnly() {
     // stopped, not broken
 }
 ```

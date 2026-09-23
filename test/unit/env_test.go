@@ -17,9 +17,9 @@ import (
 type Films interface{ Title(int) string }
 type Clock interface{ Year() int }
 
-type keptFilms struct{}
+type filmStore struct{}
 
-func (keptFilms) Title(int) string { return "Heat" }
+func (filmStore) Title(int) string { return "Heat" }
 
 type wallClock struct{}
 
@@ -29,7 +29,7 @@ func TestADependencyIsFoundByItsOwnType(t *testing.T) {
 	// Declaring one is providing it and asking for one is naming it, with no
 	// interface and no accessor per dependency in between.
 	given := env.Empty().
-		With[Films](keptFilms{}).
+		With[Films](filmStore{}).
 		With[Clock](wallClock{})
 
 	films, held := env.Resolve[Films](given)
@@ -44,12 +44,12 @@ func TestADependencyIsFoundByItsOwnType(t *testing.T) {
 func TestTheDeclaredTypeIsWhatAStepAsksFor(t *testing.T) {
 	// A dependency registered as its concrete type is not the one a step
 	// asking for the interface finds -- so the caller says which it means.
-	concrete := env.Empty().With(keptFilms{})
+	concrete := env.Empty().With(filmStore{})
 
 	if env.Holds[Films](concrete) {
 		t.Fatal("expected a concrete registration not to answer for the interface")
 	}
-	if !env.Holds[keptFilms](concrete) {
+	if !env.Holds[filmStore](concrete) {
 		t.Fatal("expected it to answer for what it was registered as")
 	}
 }
@@ -57,7 +57,7 @@ func TestTheDeclaredTypeIsWhatAStepAsksFor(t *testing.T) {
 func TestAnEnvironmentDoesNotChangeUnderneathWhatWasGivenIt(t *testing.T) {
 	// So a layer composing two cannot change either, and an environment a
 	// fiber holds stays what it was.
-	first := env.Empty().With[Films](keptFilms{})
+	first := env.Empty().With[Films](filmStore{})
 	second := first.With[Clock](wallClock{})
 
 	if env.Holds[Clock](first) {
@@ -69,8 +69,8 @@ func TestAnEnvironmentDoesNotChangeUnderneathWhatWasGivenIt(t *testing.T) {
 }
 
 func TestAStepResolvesWhatItNeedsAndReadsAsOrdinaryGo(t *testing.T) {
-	needs := env.Needing[error]()
-	given := env.Empty().With[Films](keptFilms{}).With[Clock](wallClock{})
+	needs := env.ResolverFor[error]()
+	given := env.Empty().With[Films](filmStore{}).With[Clock](wallClock{})
 
 	program := direct.Run(func(bind *direct.Binder[env.Services, error]) string {
 		films := direct.Bind(bind, needs.Service[Films]())
@@ -88,8 +88,8 @@ func TestADependencyNobodyProvidedIsADefectAndNotAFailure(t *testing.T) {
 	// A missing dependency is a mis-wired program: no caller can act on it,
 	// no retry helps, and putting it in the failure channel would make every
 	// caller handle a case that means the deployment is broken.
-	needs := env.Needing[error]()
-	given := env.Empty().With[Films](keptFilms{})
+	needs := env.ResolverFor[error]()
+	given := env.Empty().With[Films](filmStore{})
 
 	program := direct.Run(func(bind *direct.Binder[env.Services, error]) int {
 		return direct.Bind(bind, needs.Service[Clock]()).Year()
@@ -116,7 +116,7 @@ func TestAProgramIsToldAtStartUpWhatItWasNotGiven(t *testing.T) {
 	// Which is the answer to what a type-indexed environment gives up: the
 	// compiler no longer catches it, so the wiring is checked before anything
 	// serves rather than on a Tuesday down a rarely-taken path.
-	given := env.Empty().With[Films](keptFilms{})
+	given := env.Empty().With[Films](filmStore{})
 
 	err := env.Complete(given, env.Want[Films](), env.Want[Clock]())
 	if err == nil {

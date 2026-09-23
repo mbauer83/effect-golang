@@ -88,7 +88,7 @@ func TestCanceledContextBecomesInterruption(t *testing.T) {
 	program := effect.Succeed[effect.Unit, string](42)
 	exit := effect.Run(ctx, effect.Unit{}, program)
 	cause, ok := exit.Cause()
-	if !ok || cause.Kind() != effect.CauseInterrupted {
+	if !ok || cause.Kind() != effect.CauseInterrupt {
 		t.Fatalf("expected interruption, got %#v", exit)
 	}
 	interruption, _ := cause.Interruption()

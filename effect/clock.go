@@ -24,7 +24,7 @@ func Now[R, E any]() Effect[R, E, time.Time] {
 func Sleep[R, E any](duration time.Duration) Effect[R, E, Unit] {
 	return fromRuntime(func(ctx context.Context, state *runtimecore.State, _ R) Exit[E, Unit] {
 		err := state.Capabilities().Clock.Sleep(ctx, duration)
-		if exit, interrupted := interruptedExit[E, Unit](ctx); interrupted {
+		if exit, interrupted := interruptExit[E, Unit](ctx); interrupted {
 			return exit
 		}
 		if err != nil {

@@ -13,7 +13,7 @@ type ManualClock struct {
 	mu       sync.Mutex
 	now      time.Time
 	sleepers []*clockSleeper
-	changed  chan struct{}
+	changes  chan struct{}
 }
 
 type clockSleeper struct {
@@ -22,7 +22,7 @@ type clockSleeper struct {
 }
 
 func NewManualClock(start time.Time) *ManualClock {
-	return &ManualClock{now: start, changed: make(chan struct{})}
+	return &ManualClock{now: start, changes: make(chan struct{})}
 }
 
 func (clock *ManualClock) Now() time.Time {
@@ -109,11 +109,11 @@ func (clock *ManualClock) WaitForPending(ctx context.Context, count int) error {
 			clock.mu.Unlock()
 			return nil
 		}
-		changed := clock.changed
+		changes := clock.changes
 		clock.mu.Unlock()
 
 		select {
-		case <-changed:
+		case <-changes:
 		case <-ctx.Done():
 			return context.Cause(ctx)
 		}
@@ -121,8 +121,8 @@ func (clock *ManualClock) WaitForPending(ctx context.Context, count int) error {
 }
 
 func (clock *ManualClock) signalChange() {
-	close(clock.changed)
-	clock.changed = make(chan struct{})
+	close(clock.changes)
+	clock.changes = make(chan struct{})
 }
 
 // AwaitSleepers blocks until at least count waits have registered, and fails

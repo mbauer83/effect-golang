@@ -41,16 +41,16 @@ func (c Cause[E]) Report() CauseReport {
 		},
 		Interruption: func(interruption Interruption) CauseReport {
 			return CauseReport{
-				Kind:   CauseInterrupted,
+				Kind:   CauseInterrupt,
 				Detail: fmt.Sprintf("%v", interruption.Cause),
 			}
 		},
-		Then: composedReport(CauseThen),
-		Both: composedReport(CauseBoth),
+		Then: composeReports(CauseThen),
+		Both: composeReports(CauseBoth),
 	})
 }
 
-func composedReport(kind CauseKind) func(CauseReport, CauseReport) CauseReport {
+func composeReports(kind CauseKind) func(CauseReport, CauseReport) CauseReport {
 	return func(left CauseReport, right CauseReport) CauseReport {
 		return CauseReport{Kind: kind, Children: []CauseReport{left, right}}
 	}

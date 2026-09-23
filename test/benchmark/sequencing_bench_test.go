@@ -31,7 +31,7 @@ type state struct {
 	third  int
 }
 
-func flatMapped(second func(int) step) step {
+func sequenceFlatMap(second func(int) step) step {
 	return loadFirst().FlatMap(func(first int) step {
 		return second(first).FlatMap(func(value int) step {
 			return loadThird(value)
@@ -39,7 +39,7 @@ func flatMapped(second func(int) step) step {
 	})
 }
 
-func workflowed(second func(int) step) step {
+func sequenceWorkflow(second func(int) step) step {
 	return effect.NewWorkflow[effect.Unit, string](func() state { return state{} }).
 		Bind(
 			func(state) step { return loadFirst() },
@@ -56,7 +56,7 @@ func workflowed(second func(int) step) step {
 		Yield(func(current state) int { return current.third })
 }
 
-func directed(second func(int) step) step {
+func sequenceDirect(second func(int) step) step {
 	return direct.Run(func(bind *direct.Binder[effect.Unit, string]) int {
 		first := direct.Bind(bind, loadFirst())
 		value := direct.Bind(bind, second(first))
@@ -79,10 +79,10 @@ func measure(b *testing.B, program step) {
 	}
 }
 
-func BenchmarkSucceedingFlatMap(b *testing.B)  { measure(b, flatMapped(loadSecond)) }
-func BenchmarkSucceedingWorkflow(b *testing.B) { measure(b, workflowed(loadSecond)) }
-func BenchmarkSucceedingDirect(b *testing.B)   { measure(b, directed(loadSecond)) }
+func BenchmarkSucceedingFlatMap(b *testing.B)  { measure(b, sequenceFlatMap(loadSecond)) }
+func BenchmarkSucceedingWorkflow(b *testing.B) { measure(b, sequenceWorkflow(loadSecond)) }
+func BenchmarkSucceedingDirect(b *testing.B)   { measure(b, sequenceDirect(loadSecond)) }
 
-func BenchmarkFailingFlatMap(b *testing.B)  { measure(b, flatMapped(rejectAtSecond)) }
-func BenchmarkFailingWorkflow(b *testing.B) { measure(b, workflowed(rejectAtSecond)) }
-func BenchmarkFailingDirect(b *testing.B)   { measure(b, directed(rejectAtSecond)) }
+func BenchmarkFailingFlatMap(b *testing.B)  { measure(b, sequenceFlatMap(rejectAtSecond)) }
+func BenchmarkFailingWorkflow(b *testing.B) { measure(b, sequenceWorkflow(rejectAtSecond)) }
+func BenchmarkFailingDirect(b *testing.B)   { measure(b, sequenceDirect(rejectAtSecond)) }

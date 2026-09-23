@@ -105,9 +105,9 @@ func ExampleBind_scoped() {
 		return direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
 			handle := direct.Bind(bind, scope.AcquireRelease(
 				operations.Succeed("connection"),
-				func(held string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
+				func(resource string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
 					return effect.AddFinalizer[effect.Unit](func(context.Context) error {
-						fmt.Println("released", held)
+						fmt.Println("released", resource)
 						return nil
 					})
 				},

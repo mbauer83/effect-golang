@@ -18,9 +18,9 @@ import (
 // A fiber's terminal exit, a deferred value and a queue's handoff to a waiting
 // taker are all this same shape, so they are all this type.
 type Completion struct {
-	done      chan struct{}
-	completed sync.Once
-	result    outcome.Exit
+	done   chan struct{}
+	once   sync.Once
+	result outcome.Exit
 }
 
 func NewCompletion() *Completion {
@@ -37,7 +37,7 @@ func (completion *Completion) Done() <-chan struct{} {
 // that completed it, so a caller can tell whether it won the race.
 func (completion *Completion) Complete(exit outcome.Exit) bool {
 	first := false
-	completion.completed.Do(func() {
+	completion.once.Do(func() {
 		completion.result = exit
 		close(completion.done)
 		first = true
@@ -49,7 +49,7 @@ func (completion *Completion) Complete(exit outcome.Exit) bool {
 // panicked, so no observer can wait forever on a library bug.
 func (completion *Completion) CompleteOnPanic() {
 	if recovered := recover(); recovered != nil {
-		completion.Complete(outcome.Failure(outcome.DieCause(outcome.CapturedDefect(recovered))))
+		completion.Complete(outcome.Failure(outcome.DieCause(outcome.CaptureDefect(recovered))))
 	}
 }
 

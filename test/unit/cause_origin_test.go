@@ -25,7 +25,7 @@ func TestAFailureSaysWhichLineRaisedItAndWhatWasRunning(t *testing.T) {
 	}
 	operations := effect.For[effect.Unit, error]()
 
-	failing, where := raisedHere(errors.New("the account is frozen"))
+	failing, where := failHere(errors.New("the account is frozen"))
 	program := operations.Succeed(0).
 		FlatMap(func(int) effect.Effect[effect.Unit, error, int] { return failing }).
 		WithSpan("charging the account")
@@ -35,7 +35,7 @@ func TestAFailureSaysWhichLineRaisedItAndWhatWasRunning(t *testing.T) {
 		t.Fatal("expected the failure")
 	}
 
-	raised := cause.Raised()
+	raised := cause.Origin()
 	if raised.Source != where {
 		t.Errorf("expected the line that raised it (%s), got %q", where, raised.Source)
 	}
@@ -61,16 +61,16 @@ func TestTranslatingAFailureKeepsWhereItWasRaised(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	raising, where := raisedHere(errors.New("no such row"))
+	raising, where := failHere(errors.New("no such row"))
 	translated := raising.MapError(func(error) error { return errors.New("nothing kept") })
 
 	cause, failed := runtime.Run(context.Background(), effect.Unit{}, translated).Cause()
 	if !failed {
 		t.Fatal("expected the failure")
 	}
-	if cause.Raised().Source != where {
+	if cause.Origin().Source != where {
 		t.Errorf("expected the line that raised it (%s) rather than the line that mapped it, got %q",
-			where, cause.Raised().Source)
+			where, cause.Origin().Source)
 	}
 }
 
@@ -83,30 +83,30 @@ func TestAFailureRaisedThroughTheHandleNamesTheCallerNotTheHandle(t *testing.T) 
 	}
 	operations := effect.For[effect.Unit, error]()
 
-	failing, where := refusedHere(operations, errors.New("refused"))
+	failing, where := failHereVia(operations, errors.New("refused"))
 
 	cause, failed := runtime.Run(context.Background(), effect.Unit{}, failing).Cause()
 	if !failed {
 		t.Fatal("expected the failure")
 	}
-	if cause.Raised().Source != where {
-		t.Errorf("expected the caller's line (%s), got %q", where, cause.Raised().Source)
+	if cause.Origin().Source != where {
+		t.Errorf("expected the caller's line (%s), got %q", where, cause.Origin().Source)
 	}
 }
 
-// raisedHere is a failure and the line it was raised on.
+// failHere is a failure and the line it was raised on.
 //
 // The line is taken from the frame above the raise rather than written down,
 // because a test that hard-codes a number breaks whenever anything above it
 // is edited -- which makes it a test of the file's layout rather than of the
 // location.
-func raisedHere(failure error) (effect.Effect[effect.Unit, error, int], string) {
+func failHere(failure error) (effect.Effect[effect.Unit, error, int], string) {
 	_, file, line, _ := goruntime.Caller(0)
 	return effect.Fail[effect.Unit, int](failure), fmt.Sprintf("%s:%d", file, line+1)
 }
 
-// refusedHere is the same through an operations handle.
-func refusedHere(
+// failHereVia is the same through an operations handle.
+func failHereVia(
 	operations effect.Operations[effect.Unit, error],
 	failure error,
 ) (effect.Effect[effect.Unit, error, int], string) {

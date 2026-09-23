@@ -15,9 +15,9 @@ func TestManySimultaneousAwaitsObserveOneResult(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
-	program := effect.Scoped(func(effect.Scope) forkedProgram {
-		return operations.Fork(effecttest.Blocking[effect.Unit, string](work, "finished")).FlatMap(
-			func(fiber forkedFiber) forkedProgram {
+	program := effect.Scoped(func(effect.Scope) program {
+		return operations.Fork(effecttest.Block[effect.Unit, string](work, "finished")).FlatMap(
+			func(fiber programFiber) program {
 				work.Release()
 
 				var waiters sync.WaitGroup
@@ -52,9 +52,9 @@ func TestManySimultaneousJoinsAdoptTheSameFailure(t *testing.T) {
 	const observers = 32
 	operations := effect.For[effect.Unit, string]()
 
-	program := effect.Scoped(func(effect.Scope) forkedProgram {
+	program := effect.Scoped(func(effect.Scope) program {
 		return operations.Fork(operations.Fail[string]("rejected")).FlatMap(
-			func(fiber forkedFiber) forkedProgram {
+			func(fiber programFiber) program {
 				var waiters sync.WaitGroup
 				failures := make([]string, observers)
 				for index := range observers {
@@ -86,9 +86,9 @@ func TestPollReportsCompletionBeforeAndAfterTermination(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
-	program := effect.Scoped(func(effect.Scope) forkedProgram {
-		return operations.Fork(effecttest.Blocking[effect.Unit, string](work, "finished")).FlatMap(
-			func(fiber forkedFiber) forkedProgram {
+	program := effect.Scoped(func(effect.Scope) program {
+		return operations.Fork(effecttest.Block[effect.Unit, string](work, "finished")).FlatMap(
+			func(fiber programFiber) program {
 				work.AwaitStart()
 				if _, completed := fiber.Poll(); completed {
 					t.Error("expected Poll to report an incomplete fiber")

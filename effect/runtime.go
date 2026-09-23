@@ -164,7 +164,7 @@ func flushOne(ctx context.Context, subject any, component capability.FaultCompon
 		return outcome.Cause{}
 	}
 	if err := flusher.Flush(ctx); err != nil {
-		return outcome.DieCause(outcome.CapturedDefect(capability.RuntimeFault{
+		return outcome.DieCause(outcome.CaptureDefect(capability.RuntimeFault{
 			Component: component,
 			Operation: "flush",
 			Err:       err,

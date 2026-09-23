@@ -44,7 +44,7 @@ func Succeed[R, E, A any](value A) Effect[R, E, A] {
 // Fail constructs an Effect that fails with an expected typed error.
 func Fail[R, A, E any](failure E) Effect[R, E, A] {
 	return FailWithCause[R, A](Cause[E]{
-		node: outcome.FailCause(failure).RaisedAt(outcome.Raised{Source: callSite(2)}),
+		node: outcome.FailCause(failure).WithOrigin(outcome.Origin{Source: callSite(2)}),
 	})
 }
 
@@ -88,7 +88,7 @@ func (fx Effect[R, E, A]) run(ctx context.Context, state *runtimecore.State, env
 func (fx Effect[R, E, A]) Map[B any](f func(A) B) Effect[R, E, B] {
 	return fromInstructions[R, E, B](&runtimecore.Transform{
 		Source: fx.instructions(),
-		Apply:  erasedTransform(f),
+		Apply:  eraseTransform(f),
 	})
 }
 
@@ -98,7 +98,7 @@ func (fx Effect[R, E, A]) Map[B any](f func(A) B) Effect[R, E, B] {
 func (fx Effect[R, E, A]) MapError[E2 any](f func(E) E2) Effect[R, E2, A] {
 	return fromInstructions[R, E2, A](&runtimecore.TransformCause{
 		Source: fx.instructions(),
-		Apply:  erasedFailureTransform(f),
+		Apply:  eraseFailureTransform(f),
 	})
 }
 
@@ -106,7 +106,7 @@ func (fx Effect[R, E, A]) MapError[E2 any](f func(E) E2) Effect[R, E2, A] {
 func (fx Effect[R, E, A]) ContramapEnv[R0 any](f func(R0) R) Effect[R0, E, A] {
 	return fromInstructions[R0, E, A](&runtimecore.WithEnvironment{
 		Source: fx.instructions(),
-		Adapt:  erasedAdapter(f),
+		Adapt:  eraseAdapter(f),
 	})
 }
 
@@ -118,9 +118,9 @@ func (fx Effect[R, E, A]) Provide(env R) Effect[Unit, E, A] {
 // constantEnvironment discards an outer environment in favour of one that is
 // already available, which is how both Provide and a layer hand a built
 // environment to its consumer.
-func constantEnvironment[R0, R any](provided R) func(R0) R {
+func constantEnvironment[R0, R any](environment R) func(R0) R {
 	return func(R0) R {
-		return provided
+		return environment
 	}
 }
 

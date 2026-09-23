@@ -98,7 +98,7 @@ func Program(customerID string, items []string) workflowEffect[Quote] {
 			},
 		).
 		Yield(func(current state) Quote { return current.quote }).
-		Named("checkout").
+		WithName("checkout").
 		WithSpan("checkout", slog.String("customer", customerID))
 }
 
@@ -113,7 +113,7 @@ func loadCustomer(customerID string) workflowEffect[Customer] {
 			})
 		}
 		return effect.ExitSuccess[CheckoutError](customer)
-	}).Named("load-customer")
+	}).WithName("load-customer")
 }
 
 func loadBasket(customer Customer, items []string) workflowEffect[Basket] {
@@ -124,7 +124,7 @@ func loadBasket(customer Customer, items []string) workflowEffect[Basket] {
 			Detail: "basket for " + customer.Name + " is empty",
 		})
 	}
-	return operations.Succeed(Basket{Items: items}).Named("load-basket")
+	return operations.Succeed(Basket{Items: items}).WithName("load-basket")
 }
 
 func price(customer Customer, basket Basket) workflowEffect[Quote] {
@@ -132,7 +132,7 @@ func price(customer Customer, basket Basket) workflowEffect[Quote] {
 		Map(func(lines []int) Quote {
 			return quoteFor(customer, lines)
 		}).
-		Named("price")
+		WithName("price")
 }
 
 func quoteFor(customer Customer, lines []int) Quote {

@@ -36,8 +36,8 @@ type warnings struct {
 	Count int
 }
 
-// classified is one record with the verdict a worker gave it.
-type classified struct {
+// classification is one record with the verdict a worker gave it.
+type classification struct {
 	Record  string
 	Warning bool
 }
@@ -55,7 +55,7 @@ var io = effect.IO()
 func Program(inputPath string, workers int) pipeline[Report] {
 	return effect.Scoped(func(scope effect.Scope) pipeline[Report] {
 		return openPipeline(scope, inputPath, workers).
-			Named("fanout").
+			WithName("fanout").
 			WithSpan("fanout", slog.String("input", inputPath), slog.Int("workers", workers))
 	})
 }
@@ -63,10 +63,10 @@ func Program(inputPath string, workers int) pipeline[Report] {
 func openPipeline(scope effect.Scope, inputPath string, workers int) pipeline[Report] {
 	return effect.Zip(
 		io.ScopedQueue[string](scope, queueDepth, effect.SuspendWhenFull),
-		io.Hub[classified](scope, queueDepth, effect.SuspendWhenFull),
-	).FlatMap(func(shared effect.Product[effect.Queue[string], effect.Hub[classified]]) pipeline[Report] {
+		io.Hub[classification](scope, queueDepth, effect.SuspendWhenFull),
+	).FlatMap(func(channels effect.Product[effect.Queue[string], effect.Hub[classification]]) pipeline[Report] {
 		return io.Deferred[string]().FlatMap(func(label effect.Deferred[effect.IOError, string]) pipeline[Report] {
-			return run(scope, inputPath, workers, shared.First, shared.Second, label)
+			return run(scope, inputPath, workers, channels.First, channels.Second, label)
 		})
 	})
 }
@@ -78,16 +78,16 @@ func run(
 	inputPath string,
 	workers int,
 	records effect.Queue[string],
-	results effect.Hub[classified],
+	results effect.Hub[classification],
 	label effect.Deferred[effect.IOError, string],
 ) pipeline[Report] {
 	return effect.Zip(
 		io.Subscribe(scope, results),
 		io.Subscribe(scope, results),
-	).FlatMap(func(feeds effect.Product[effect.Subscription[classified], effect.Subscription[classified]]) pipeline[Report] {
-		counting := io.Fork(countRecords(feeds.First, label))
+	).FlatMap(func(feeds effect.Product[effect.Subscription[classification], effect.Subscription[classification]]) pipeline[Report] {
+		counter := io.Fork(countRecords(feeds.First, label))
 		warning := io.Fork(countWarnings(feeds.Second, label))
-		return effect.Zip(counting, warning).FlatMap(
+		return effect.Zip(counter, warning).FlatMap(
 			func(reporters effect.Product[effect.Fiber[effect.IOError, Report], effect.Fiber[effect.IOError, warnings]]) pipeline[Report] {
 				return produceAndClassify(inputPath, workers, records, results, label).
 					AndThen(effect.Zip(
@@ -117,11 +117,11 @@ func produceAndClassify(
 	inputPath string,
 	workers int,
 	records effect.Queue[string],
-	results effect.Hub[classified],
+	results effect.Hub[classification],
 	label effect.Deferred[effect.IOError, string],
 ) pipeline[effect.Unit] {
-	reading := io.Fork(readInto(inputPath, records, label))
-	return reading.FlatMap(func(reader effect.Fiber[effect.IOError, effect.Unit]) pipeline[effect.Unit] {
+	reader := io.Fork(readInto(inputPath, records, label))
+	return reader.FlatMap(func(reader effect.Fiber[effect.IOError, effect.Unit]) pipeline[effect.Unit] {
 		return effect.ForEachPar(workerIndices(workers), func(int) pipeline[effect.Unit] {
 			return classifyFrom(records, results)
 		}).
@@ -165,7 +165,7 @@ func readInto(
 		// read that fails before the stream starts leaves every worker blocked
 		// on a queue nobody will fill.
 		Ensuring(records.Shutdown[effect.Unit]()).
-		Named("read-records")
+		WithName("read-records")
 }
 
 func labelFor(inputPath string, records []string) string {
@@ -185,17 +185,17 @@ func splitRecords(content []byte) []string {
 
 // classifyFrom drains the queue and publishes a verdict for every record. It
 // ends when the queue reports that it has been shut down and drained.
-func classifyFrom(records effect.Queue[string], results effect.Hub[classified]) pipeline[effect.Unit] {
+func classifyFrom(records effect.Queue[string], results effect.Hub[classification]) pipeline[effect.Unit] {
 	return effect.RunForEach(
 		io.StreamFromQueue(records, chunkSize),
 		func(record string) pipeline[effect.Unit] {
 			return io.WidenError(results.Publish[effect.Unit](classify(record))).As(effect.Unit{})
 		},
-	).Named("classify")
+	).WithName("classify")
 }
 
-func classify(record string) classified {
-	return classified{Record: record, Warning: strings.HasPrefix(record, "WARN")}
+func classify(record string) classification {
+	return classification{Record: record, Warning: strings.HasPrefix(record, "WARN")}
 }
 
 // countRecords labels its report with the deferred value.
@@ -204,38 +204,38 @@ func classify(record string) classified {
 // do: a channel would give the label to whichever reporter received first and
 // leave the other waiting.
 func countRecords(
-	feed effect.Subscription[classified],
+	feed effect.Subscription[classification],
 	label effect.Deferred[effect.IOError, string],
 ) pipeline[Report] {
 	return label.Await[effect.Unit]().FlatMap(func(name string) pipeline[Report] {
 		return effect.RunFold(
 			io.StreamFromSubscription(feed, chunkSize),
 			Report{Label: name},
-			func(report Report, _ classified) Report {
+			func(report Report, _ classification) Report {
 				report.Records++
 				return report
 			},
 		)
-	}).Named("count-records")
+	}).WithName("count-records")
 }
 
 // countWarnings summarises the same results differently, which is why they go
 // to a hub rather than a queue: both reporters see every verdict, and both read
 // the same label.
 func countWarnings(
-	feed effect.Subscription[classified],
+	feed effect.Subscription[classification],
 	label effect.Deferred[effect.IOError, string],
 ) pipeline[warnings] {
 	return label.Await[effect.Unit]().FlatMap(func(name string) pipeline[warnings] {
 		return effect.RunFold(
 			io.StreamFromSubscription(feed, chunkSize),
 			warnings{Label: name},
-			func(counted warnings, verdict classified) warnings {
+			func(tally warnings, verdict classification) warnings {
 				if verdict.Warning {
-					counted.Count++
+					tally.Count++
 				}
-				return counted
+				return tally
 			},
 		)
-	}).Named("count-warnings")
+	}).WithName("count-warnings")
 }

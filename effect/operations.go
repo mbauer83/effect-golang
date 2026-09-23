@@ -39,7 +39,7 @@ func (Operations[R, E]) Fail[A any](failure E) Effect[R, E, A] {
 	// cause read afterwards names the line somebody wrote rather than a line
 	// in the framework.
 	return FailWithCause[R, A](Cause[E]{
-		node: outcome.FailCause(failure).RaisedAt(outcome.Raised{Source: callSite(2)}),
+		node: outcome.FailCause(failure).WithOrigin(outcome.Origin{Source: callSite(2)}),
 	})
 }
 

@@ -31,20 +31,20 @@ type PairOutcome struct {
 // A branch that stopped only because this composition canceled it did not fail
 // on its own account, so its induced interruption is dropped. Two genuinely
 // independent failures are preserved with Both, in positional order.
-func CombineParallelCauses(outcome PairOutcome, induced error) Cause {
+func CombineParallelCauses(outcome PairOutcome, cancelReason error) Cause {
 	left, right := outcome.Left.Cause(), outcome.Right.Cause()
-	if WasInduced(right, induced) {
+	if IsInduced(right, cancelReason) {
 		return left
 	}
-	if WasInduced(left, induced) {
+	if IsInduced(left, cancelReason) {
 		return right
 	}
 	return left.Both(right)
 }
 
-// WasInduced reports whether a cause consists only of interruptions this
+// IsInduced reports whether a cause consists only of interruptions this
 // composition requested.
-func WasInduced(cause Cause, reason error) bool {
+func IsInduced(cause Cause, reason error) bool {
 	if cause.IsEmpty() || reason == nil {
 		return false
 	}
@@ -52,7 +52,7 @@ func WasInduced(cause Cause, reason error) bool {
 	VisitCause(cause, func(node Cause) bool {
 		switch node.Kind {
 		case CauseThen, CauseBoth:
-		case CauseInterrupted:
+		case CauseInterrupt:
 			induced = induced && errors.Is(node.Interruption.Cause, reason)
 		default:
 			induced = false
@@ -65,11 +65,11 @@ func WasInduced(cause Cause, reason error) bool {
 // CombineBranchCauses composes the causes of a collection composition in input
 // order. A branch canceled only because a sibling failed did not fail on its
 // own account, so its induced interruption is dropped.
-func CombineBranchCauses(exits []Exit, induced error) Cause {
+func CombineBranchCauses(exits []Exit, cancelReason error) Cause {
 	combined := Cause{}
 	for _, exit := range exits {
 		cause := exit.Cause()
-		if WasInduced(cause, induced) {
+		if IsInduced(cause, cancelReason) {
 			continue
 		}
 		combined = combined.Both(cause)

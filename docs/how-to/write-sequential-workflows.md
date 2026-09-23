@@ -119,7 +119,7 @@ there.
 ## Naming stages helps more than you expect
 
 ```go
-loadCustomer(id).Named("load-customer")
+loadCustomer(id).WithName("load-customer")
 program.WithSpan("checkout", slog.String("customer", id))
 ```
 

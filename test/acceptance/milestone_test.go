@@ -78,7 +78,7 @@ func TestMilestoneConstructionExecutesNothing(t *testing.T) {
 }
 
 func TestMilestoneFirstAttemptIsImmediateAndReleasesItsResource(t *testing.T) {
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	operations := effect.For[effect.Unit, appError]()
 
@@ -114,7 +114,7 @@ func assertTrackedOrder(t *testing.T, tracker *effecttest.Tracker, want []string
 }
 
 func TestMilestoneRetriesTypedFailuresWithTestClockBackoff(t *testing.T) {
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	operations := effect.For[effect.Unit, appError]()
 	var attempts atomic.Int32
@@ -157,7 +157,7 @@ func TestMilestoneRetriesTypedFailuresWithTestClockBackoff(t *testing.T) {
 }
 
 func TestMilestonePreservesTheLastTypedFailureWhenExhausted(t *testing.T) {
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	operations := effect.For[effect.Unit, appError]()
 

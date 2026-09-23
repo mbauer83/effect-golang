@@ -133,17 +133,17 @@ func registerRelease[R, A any](
 	release func(A) Effect[R, Never, Unit],
 ) exitObserver {
 	return func(interpretation runtimecore.Interpretation, exit outcome.Exit) outcome.Exit {
-		if !exit.Succeeded() {
+		if !exit.IsSuccess() {
 			return exit
 		}
 
-		resource := typedValue[A](exit.Value())
+		resource := asValue[A](exit.Value())
 		accepted, cleanup := scope.AddFinalizer(
 			interpretation.Context,
 			releaseFinalizer(interpretation, release, resource),
 		)
 		if accepted {
-			interpretation.State.Ledger().ResourceAcquired()
+			interpretation.State.Ledger().RecordAcquisition()
 			interpretation.State.EmitMark(interpretation.Context, capability.EventResourceAcquired)
 			return exit
 		}
@@ -162,11 +162,11 @@ func releaseFinalizer[R, A any](
 	release func(A) Effect[R, Never, Unit],
 	resource A,
 ) lifetime.Finalizer {
-	environment := typedEnvironment[R](interpretation.Environment)
+	environment := asEnvironment[R](interpretation.Environment)
 	state := interpretation.State
 	return func(ctx context.Context, _ outcome.Exit) outcome.Cause {
 		released := release(resource).run(ctx, state, environment)
-		state.Ledger().ResourceReleased()
+		state.Ledger().RecordRelease()
 		state.EmitMark(ctx, capability.EventResourceReleased)
 		cause, _ := released.Cause()
 		return cause.node

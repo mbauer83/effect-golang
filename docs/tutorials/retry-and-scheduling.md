@@ -12,7 +12,7 @@ policy := effect.IntersectSchedules(
     ),
 )
 
-program := filecopy.RetryingProgram("input.txt", "output.txt", policy)
+program := filecopy.ProgramWithRetry("input.txt", "output.txt", policy)
 exit := effect.Run(context.Background(), effect.Unit{}, program)
 ```
 
@@ -52,6 +52,6 @@ clock.Advance(100 * time.Millisecond)
 `WaitForPending` is synchronization, not a real-time sleep. The same clock drives
 `Now`, `Sleep`, `Delay`, retry, repeat, log timestamps, and span durations.
 
-The end-to-end test in `retrying_filecopy_e2e_test.go` combines a scripted
+The end-to-end test in `filecopy_retry_e2e_test.go` combines a scripted
 filesystem, manual clock, structured logger, observer, retry policy, and the
 complete file-copy program.

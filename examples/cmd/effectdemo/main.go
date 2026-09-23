@@ -47,7 +47,7 @@ func main() {
 	runFanout(runtime, ctx, workspace)
 	runCheckout(runtime, ctx)
 	runDiagnostics(runtime, ctx)
-	runConfigured(ctx)
+	runConfigDemo(ctx)
 }
 
 func seed(workspace string) error {
@@ -67,7 +67,7 @@ func seed(workspace string) error {
 
 func runFileCopy(runtime *effect.Runtime, ctx context.Context, workspace string) {
 	policy := effect.Recurs[effect.IOError](2).MapOutput(func(uint64) time.Duration { return 0 })
-	program := filecopy.RetryingProgram(
+	program := filecopy.ProgramWithRetry(
 		filepath.Join(workspace, "alpha.txt"),
 		filepath.Join(workspace, "alpha.upper.txt"),
 		policy,
@@ -133,7 +133,7 @@ func runCheckout(runtime *effect.Runtime, ctx context.Context) {
 
 func runDiagnostics(runtime *effect.Runtime, ctx context.Context) {
 	diagnosis := diagnostics.Diagnose(runtime.Run(ctx, effect.Unit{}, diagnostics.Program()))
-	fmt.Printf("failure diagnostics (%s):\n%s\n", diagnosis.Status, diagnosis.Rendered)
+	fmt.Printf("failure diagnostics (%s):\n%s\n", diagnosis.Status, diagnosis.Text)
 }
 
 // report prints an outcome the scenario did not expect. Exit renders both a
@@ -157,13 +157,13 @@ func fail(err error) {
 	os.Exit(1)
 }
 
-// runConfigured needs a runtime of its own, because what it demonstrates is a
+// runConfigDemo needs a runtime of its own, because what it demonstrates is a
 // runtime told where to read a program's settings.
 //
 // The deployment here is a fixed environment rather than this process's, so
 // the demo says the same thing on every machine. A real program passes
 // config.Environment(), which is also the default.
-func runConfigured(ctx context.Context) {
+func runConfigDemo(ctx context.Context) {
 	deployment := config.Sources(
 		config.EnvironmentOf(
 			"DB_HOST=primary.internal",
@@ -181,12 +181,12 @@ func runConfigured(ctx context.Context) {
 	defer runtime.Close(ctx)
 
 	exit := runtime.Run(ctx, effect.Unit{}, configured.Program())
-	said, ok := exit.Value()
+	text, ok := exit.Value()
 	if !ok {
 		report("described settings", exit)
 		return
 	}
-	fmt.Printf("described settings:\n%s\n", indent(said))
+	fmt.Printf("described settings:\n%s\n", indent(text))
 
 	// The same program, with nothing supplied: every setting that has no
 	// default is reported at once rather than one restart at a time.
@@ -201,11 +201,11 @@ func runConfigured(ctx context.Context) {
 		}
 	}
 
-	fmt.Printf("what it needs:\n%s", configured.Needed())
+	fmt.Printf("what it needs:\n%s", configured.Requirements())
 }
 
-func indent(said string) string {
-	lines := strings.Split(said, "\n")
+func indent(text string) string {
+	lines := strings.Split(text, "\n")
 	for at, line := range lines {
 		lines[at] = "  " + line
 	}

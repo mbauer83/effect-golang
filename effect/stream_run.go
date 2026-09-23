@@ -16,12 +16,12 @@ func RunFold[R, E, A, S any](
 ) Effect[R, E, S] {
 	return Scoped(func(scope Scope) Effect[R, E, S] {
 		return stream.open(scope).FlatMap(func(next pull[R, E, A]) Effect[R, E, S] {
-			return foldingPulls(next, initial, combine)
+			return foldSteps(next, initial, combine)
 		})
 	})
 }
 
-func foldingPulls[R, E, A, S any](
+func foldSteps[R, E, A, S any](
 	next pull[R, E, A],
 	state S,
 	combine func(S, A) S,
@@ -31,15 +31,15 @@ func foldingPulls[R, E, A, S any](
 		if !more {
 			return Succeed[R, E](state)
 		}
-		return foldingPulls(next, FoldChunk(chunk, state, combine), combine)
+		return foldSteps(next, FoldChunk(chunk, state, combine), combine)
 	})
 }
 
 // RunCollect gathers every value into one slice. It is for a stream you know is
 // finite and small enough to hold; use RunFold or RunForEach otherwise.
 func RunCollect[R, E, A any](stream Stream[R, E, A]) Effect[R, E, []A] {
-	return RunFold(stream, []A(nil), func(collected []A, value A) []A {
-		return append(collected, value)
+	return RunFold(stream, []A(nil), func(values []A, value A) []A {
+		return append(values, value)
 	})
 }
 
@@ -63,19 +63,19 @@ func RunDrain[R, E, A any](stream Stream[R, E, A]) Effect[R, E, Unit] {
 func RunForEach[R, E, A any](stream Stream[R, E, A], visit func(A) Effect[R, E, Unit]) Effect[R, E, Unit] {
 	return Scoped(func(scope Scope) Effect[R, E, Unit] {
 		return stream.open(scope).FlatMap(func(next pull[R, E, A]) Effect[R, E, Unit] {
-			return visitingPulls(next, visit)
+			return visitSteps(next, visit)
 		})
 	})
 }
 
-func visitingPulls[R, E, A any](next pull[R, E, A], visit func(A) Effect[R, E, Unit]) Effect[R, E, Unit] {
+func visitSteps[R, E, A any](next pull[R, E, A], visit func(A) Effect[R, E, Unit]) Effect[R, E, Unit] {
 	return next.FlatMap(func(step Step[A]) Effect[R, E, Unit] {
 		chunk, more := step.Chunk()
 		if !more {
 			return Succeed[R, E](Unit{})
 		}
 		return ForEach(chunk.Values(), visit).FlatMap(func([]Unit) Effect[R, E, Unit] {
-			return visitingPulls(next, visit)
+			return visitSteps(next, visit)
 		})
 	})
 }

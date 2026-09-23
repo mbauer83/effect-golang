@@ -24,7 +24,7 @@ type Source = capability.ConfigSource
 // The zero value describes nothing and fails when read, so a Config that was
 // never constructed cannot be mistaken for one that found nothing.
 type Config[A any] struct {
-	read    func(at reading) (A, Error)
+	read    func(at cursor) (A, Error)
 	expects []Expectation
 }
 
@@ -41,7 +41,7 @@ type Expectation struct {
 	Path []string
 	// Type is what the text is read as: "text", "integer", "duration".
 	Type string
-	// Doc is what Documented said about it, or empty.
+	// Doc is what WithDescription said about it, or empty.
 	Doc string
 	// Default is the stand-in rendered as text, and empty when there is none.
 	Default string
@@ -51,9 +51,9 @@ type Expectation struct {
 	Secret bool
 }
 
-// reading is one read in progress: where the values come from, and where in
+// cursor is one read in progress: where the values come from, and where in
 // the description the reader currently is.
-type reading struct {
+type cursor struct {
 	ctx    context.Context
 	source Source
 	path   []string
@@ -62,7 +62,7 @@ type reading struct {
 // under descends into a named key. An empty name stays where it is, which is
 // what makes a nameless primitive read the value at the current path -- the
 // entry of a table, or one piece of a separated list.
-func (at reading) under(name string) reading {
+func (at cursor) under(name string) cursor {
 	if name == "" {
 		return at
 	}
@@ -77,10 +77,10 @@ func (at reading) under(name string) reading {
 // a program's settings need no argument passed down to whoever wants them.
 func Read[A any](ctx context.Context, source Source, description Config[A]) (A, Error) {
 	if source == nil {
-		var missing A
-		return missing, Unavailable(errNoSource)
+		var zero A
+		return zero, Unavailable(errNoSource)
 	}
-	return description.reader()(reading{ctx: ctx, source: source})
+	return description.reader()(cursor{ctx: ctx, source: source})
 }
 
 var errNoSource = errors.New("config: no source to read from")
@@ -98,13 +98,13 @@ var errZeroDescription = Invalid("described; the zero Config describes nothing")
 // Every combinator goes through it, so a zero Config nested, mapped or made a
 // field of is reported where it is read instead of being a nil call at the
 // bottom of a stack.
-func (description Config[A]) reader() func(reading) (A, Error) {
+func (description Config[A]) reader() func(cursor) (A, Error) {
 	if description.read != nil {
 		return description.read
 	}
-	return func(reading) (A, Error) {
-		var missing A
-		return missing, errZeroDescription
+	return func(cursor) (A, Error) {
+		var zero A
+		return zero, errZeroDescription
 	}
 }
 
@@ -118,11 +118,11 @@ func (description Config[A]) Map[B any](transform func(A) B) Config[B] {
 	reader := description.reader()
 	return Config[B]{
 		expects: description.expects,
-		read: func(at reading) (B, Error) {
+		read: func(at cursor) (B, Error) {
 			value, failure := reader(at)
 			if !failure.IsEmpty() {
-				var missing B
-				return missing, failure
+				var zero B
+				return zero, failure
 			}
 			return transform(value), Error{}
 		},
@@ -141,15 +141,15 @@ func (description Config[A]) MapOrFail[B any](transform func(A) (B, error)) Conf
 	subject := description.subject()
 	return Config[B]{
 		expects: description.expects,
-		read: func(at reading) (B, Error) {
-			var missing B
+		read: func(at cursor) (B, Error) {
+			var zero B
 			value, failure := reader(at)
 			if !failure.IsEmpty() {
-				return missing, failure
+				return zero, failure
 			}
 			transformed, err := transform(value)
 			if err != nil {
-				return missing, Invalid(err.Error(),
+				return zero, Invalid(err.Error(),
 					append(slices.Clone(at.path), subject...)...)
 			}
 			return transformed, Error{}
@@ -157,16 +157,16 @@ func (description Config[A]) MapOrFail[B any](transform func(A) (B, error)) Conf
 	}
 }
 
-// Validated keeps a value only when it satisfies a predicate, and otherwise
+// Validate keeps a value only when it satisfies a predicate, and otherwise
 // reports it as a value this description cannot use.
 //
-//	config.Int("PORT").Validated("a port above 1024", func(port int) bool {
+//	config.Int("PORT").Validate("a port above 1024", func(port int) bool {
 //	    return port > 1024
 //	})
 //
 // The message says what was wanted rather than what was wrong, because it is
 // read beside the value that failed it.
-func (description Config[A]) Validated(message string, keep func(A) bool) Config[A] {
+func (description Config[A]) Validate(message string, keep func(A) bool) Config[A] {
 	return description.MapOrFail(func(value A) (A, error) {
 		if !keep(value) {
 			return value, errors.New(message)
@@ -175,20 +175,20 @@ func (description Config[A]) Validated(message string, keep func(A) bool) Config
 	})
 }
 
-// Documented says what a value is for, which is what a program prints when it
+// WithDescription says what a value is for, which is what a program prints when it
 // is asked what it needs.
 //
 // It applies to every expectation the description carries that has nothing
 // said about it yet, so documenting a composite documents its parts and
 // documenting a part keeps what it already said.
-func (description Config[A]) Documented(doc string) Config[A] {
-	described := slices.Clone(description.expects)
-	for at := range described {
-		if described[at].Doc == "" {
-			described[at].Doc = doc
+func (description Config[A]) WithDescription(doc string) Config[A] {
+	expects := slices.Clone(description.expects)
+	for at := range expects {
+		if expects[at].Doc == "" {
+			expects[at].Doc = doc
 		}
 	}
-	description.expects = described
+	description.expects = expects
 	return description
 }
 
@@ -203,15 +203,15 @@ func (description Config[A]) subject() []string {
 	return description.expects[0].Path
 }
 
-// nestedExpectations returns expectations with name in front of each path.
-func nestedExpectations(name string, expectation []Expectation) []Expectation {
+// prefixExpectations returns expectations with name in front of each path.
+func prefixExpectations(name string, expectation []Expectation) []Expectation {
 	if name == "" {
 		return expectation
 	}
-	moved := make([]Expectation, 0, len(expectation))
+	prefixed := make([]Expectation, 0, len(expectation))
 	for _, expectation := range expectation {
 		expectation.Path = append([]string{name}, expectation.Path...)
-		moved = append(moved, expectation)
+		prefixed = append(prefixed, expectation)
 	}
-	return moved
+	return prefixed
 }

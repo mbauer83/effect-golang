@@ -12,13 +12,13 @@ import (
 
 func TestScopeReleasesResourcesInReverseAcquisitionOrder(t *testing.T) {
 	tracker := &effecttest.Tracker{}
-	program := effect.Scoped(func(scope effect.Scope) scopedProgram {
-		return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "database").
-			FlatMap(func(string) scopedProgram {
-				return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "transaction")
+	program := effect.Scoped(func(scope effect.Scope) program {
+		return effecttest.TrackResource[effect.Unit, string](scope, tracker, "database").
+			FlatMap(func(string) program {
+				return effecttest.TrackResource[effect.Unit, string](scope, tracker, "transaction")
 			}).
-			FlatMap(func(string) scopedProgram {
-				return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "statement")
+			FlatMap(func(string) program {
+				return effecttest.TrackResource[effect.Unit, string](scope, tracker, "statement")
 			})
 	})
 
@@ -38,17 +38,17 @@ func TestScopeReleasesResourcesInReverseAcquisitionOrder(t *testing.T) {
 
 func TestScopeReleasesExactlyOnceForEveryOutcome(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
-	outcomes := map[string]scopedProgram{
+	outcomes := map[string]program{
 		"success":     operations.Succeed("done"),
 		"failure":     operations.Fail[string]("rejected"),
-		"defect":      effecttest.Panicking[effect.Unit, string, string]("body exploded"),
-		"interrupted": effecttest.SelfInterrupting[effect.Unit, string, string](),
+		"defect":      effecttest.Panic[effect.Unit, string, string]("body exploded"),
+		"interrupted": effecttest.InterruptSelf[effect.Unit, string, string](),
 	}
 
 	for name, body := range outcomes {
 		tracker := &effecttest.Tracker{}
-		program := effect.Scoped(func(scope effect.Scope) scopedProgram {
-			return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "handle").AndThen(body)
+		program := effect.Scoped(func(scope effect.Scope) program {
+			return effecttest.TrackResource[effect.Unit, string](scope, tracker, "handle").AndThen(body)
 		})
 
 		effect.Run(context.Background(), effect.Unit{}, program)
@@ -61,7 +61,7 @@ func TestScopeReleasesExactlyOnceForEveryOutcome(t *testing.T) {
 func TestScopePreservesFinalizerDefectAfterOriginalFailure(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
 	brokenClose := errors.New("close failed")
-	program := effect.Scoped(func(scope effect.Scope) scopedProgram {
+	program := effect.Scoped(func(scope effect.Scope) program {
 		resource := scope.AcquireRelease(
 			operations.Succeed("handle"),
 			func(string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
@@ -92,7 +92,7 @@ func TestScopePreservesFinalizerDefectAfterOriginalFailure(t *testing.T) {
 
 func TestSuccessfulBodyFailsWhenReleaseDefects(t *testing.T) {
 	operations := effect.For[effect.Unit, string]()
-	program := effect.Scoped(func(scope effect.Scope) scopedProgram {
+	program := effect.Scoped(func(scope effect.Scope) program {
 		return scope.AcquireRelease(
 			operations.Succeed("handle"),
 			func(string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
@@ -112,10 +112,10 @@ func TestSuccessfulBodyFailsWhenReleaseDefects(t *testing.T) {
 
 func TestNestedScopesReleaseInnerLifetimeFirst(t *testing.T) {
 	tracker := &effecttest.Tracker{}
-	program := effect.Scoped(func(outer effect.Scope) scopedProgram {
-		return effecttest.TrackedResource[effect.Unit, string](outer, tracker, "outer").FlatMap(func(string) scopedProgram {
-			return effect.Scoped(func(inner effect.Scope) scopedProgram {
-				return effecttest.TrackedResource[effect.Unit, string](inner, tracker, "inner")
+	program := effect.Scoped(func(outer effect.Scope) program {
+		return effecttest.TrackResource[effect.Unit, string](outer, tracker, "outer").FlatMap(func(string) program {
+			return effect.Scoped(func(inner effect.Scope) program {
+				return effecttest.TrackResource[effect.Unit, string](inner, tracker, "inner")
 			})
 		})
 	})
@@ -133,13 +133,13 @@ func TestAcquisitionAfterClosureReleasesImmediatelyAndReportsClosedScope(t *test
 
 	var escaped effect.Scope
 	effect.Run(context.Background(), effect.Unit{}, effect.Scoped(
-		func(scope effect.Scope) scopedProgram {
+		func(scope effect.Scope) program {
 			escaped = scope
 			return operations.Succeed("opened")
 		},
 	))
 
-	exit := effect.Run(context.Background(), effect.Unit{}, effecttest.TrackedResource[effect.Unit, string](escaped, tracker, "late"))
+	exit := effect.Run(context.Background(), effect.Unit{}, effecttest.TrackResource[effect.Unit, string](escaped, tracker, "late"))
 	if got := tracker.Events(); !reflect.DeepEqual(got, []string{"acquire late", "release late"}) {
 		t.Fatalf("expected immediate release of a late acquisition, got %v", got)
 	}
@@ -160,8 +160,8 @@ func TestScopeReleasesUnderCallerCancellation(t *testing.T) {
 	stop := errors.New("operator stopped the import")
 	ctx, cancel := context.WithCancelCause(context.Background())
 
-	program := effect.Scoped(func(scope effect.Scope) scopedProgram {
-		return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "handle").FlatMap(func(string) scopedProgram {
+	program := effect.Scoped(func(scope effect.Scope) program {
+		return effecttest.TrackResource[effect.Unit, string](scope, tracker, "handle").FlatMap(func(string) program {
 			cancel(stop)
 			return operations.Succeed("unreachable")
 		})

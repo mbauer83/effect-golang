@@ -17,9 +17,9 @@ func TestChildrenTerminateBeforeScopeResourcesAreReleased(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
-	program := effect.Scoped(func(scope effect.Scope) forkedProgram {
-		return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "shared").FlatMap(func(string) forkedProgram {
-			return operations.Fork(effecttest.Blocking[effect.Unit, string](work, "finished")).FlatMap(func(forkedFiber) forkedProgram {
+	program := effect.Scoped(func(scope effect.Scope) program {
+		return effecttest.TrackResource[effect.Unit, string](scope, tracker, "shared").FlatMap(func(string) program {
+			return operations.Fork(effecttest.Block[effect.Unit, string](work, "finished")).FlatMap(func(programFiber) program {
 				work.AwaitStart()
 				return operations.Succeed("body finished")
 			})

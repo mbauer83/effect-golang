@@ -87,9 +87,9 @@ if err := clock.WaitForPending(overBound, limit+1); err == nil {
 | Adapter | Use |
 |---|---|
 | `effecttest.ManualClock` | advance time by hand |
-| `effecttest.RecordingLogger` | assert structured records |
-| `effecttest.RecordingObserver` | assert lifecycle events |
-| `effecttest.RecordingDiagnostics` | assert instrumentation faults |
+| `effecttest.LogRecorder` | assert structured records |
+| `effecttest.EventRecorder` | assert lifecycle events |
+| `effecttest.DiagnosticsRecorder` | assert instrumentation faults |
 | `effecttest.FileSystemStub` | inject filesystem behaviour per operation |
 | `effecttest.Tracker` | assert ordered lifecycle events across goroutines |
 

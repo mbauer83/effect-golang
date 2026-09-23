@@ -21,14 +21,14 @@ func Program(inputPath string, outputPath string) effect.Effect[effect.Unit, eff
 	return copyProgram(operations, inputPath, outputPath, operations.ReadFile(inputPath))
 }
 
-// RetryingProgram is Program with an explicit retry policy around source reads.
-func RetryingProgram[Out any](
+// ProgramWithRetry is Program with an explicit retry policy around source reads.
+func ProgramWithRetry[Out any](
 	inputPath string,
 	outputPath string,
 	policy effect.Schedule[effect.IOError, Out],
 ) effect.Effect[effect.Unit, effect.IOError, effect.Unit] {
 	operations := effect.IO()
-	read := operations.ReadFile(inputPath).Named("read-source").Retry(policy)
+	read := operations.ReadFile(inputPath).WithName("read-source").Retry(policy)
 	return copyProgram(operations, inputPath, outputPath, read)
 }
 
@@ -47,7 +47,7 @@ func copyProgram(
 
 	return loaded.
 		FlatMap(normalizeAndStore(operations, inputPath, outputPath)).
-		Named("file-copy").
+		WithName("file-copy").
 		WithSpan("file-copy", slog.String("input", inputPath))
 }
 

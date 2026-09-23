@@ -101,9 +101,9 @@ func StreamOf[R, E, A any](values ...A) Stream[R, E, A] {
 
 // StreamFromChunks produces the given chunks in order.
 func StreamFromChunks[R, E, A any](chunks ...Chunk[A]) Stream[R, E, A] {
-	owned := slices.Clone(chunks)
+	snapshot := slices.Clone(chunks)
 	return streamFromPull[R, E, A](func() pull[R, E, A] {
-		remaining := owned
+		remaining := snapshot
 		return From(func(context.Context, R) Exit[E, Step[A]] {
 			if len(remaining) == 0 {
 				return ExitSuccess[E](EndOfStream[A]())

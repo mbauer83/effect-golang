@@ -8,13 +8,13 @@ import (
 	"github.com/mbauer83/effect-golang/effect"
 )
 
-// RecordingLogger stores structured records for deterministic assertions.
-type RecordingLogger struct {
+// LogRecorder stores structured records for deterministic assertions.
+type LogRecorder struct {
 	mu      sync.Mutex
 	records []effect.LogRecord
 }
 
-func (logger *RecordingLogger) Log(_ context.Context, record effect.LogRecord) error {
+func (logger *LogRecorder) Log(_ context.Context, record effect.LogRecord) error {
 	logger.mu.Lock()
 	defer logger.mu.Unlock()
 	record.Fields = slices.Clone(record.Fields)
@@ -23,7 +23,7 @@ func (logger *RecordingLogger) Log(_ context.Context, record effect.LogRecord) e
 }
 
 // Records returns a snapshot that callers may mutate safely.
-func (logger *RecordingLogger) Records() []effect.LogRecord {
+func (logger *LogRecorder) Records() []effect.LogRecord {
 	logger.mu.Lock()
 	defer logger.mu.Unlock()
 	records := slices.Clone(logger.records)

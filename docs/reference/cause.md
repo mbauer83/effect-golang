@@ -27,7 +27,7 @@ Leaf accessors return a value only when the cause is exactly that one leaf:
 `Failure`, `Defect`, `Interruption`. Collectors keep the tree intact and return
 every leaf left to right: `Failures`, `Defects`, `Interruptions`.
 
-Predicates: `IsEmpty`, `IsFailureOnly`, `IsInterruptedOnly`, `ContainsDefect`.
+Predicates: `IsEmpty`, `IsFailureOnly`, `HasInterruptsOnly`, `ContainsDefect`.
 
 `Fold(CauseFolder[E,A])` is total typed elimination. It is iterative, so an
 arbitrarily deep cause is safe to eliminate.

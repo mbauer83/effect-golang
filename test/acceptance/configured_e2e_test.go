@@ -25,7 +25,7 @@ func deployment(entries ...string) config.Source {
 	return config.Sources(config.EnvironmentOf(entries...), configured.Defaults())
 }
 
-func runConfigured(t *testing.T, source config.Source) effect.Exit[configured.Refusal, string] {
+func runConfigProgram(t *testing.T, source config.Source) effect.Exit[configured.Refusal, string] {
 	t.Helper()
 	runtime, err := effect.NewRuntime(effect.WithConfigSource(source))
 	if err != nil {
@@ -53,7 +53,7 @@ func refusalOf(
 }
 
 func TestAProgramReadsItsSettingsFromTheRuntimeItRunsIn(t *testing.T) {
-	exit := runConfigured(t, deployment(
+	exit := runConfigProgram(t, deployment(
 		"DB_HOST=primary.internal",
 		"DB_PASSWORD=hunter2",
 		"DB_TIMEOUT=250ms",
@@ -90,7 +90,7 @@ func TestWhatTheDeploymentDidNotSupplyComesFromTheDefaultsBeneathIt(t *testing.T
 	// Only the mail sender is supplied. Everything else comes from the
 	// program's own defaults source or from the defaults on the descriptions,
 	// and the difference is invisible to the program.
-	exit := runConfigured(t, deployment("MAIL_SENDER=service@example.com"))
+	exit := runConfigProgram(t, deployment("MAIL_SENDER=service@example.com"))
 
 	said, succeeded := exit.Value()
 	if !succeeded {
@@ -111,7 +111,7 @@ func TestEverySettingADeploymentIsMissingIsReportedOnce(t *testing.T) {
 	// No defaults source at all, so the two values that have no default are
 	// both missing. A program that reported one of them would be restarted
 	// once per key.
-	exit := runConfigured(t, config.EnvironmentOf())
+	exit := runConfigProgram(t, config.EnvironmentOf())
 
 	failure, failed := refusalOf(exit)
 	if !failed {
@@ -125,7 +125,7 @@ func TestEverySettingADeploymentIsMissingIsReportedOnce(t *testing.T) {
 }
 
 func TestASettingSuppliedWrongIsAFailureAndNotADefault(t *testing.T) {
-	exit := runConfigured(t, deployment(
+	exit := runConfigProgram(t, deployment(
 		"MAIL_SENDER=service@example.com",
 		"DB_TIMEOUT=half a minute",
 	))
@@ -142,7 +142,7 @@ func TestASettingSuppliedWrongIsAFailureAndNotADefault(t *testing.T) {
 func TestOneComponentReadsFromASourceTheRestOfTheProgramDoesNot(t *testing.T) {
 	// The n-to-m case. The program reads the environment; the plugin reads a
 	// document, mounted at its own place inside it.
-	document := config.Fixed(map[string]string{
+	document := config.FromMap(map[string]string{
 		"plugins.reporting.every": "30s",
 		"plugins.billing.every":   "1h",
 	})
@@ -153,7 +153,7 @@ func TestOneComponentReadsFromASourceTheRestOfTheProgramDoesNot(t *testing.T) {
 	}
 	defer runtime.Close(context.Background())
 
-	program := configured.ReportingIn(document, "reporting")
+	program := configured.ReadReportSchedule(document, "reporting")
 	exit := runtime.Run(context.Background(), configured.Service{}, program)
 	reporting, succeeded := exit.Value()
 	if !succeeded {
@@ -165,7 +165,7 @@ func TestOneComponentReadsFromASourceTheRestOfTheProgramDoesNot(t *testing.T) {
 
 	// A plugin the document says nothing about is off, and that is a value
 	// rather than an absence the program has to remember to check.
-	quiet := configured.ReportingIn(document, "search")
+	quiet := configured.ReadReportSchedule(document, "search")
 	off, succeeded := runtime.Run(context.Background(), configured.Service{}, quiet).Value()
 	if !succeeded || off.Enabled {
 		t.Fatalf("expected an unconfigured plugin to be off, got %+v", off)
@@ -183,7 +183,7 @@ func TestADependentReadSequencesWithTheEffectsOwnFlatMap(t *testing.T) {
 	// Which store to use is itself configured. Accumulating composition
 	// belongs to a description; sequencing belongs to the runtime, so this is
 	// FlatMap and not a second mechanism.
-	runtime, err := effect.NewRuntime(effect.WithConfigSource(config.Fixed(map[string]string{
+	runtime, err := effect.NewRuntime(effect.WithConfigSource(config.FromMap(map[string]string{
 		"store":               "replica",
 		"replica.db.host":     "replica.internal",
 		"replica.db.password": "hunter2",
@@ -205,7 +205,7 @@ func TestADependentReadSequencesWithTheEffectsOwnFlatMap(t *testing.T) {
 }
 
 func TestAProgramCanSayWhatItNeedsWithoutReadingAnything(t *testing.T) {
-	needed := configured.Needed()
+	needed := configured.Requirements()
 
 	for _, want := range []string{
 		"db.host",

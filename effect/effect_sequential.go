@@ -9,7 +9,7 @@ import (
 func (fx Effect[R, E, A]) FlatMap[B any](f func(A) Effect[R, E, B]) Effect[R, E, B] {
 	return fromInstructions[R, E, B](&runtimecore.Bind{
 		Source:   fx.instructions(),
-		Continue: erasedContinuation(f),
+		Continue: eraseContinuation(f),
 	})
 }
 

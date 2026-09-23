@@ -11,14 +11,14 @@ import (
 )
 
 func TestTimeoutReportsWhetherTheWorkCompleted(t *testing.T) {
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
 	result := make(chan effect.Exit[string, effect.Either[effect.Unit, string]], 1)
 	go func() {
 		result <- runtime.Run(context.Background(), effect.Unit{},
-			effect.Timeout(effecttest.Blocking[effect.Unit, string](work, "finished"), 5*time.Second))
+			effect.Timeout(effecttest.Block[effect.Unit, string](work, "finished"), 5*time.Second))
 	}()
 
 	work.AwaitStart()
@@ -36,7 +36,7 @@ func TestTimeoutReportsWhetherTheWorkCompleted(t *testing.T) {
 }
 
 func TestTimeoutYieldsTheValueWhenWorkCompletesFirst(t *testing.T) {
-	runtime, _ := effecttest.NewTimedRuntime(t)
+	runtime, _ := effecttest.NewManualClockRuntime(t)
 	operations := effect.For[effect.Unit, string]()
 
 	exit := runtime.Run(context.Background(), effect.Unit{},
@@ -53,14 +53,14 @@ func TestTimeoutYieldsTheValueWhenWorkCompletesFirst(t *testing.T) {
 }
 
 func TestTimeoutFailUsesTheCallersErrorVocabulary(t *testing.T) {
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
 	result := make(chan effect.Exit[string, string], 1)
 	go func() {
 		result <- runtime.Run(context.Background(), effect.Unit{},
-			effecttest.Blocking[effect.Unit, string](work, "finished").TimeoutFail(2*time.Second, "import timed out"))
+			effecttest.Block[effect.Unit, string](work, "finished").TimeoutFail(2*time.Second, "import timed out"))
 	}()
 
 	work.AwaitStart()
@@ -78,14 +78,14 @@ func TestTimeoutFailUsesTheCallersErrorVocabulary(t *testing.T) {
 }
 
 func TestTimeoutToSubstitutesAFallback(t *testing.T) {
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
 	result := make(chan effect.Exit[string, string], 1)
 	go func() {
 		result <- runtime.Run(context.Background(), effect.Unit{},
-			effecttest.Blocking[effect.Unit, string](work, "finished").TimeoutTo(time.Second, "cached"))
+			effecttest.Block[effect.Unit, string](work, "finished").TimeoutTo(time.Second, "cached"))
 	}()
 
 	work.AwaitStart()
@@ -99,12 +99,12 @@ func TestTimeoutToSubstitutesAFallback(t *testing.T) {
 }
 
 func TestTimeoutAwaitsTheAbandonedWorkFinalizers(t *testing.T) {
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
-	guarded := effect.Scoped(func(scope effect.Scope) forkedProgram {
-		return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "import-handle").AndThen(effecttest.Blocking[effect.Unit, string](work, "finished"))
+	guarded := effect.Scoped(func(scope effect.Scope) program {
+		return effecttest.TrackResource[effect.Unit, string](scope, tracker, "import-handle").AndThen(effecttest.Block[effect.Unit, string](work, "finished"))
 	})
 
 	result := make(chan effect.Exit[string, string], 1)
@@ -127,12 +127,12 @@ func TestTimeoutAwaitsTheAbandonedWorkFinalizers(t *testing.T) {
 }
 
 func TestTimeoutPreservesACleanupDefectFromAbandonedWork(t *testing.T) {
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 	broken := errors.New("rollback failed")
 
-	guarded := effecttest.Blocking[effect.Unit, string](work, "finished").Ensuring(effect.AddFinalizer[effect.Unit](func(context.Context) error {
+	guarded := effecttest.Block[effect.Unit, string](work, "finished").Ensuring(effect.AddFinalizer[effect.Unit](func(context.Context) error {
 		return broken
 	}))
 

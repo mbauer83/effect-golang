@@ -12,7 +12,7 @@ import (
 
 var inputs = []int{1, 2, 3, 4, 5, 6, 7, 8}
 
-func doubling(tracker *effecttest.Tracker) func(int) effect.Effect[effect.Unit, string, int] {
+func double(tracker *effecttest.Tracker) func(int) effect.Effect[effect.Unit, string, int] {
 	operations := effect.For[effect.Unit, string]()
 	return func(value int) effect.Effect[effect.Unit, string, int] {
 		return operations.From(func(context.Context, effect.Unit) effect.Exit[string, int] {
@@ -24,7 +24,7 @@ func doubling(tracker *effecttest.Tracker) func(int) effect.Effect[effect.Unit, 
 
 func TestForEachCollectsInInputOrder(t *testing.T) {
 	tracker := &effecttest.Tracker{}
-	exit := effect.Run(context.Background(), effect.Unit{}, effect.ForEach(inputs, doubling(tracker)))
+	exit := effect.Run(context.Background(), effect.Unit{}, effect.ForEach(inputs, double(tracker)))
 
 	want := []int{2, 4, 6, 8, 10, 12, 14, 16}
 	if got, ok := exit.Value(); !ok || !reflect.DeepEqual(got, want) {
@@ -57,7 +57,7 @@ func TestForEachShortCircuitsOnTheFirstFailure(t *testing.T) {
 
 func TestForEachIsLazyAndDoesNotShareAccumulators(t *testing.T) {
 	tracker := &effecttest.Tracker{}
-	program := effect.ForEach(inputs, doubling(tracker))
+	program := effect.ForEach(inputs, double(tracker))
 	if got := tracker.Count("visited"); got != 0 {
 		t.Fatalf("expected construction to run nothing, visited %d", got)
 	}
@@ -94,7 +94,7 @@ func TestForEachParNBoundsSimultaneousBranches(t *testing.T) {
 		limit    = 3
 		branches = 12
 	)
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	operations := effect.For[effect.Unit, string]()
 	work := make([]int, branches)
 
@@ -146,15 +146,15 @@ func TestForEachParCancelsRemainingBranchesOnTheFirstFailure(t *testing.T) {
 	tracker := &effecttest.Tracker{}
 	work := effecttest.NewBlocker(tracker)
 
-	program := effect.ForEachPar([]int{0, 1}, func(value int) forkedProgram {
+	program := effect.ForEachPar([]int{0, 1}, func(value int) program {
 		if value == 0 {
 			return operations.From(func(context.Context, effect.Unit) effect.Exit[string, string] {
 				work.AwaitStart()
 				return effect.ExitFailure[string, string]("rejected")
 			})
 		}
-		return effect.Scoped(func(scope effect.Scope) forkedProgram {
-			return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "branch-handle").AndThen(effecttest.Blocking[effect.Unit, string](work, "finished"))
+		return effect.Scoped(func(scope effect.Scope) program {
+			return effecttest.TrackResource[effect.Unit, string](scope, tracker, "branch-handle").AndThen(effecttest.Block[effect.Unit, string](work, "finished"))
 		})
 	})
 
@@ -176,7 +176,7 @@ func TestForEachParPreservesIndependentFailuresInInputOrder(t *testing.T) {
 	meetingPoint := effecttest.NewBarrier(3)
 
 	program := effect.ForEachPar([]string{"alpha", "beta", "gamma"},
-		func(value string) forkedProgram {
+		func(value string) program {
 			return operations.From(func(context.Context, effect.Unit) effect.Exit[string, string] {
 				meetingPoint.Arrive()
 				if value == "beta" {

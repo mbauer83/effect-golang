@@ -16,11 +16,11 @@ func (c Cause[E]) Format(state fmt.State, verb rune) {
 	_, _ = io.WriteString(state, renderCause(c, state.Flag('+')))
 }
 
-// renderedLine is one output line and its nesting depth. Recording depths and
+// textLine is one output line and its nesting depth. Recording depths and
 // indenting once at the end keeps rendering linear in the size of the tree,
 // which matters because a long chain of finalizer defects composes into a very
 // deep Then spine.
-type renderedLine struct {
+type textLine struct {
 	depth int
 	text  string
 }
@@ -42,7 +42,7 @@ type renderStep[E any] struct {
 // renderCause walks the tree with an explicit work list so rendering remains
 // total and stack-safe for any cause the runtime can build.
 func renderCause[E any](root Cause[E], includeStacks bool) string {
-	lines := make([]renderedLine, 0, 1)
+	lines := make([]textLine, 0, 1)
 	steps := []renderStep[E]{{cause: root}}
 	for len(steps) > 0 {
 		current := steps[len(steps)-1]
@@ -52,26 +52,26 @@ func renderCause[E any](root Cause[E], includeStacks bool) string {
 		case separateBranches:
 			lines[len(lines)-1].text += ","
 		case closeComposite:
-			lines = append(lines, renderedLine{depth: current.depth, text: ")"})
+			lines = append(lines, textLine{depth: current.depth, text: ")"})
 		default:
 			lines, steps = renderStepOf(current, includeStacks, lines, steps)
 		}
 	}
-	return joinRenderedLines(lines)
+	return joinLines(lines)
 }
 
 func renderStepOf[E any](
 	current renderStep[E],
 	includeStacks bool,
-	lines []renderedLine,
+	lines []textLine,
 	steps []renderStep[E],
-) ([]renderedLine, []renderStep[E]) {
+) ([]textLine, []renderStep[E]) {
 	node := current.cause
 	if !isCompositeKind(node.Kind()) {
 		return append(lines, renderLeaf(node, current.depth, includeStacks)...), steps
 	}
 
-	lines = append(lines, renderedLine{depth: current.depth, text: node.Kind().String() + "("})
+	lines = append(lines, textLine{depth: current.depth, text: node.Kind().String() + "("})
 	left, right := node.branches()
 	nested := current.depth + 1
 	return lines, append(steps,
@@ -82,48 +82,48 @@ func renderStepOf[E any](
 	)
 }
 
-func renderLeaf[E any](leaf Cause[E], depth int, includeStacks bool) []renderedLine {
+func renderLeaf[E any](leaf Cause[E], depth int, includeStacks bool) []textLine {
 	if defect, ok := leaf.Defect(); ok {
 		return renderDefect(defect, depth, includeStacks)
 	}
-	return []renderedLine{{depth: depth, text: renderLeafText(leaf)}}
+	return []textLine{{depth: depth, text: renderLeafText(leaf)}}
 }
 
 func renderLeafText[E any](leaf Cause[E]) string {
 	if failure, ok := leaf.Failure(); ok {
-		return fmt.Sprintf("%s(%v)%s", CauseFailure, failure, renderRaised(leaf))
+		return fmt.Sprintf("%s(%v)%s", CauseFailure, failure, renderOrigin(leaf))
 	}
 	if interruption, ok := leaf.Interruption(); ok {
-		return fmt.Sprintf("%s(%v)%s", CauseInterrupted, interruption.Cause, renderRaised(leaf))
+		return fmt.Sprintf("%s(%v)%s", CauseInterrupt, interruption.Cause, renderOrigin(leaf))
 	}
 	return leaf.Kind().String()
 }
 
-// renderRaised is where a failure came from, appended to it.
+// renderOrigin is where a failure came from, appended to it.
 //
 // On the same line as the failure, because the two are read together: a reader
 // asking what went wrong is about to ask where, and a rendering that made them
 // look up the second somewhere else would be a rendering nobody uses.
-func renderRaised[E any](leaf Cause[E]) string {
-	raised := leaf.Raised()
-	if !raised.IsKnown() {
+func renderOrigin[E any](leaf Cause[E]) string {
+	origin := leaf.Origin()
+	if !origin.IsKnown() {
 		return ""
 	}
-	return " at " + raised.String()
+	return " at " + origin.String()
 }
 
-func renderDefect(defect Defect, depth int, includeStacks bool) []renderedLine {
-	rendered := []renderedLine{{depth: depth, text: fmt.Sprintf("%s(%v)", CauseDefect, defect.Value)}}
+func renderDefect(defect Defect, depth int, includeStacks bool) []textLine {
+	rendered := []textLine{{depth: depth, text: fmt.Sprintf("%s(%v)", CauseDefect, defect.Value)}}
 	if !includeStacks || defect.Stack == "" {
 		return rendered
 	}
 	for _, line := range strings.Split(strings.TrimSuffix(defect.Stack, "\n"), "\n") {
-		rendered = append(rendered, renderedLine{depth: depth + 1, text: line})
+		rendered = append(rendered, textLine{depth: depth + 1, text: line})
 	}
 	return rendered
 }
 
-func joinRenderedLines(lines []renderedLine) string {
+func joinLines(lines []textLine) string {
 	var output strings.Builder
 	for index, line := range lines {
 		if index > 0 {

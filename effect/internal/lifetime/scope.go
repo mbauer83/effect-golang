@@ -34,7 +34,7 @@ const (
 type Scope struct {
 	mutex      sync.Mutex
 	status     scopeStatus
-	closedWith outcome.Exit
+	closeExit  outcome.Exit
 	ctx        context.Context
 	cancel     context.CancelCauseFunc
 	children   sync.WaitGroup
@@ -65,9 +65,9 @@ func (scope *Scope) AddFinalizer(ctx context.Context, finalizer Finalizer) (bool
 		scope.mutex.Unlock()
 		return true, outcome.Cause{}
 	}
-	closedWith := scope.closedWith
+	closeExit := scope.closeExit
 	scope.mutex.Unlock()
-	return false, runFinalizer(context.WithoutCancel(ctx), finalizer, closedWith)
+	return false, runFinalizer(context.WithoutCancel(ctx), finalizer, closeExit)
 }
 
 // Fork starts work owned by this scope, so scope closure waits for it. The bool
@@ -94,7 +94,7 @@ func (scope *Scope) Interrupt(reason error) {
 // finalizer that failed. It returns only once all owned work has finished and
 // all resources have been released.
 func (scope *Scope) Close(ctx context.Context, exit outcome.Exit, reason error) outcome.Cause {
-	finalizers, accepted := scope.beginClosing(exit)
+	finalizers, accepted := scope.beginClose(exit)
 	if !accepted {
 		return outcome.Cause{}
 	}
@@ -110,24 +110,24 @@ func (scope *Scope) Close(ctx context.Context, exit outcome.Exit, reason error) 
 		cause = cause.Then(runFinalizer(cleanup, finalizers[index], exit))
 	}
 
-	scope.finishClosing()
+	scope.finishClose()
 	return cause
 }
 
-func (scope *Scope) beginClosing(exit outcome.Exit) ([]Finalizer, bool) {
+func (scope *Scope) beginClose(exit outcome.Exit) ([]Finalizer, bool) {
 	scope.mutex.Lock()
 	defer scope.mutex.Unlock()
 	if scope.status != scopeOpen {
 		return nil, false
 	}
 	scope.status = scopeClosing
-	scope.closedWith = exit
+	scope.closeExit = exit
 	finalizers := scope.finalizers
 	scope.finalizers = nil
 	return finalizers, true
 }
 
-func (scope *Scope) finishClosing() {
+func (scope *Scope) finishClose() {
 	scope.mutex.Lock()
 	defer scope.mutex.Unlock()
 	scope.status = scopeClosed
@@ -136,7 +136,7 @@ func (scope *Scope) finishClosing() {
 func runFinalizer(ctx context.Context, finalizer Finalizer, exit outcome.Exit) (cause outcome.Cause) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			cause = outcome.DieCause(outcome.CapturedDefect(recovered))
+			cause = outcome.DieCause(outcome.CaptureDefect(recovered))
 		}
 	}()
 	return finalizer(ctx, exit)

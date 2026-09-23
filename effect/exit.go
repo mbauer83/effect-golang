@@ -29,32 +29,32 @@ func ExitCause[E, A any](cause Cause[E]) Exit[E, A] {
 	return Exit[E, A]{erased: outcome.Failure(cause.node)}
 }
 
-func exitInterrupted[E, A any](reason error) Exit[E, A] {
+func exitInterrupt[E, A any](reason error) Exit[E, A] {
 	return ExitCause[E, A](InterruptCause[E](reason))
 }
 
 // IsSuccess reports whether the effect succeeded.
 func (x Exit[E, A]) IsSuccess() bool {
-	return x.erased.Succeeded()
+	return x.erased.IsSuccess()
 }
 
 // IsFailure reports whether the effect terminated with any Cause.
 func (x Exit[E, A]) IsFailure() bool {
-	return !x.erased.Succeeded()
+	return !x.erased.IsSuccess()
 }
 
 // Value returns the success value and true when the Exit succeeded.
 func (x Exit[E, A]) Value() (A, bool) {
-	if !x.erased.Succeeded() {
-		var missing A
-		return missing, false
+	if !x.erased.IsSuccess() {
+		var zero A
+		return zero, false
 	}
-	return typedValue[A](x.erased.Value()), true
+	return asValue[A](x.erased.Value()), true
 }
 
 // Cause returns the cause and true when the Exit failed.
 func (x Exit[E, A]) Cause() (Cause[E], bool) {
-	if x.erased.Succeeded() {
+	if x.erased.IsSuccess() {
 		return Cause[E]{}, false
 	}
 	return Cause[E]{node: x.erased.Cause()}, true

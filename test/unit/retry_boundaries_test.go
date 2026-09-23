@@ -51,7 +51,7 @@ func TestRetryNZeroAllowsOnlyTheInitialAttempt(t *testing.T) {
 }
 
 func TestNonPositiveDelaysNormalizeToNoWait(t *testing.T) {
-	runtime, clock := effecttest.NewTimedRuntime(t)
+	runtime, clock := effecttest.NewManualClockRuntime(t)
 	var attempts atomic.Int32
 	operation := effect.From(func(context.Context, effect.Unit) effect.Exit[string, int] {
 		if attempts.Add(1) < 3 {
@@ -87,7 +87,7 @@ func TestScopeOutsideRetrySharesOneLifetimeAcrossAttempts(t *testing.T) {
 	// Scoped outside Retry: every attempt shares one lifetime, so the resource
 	// is acquired once and released once, after the last attempt.
 	program := effect.Scoped(func(scope effect.Scope) effect.Effect[effect.Unit, string, string] {
-		return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "shared").FlatMap(func(string) effect.Effect[effect.Unit, string, string] {
+		return effecttest.TrackResource[effect.Unit, string](scope, tracker, "shared").FlatMap(func(string) effect.Effect[effect.Unit, string, string] {
 			return operations.From(func(context.Context, effect.Unit) effect.Exit[string, string] {
 				if attempts.Add(1) < 3 {
 					return effect.ExitFailure[string, string]("transient")
@@ -113,7 +113,7 @@ func TestScopeInsideRetryGivesEachAttemptItsOwnResource(t *testing.T) {
 	var attempts atomic.Int32
 
 	attempt := effect.Scoped(func(scope effect.Scope) effect.Effect[effect.Unit, string, string] {
-		return effecttest.TrackedResource[effect.Unit, string](scope, tracker, "per-attempt").AndThen(
+		return effecttest.TrackResource[effect.Unit, string](scope, tracker, "per-attempt").AndThen(
 			operations.From(func(context.Context, effect.Unit) effect.Exit[string, string] {
 				if attempts.Add(1) < 3 {
 					return effect.ExitFailure[string, string]("transient")
@@ -195,7 +195,7 @@ func TestRepeatStopsOnADefectAndOnInterruption(t *testing.T) {
 	})
 	interrupted := effect.Run(ctx, effect.Unit{}, cancelling.Repeat(policy))
 	cause, failed := interrupted.Cause()
-	if !failed || !cause.IsInterruptedOnly() {
+	if !failed || !cause.HasInterruptsOnly() {
 		t.Fatalf("expected repetition to stop on interruption, got %v", interrupted)
 	}
 	if interruption, ok := cause.Interruption(); !ok || !errors.Is(interruption.Cause, stop) {

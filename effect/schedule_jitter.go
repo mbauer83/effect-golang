@@ -14,11 +14,11 @@ func (schedule Schedule[In, Out]) Jittered(
 ) Schedule[In, Out] {
 	minimum, maximum := normalizeJitterBounds(minimumFactor, maximumFactor)
 	return Schedule[In, Out]{start: func() scheduleStep[In, Out] {
-		return jitteredStep(schedule.driver(), randomFraction, minimum, maximum)
+		return jitterStep(schedule.driver(), randomFraction, minimum, maximum)
 	}}
 }
 
-func jitteredStep[In, Out any](
+func jitterStep[In, Out any](
 	step scheduleStep[In, Out],
 	randomFraction func() float64,
 	minimum float64,
@@ -29,9 +29,9 @@ func jitteredStep[In, Out any](
 		if decision.continueRunning {
 			fraction := normalizeFraction(randomFraction())
 			factor := minimum + fraction*(maximum-minimum)
-			decision.delay = scaledDuration(decision.delay, factor)
+			decision.delay = scaleDuration(decision.delay, factor)
 		}
-		return decision, jitteredStep(next, randomFraction, minimum, maximum)
+		return decision, jitterStep(next, randomFraction, minimum, maximum)
 	}
 }
 
@@ -61,7 +61,7 @@ func normalizeFraction(fraction float64) float64 {
 	return fraction
 }
 
-func scaledDuration(duration time.Duration, factor float64) time.Duration {
+func scaleDuration(duration time.Duration, factor float64) time.Duration {
 	scaled := float64(normalizeDuration(duration)) * factor
 	if math.IsInf(scaled, 1) || scaled >= float64(time.Duration(1<<63-1)) {
 		return time.Duration(1<<63 - 1)

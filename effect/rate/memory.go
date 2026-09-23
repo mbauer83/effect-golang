@@ -8,28 +8,28 @@ import (
 	"time"
 )
 
-// Held hands out turns within one process.
+// MemoryLimiter hands out turns within one process.
 //
 // Correct for a program that runs as one instance, and honestly wrong for one
 // that runs as four: each would keep its own count and the four together would
 // ask at four times the rate one of them agreed to. That is what a shared
 // limiter is for, and this is what a single instance and every test needs.
-type Held struct {
-	mutex    sync.Mutex
-	now      func() time.Time
-	arriving map[string]time.Time
+type MemoryLimiter struct {
+	mutex       sync.Mutex
+	now         func() time.Time
+	nextArrival map[string]time.Time
 }
 
-// NewHeld is a limiter on this clock.
+// NewMemoryLimiter is a limiter on this clock.
 //
 // The clock is a parameter because a rate is a thing a test has to be able to
 // move: waiting out a minute's allowance is not a test. Pass time.Now unless
 // you are one.
-func NewHeld(now func() time.Time) *Held {
+func NewMemoryLimiter(now func() time.Time) *MemoryLimiter {
 	if now == nil {
 		now = time.Now
 	}
-	return &Held{now: now, arriving: map[string]time.Time{}}
+	return &MemoryLimiter{now: now, nextArrival: map[string]time.Time{}}
 }
 
 // Turn reserves the next turn under an allowance and says how long until it.
@@ -48,7 +48,7 @@ func NewHeld(now func() time.Time) *Held {
 // The ceiling is checked before the moment is moved along, under the same
 // lock, so a caller that will not wait leaves the allowance exactly as it
 // found it.
-func (limiter *Held) Turn(
+func (limiter *MemoryLimiter) Turn(
 	_ context.Context,
 	allowance Allowance,
 	longest time.Duration,
@@ -61,18 +61,18 @@ func (limiter *Held) Turn(
 
 	spacing := allowance.Spacing()
 	now := limiter.now()
-	arriving := limiter.arriving[allowance.Name]
-	if arriving.Before(now) {
-		arriving = now
+	nextArrival := limiter.nextArrival[allowance.Name]
+	if nextArrival.Before(now) {
+		nextArrival = now
 	}
 	tolerance := time.Duration(allowance.Most-1) * spacing
-	wait := arriving.Add(-tolerance).Sub(now)
+	wait := nextArrival.Add(-tolerance).Sub(now)
 	if wait < 0 {
 		wait = 0
 	}
 	if longest > 0 && wait > longest {
-		return wait, Fault{Allowance: allowance.Name, Err: ErrQueued}
+		return wait, Fault{Allowance: allowance.Name, Err: ErrLimitExceeded}
 	}
-	limiter.arriving[allowance.Name] = arriving.Add(spacing)
+	limiter.nextArrival[allowance.Name] = nextArrival.Add(spacing)
 	return wait, nil
 }

@@ -37,7 +37,7 @@ func Program(inputPath string, buffer int) pipelineEffect[Summary] {
 			FlatMap(func(producer effect.Fiber[effect.IOError, effect.Unit]) pipelineEffect[Summary] {
 				return consume(io, records, producer)
 			}).
-			Named("pipeline")
+			WithName("pipeline")
 	})
 }
 
@@ -52,7 +52,7 @@ func produce(io effect.IOOperations[effect.Unit], inputPath string, records chan
 			}).As(effect.Unit{})
 		}).
 		Ensuring(closeRecords(records)).
-		Named("produce")
+		WithName("produce")
 }
 
 // closeRecords runs in every outcome, so a failing producer still releases a
@@ -77,26 +77,26 @@ func consume(
 		FlatMap(func(summary Summary) pipelineEffect[Summary] {
 			return io.Join(producer).As(summary)
 		}).
-		Named("consume")
+		WithName("consume")
 }
 
 func foldRecords(
 	io effect.IOOperations[effect.Unit],
 	records <-chan string,
-	running Summary,
+	summary Summary,
 ) pipelineEffect[Summary] {
-	return io.Recv(records).FlatMap(func(received effect.Receive[string]) pipelineEffect[Summary] {
-		if !received.OK {
-			return io.Succeed(running)
+	return io.Recv(records).FlatMap(func(receive effect.Receive[string]) pipelineEffect[Summary] {
+		if !receive.OK {
+			return io.Succeed(summary)
 		}
-		return foldRecords(io, records, count(running, received.Value))
+		return foldRecords(io, records, count(summary, receive.Value))
 	})
 }
 
-func count(running Summary, record string) Summary {
+func count(summary Summary, record string) Summary {
 	return Summary{
-		Records: running.Records + 1,
-		Words:   running.Words + len(strings.Fields(record)),
+		Records: summary.Records + 1,
+		Words:   summary.Words + len(strings.Fields(record)),
 	}
 }
 

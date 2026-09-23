@@ -15,16 +15,16 @@ import (
 // failure short-circuits the rest.
 func ForEach[R, E, A, B any](inputs []A, f func(A) Effect[R, E, B]) Effect[R, E, []B] {
 	return suspendRuntime(func(context.Context, *runtimecore.State, R) Effect[R, E, []B] {
-		collecting := Succeed[R, E](make([]B, 0, len(inputs)))
+		accumulator := Succeed[R, E](make([]B, 0, len(inputs)))
 		for _, input := range inputs {
 			step := f(input)
-			collecting = collecting.FlatMap(func(collected []B) Effect[R, E, []B] {
+			accumulator = accumulator.FlatMap(func(values []B) Effect[R, E, []B] {
 				return step.Map(func(value B) []B {
-					return append(collected, value)
+					return append(values, value)
 				})
 			})
 		}
-		return collecting
+		return accumulator
 	})
 }
 
@@ -55,7 +55,7 @@ func ForEachParN[R, E, A, B any](inputs []A, limit int, f func(A) Effect[R, E, B
 			limit,
 			lifetime.ErrSiblingFailed,
 		)
-		return composeCleanup(collectedResults[E, B](exits), cleanup)
+		return composeCleanup(collectResults[E, B](exits), cleanup)
 	})
 }
 
@@ -81,20 +81,20 @@ func parallelBranches[R, E, A, B any](
 ) []runtimecore.Branch {
 	branches := make([]runtimecore.Branch, len(inputs))
 	for index, input := range inputs {
-		branches[index] = erasedWork(f(input), env)
+		branches[index] = eraseWork(f(input), env)
 	}
 	return branches
 }
 
-func collectedResults[E, B any](exits []outcome.Exit) Exit[E, []B] {
+func collectResults[E, B any](exits []outcome.Exit) Exit[E, []B] {
 	results := make([]B, 0, len(exits))
 	for _, exit := range exits {
-		if !exit.Succeeded() {
+		if !exit.IsSuccess() {
 			return Exit[E, []B]{erased: outcome.Failure(
 				outcome.CombineBranchCauses(exits, lifetime.ErrSiblingFailed),
 			)}
 		}
-		results = append(results, typedValue[B](exit.Value()))
+		results = append(results, asValue[B](exit.Value()))
 	}
 	return ExitSuccess[E](results)
 }

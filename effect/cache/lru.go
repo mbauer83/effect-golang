@@ -28,9 +28,9 @@ type LRU[A any] struct {
 	about    map[string]map[string]struct{}
 }
 
-// recalled is one entry: what it holds, what it is about, and when it stops
+// lruEntry is one entry: what it holds, what it is about, and when it stops
 // being worth having.
-type recalled[A any] struct {
+type lruEntry[A any] struct {
 	key   string
 	about string
 	value A
@@ -70,14 +70,14 @@ func (cache *LRU[A]) Get(key string) (A, bool) {
 
 	element, found := cache.elements[key]
 	if !found {
-		var nothing A
-		return nothing, false
+		var zero A
+		return zero, false
 	}
-	entry := element.Value.(*recalled[A])
+	entry := element.Value.(*lruEntry[A])
 	if cache.now().After(entry.until) {
 		cache.drop(element)
-		var nothing A
-		return nothing, false
+		var zero A
+		return zero, false
 	}
 	cache.order.MoveToFront(element)
 	return entry.value, true
@@ -95,7 +95,7 @@ func (cache *LRU[A]) Put(key string, about string, a A, fresh time.Duration) {
 	if element, found := cache.elements[key]; found {
 		cache.drop(element)
 	}
-	entry := &recalled[A]{key: key, about: about, value: a, until: cache.now().Add(fresh)}
+	entry := &lruEntry[A]{key: key, about: about, value: a, until: cache.now().Add(fresh)}
 	cache.elements[key] = cache.order.PushFront(entry)
 	if about != "" {
 		keys, listed := cache.about[about]
@@ -136,7 +136,7 @@ func (cache *LRU[A]) Len() int {
 // drop removes one entry and forgets that its subject had it. Called with the
 // lock held.
 func (cache *LRU[A]) drop(element *list.Element) {
-	entry := element.Value.(*recalled[A])
+	entry := element.Value.(*lruEntry[A])
 	cache.order.Remove(element)
 	delete(cache.elements, entry.key)
 	if keys, listed := cache.about[entry.about]; listed {

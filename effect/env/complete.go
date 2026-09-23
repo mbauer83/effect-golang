@@ -17,24 +17,24 @@ import (
 	"strings"
 )
 
-// Wanted is the type of one dependency a program will ask for.
-type Wanted struct {
-	named reflect.Type
+// Requirement is the type of one dependency a program will ask for.
+type Requirement struct {
+	dependency reflect.Type
 }
 
 // Want names one dependency a program will ask for.
 //
 //	env.Want[catalog.Repository]()
-func Want[A any]() Wanted {
-	return Wanted{named: reflect.TypeFor[A]()}
+func Want[A any]() Requirement {
+	return Requirement{dependency: reflect.TypeFor[A]()}
 }
 
 // String is the type's own name, for a report.
-func (wanted Wanted) String() string {
-	if wanted.named == nil {
+func (wanted Requirement) String() string {
+	if wanted.dependency == nil {
 		return "an unnamed dependency"
 	}
-	return wanted.named.String()
+	return wanted.dependency.String()
 }
 
 // Complete reports which of these a program was not given, in the order they
@@ -47,32 +47,32 @@ func (wanted Wanted) String() string {
 // Once each, though. Several rings asking for the same dependency is the
 // normal case -- four of them want a shelf -- and a report naming it four
 // times reads as four problems.
-func Complete(services Services, wanted ...Wanted) error {
+func Complete(services Services, requirements ...Requirement) error {
 	absent := []string{}
-	named := map[reflect.Type]bool{}
-	for _, want := range wanted {
-		if want.named == nil || named[want.named] {
+	seen := map[reflect.Type]bool{}
+	for _, want := range requirements {
+		if want.dependency == nil || seen[want.dependency] {
 			continue
 		}
-		named[want.named] = true
-		if _, present := services.held[want.named]; !present {
+		seen[want.dependency] = true
+		if _, present := services.byType[want.dependency]; !present {
 			absent = append(absent, want.String())
 		}
 	}
 	if len(absent) == 0 {
 		return nil
 	}
-	return Incomplete{Absent: absent, Given: services.Named()}
+	return Incomplete{Absent: absent, Available: services.Types()}
 }
 
 // Incomplete is a program that will ask for dependencies it was not given.
 type Incomplete struct {
-	Absent []string
-	Given  []string
+	Absent    []string
+	Available []string
 }
 
 func (incomplete Incomplete) Error() string {
 	return "env: this program will ask for dependencies it was not given: " +
 		strings.Join(incomplete.Absent, ", ") + "; it was given " +
-		strings.Join(incomplete.Given, ", ")
+		strings.Join(incomplete.Available, ", ")
 }

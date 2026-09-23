@@ -101,10 +101,10 @@ func widthsOf(rows [][]string) []int {
 // String renders one expectation on its own, for a message about a single
 // value.
 func (expectation Expectation) String() string {
-	described := fmt.Sprintf("%s (%s, %s)",
+	line := fmt.Sprintf("%s (%s, %s)",
 		Render(expectation.Path), expectation.Type, expectationText(expectation))
 	if expectation.Doc == "" {
-		return described
+		return line
 	}
-	return described + ": " + expectation.Doc
+	return line + ": " + expectation.Doc
 }

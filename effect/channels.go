@@ -34,7 +34,7 @@ func Send[R, A any](ch chan<- A, value A) Effect[R, Never, Unit] {
 		case ch <- value:
 			return ExitSuccess[Never](Unit{})
 		case <-ctx.Done():
-			return exitInterrupted[Never, Unit](lifetime.CancellationReason(ctx))
+			return exitInterrupt[Never, Unit](lifetime.CancellationReason(ctx))
 		}
 	})
 }
@@ -47,7 +47,7 @@ func Recv[R, A any](ch <-chan A) Effect[R, Never, Receive[A]] {
 		case value, open := <-ch:
 			return ExitSuccess[Never](Receive[A]{Value: value, OK: open})
 		case <-ctx.Done():
-			return exitInterrupted[Never, Receive[A]](lifetime.CancellationReason(ctx))
+			return exitInterrupt[Never, Receive[A]](lifetime.CancellationReason(ctx))
 		}
 	})
 }
@@ -55,16 +55,16 @@ func Recv[R, A any](ch <-chan A) Effect[R, Never, Receive[A]] {
 // RecvOrFail receives from ch and fails with onClosed when the channel has been
 // closed and drained. It is for applications that regard closure as a domain
 // failure; Recv preserves Go's own semantics.
-func RecvOrFail[R, E, A any](ch <-chan A, onClosed E) Effect[R, E, A] {
+func RecvOrFail[R, E, A any](ch <-chan A, closeFailure E) Effect[R, E, A] {
 	return From(func(ctx context.Context, _ R) Exit[E, A] {
 		select {
 		case value, open := <-ch:
 			if !open {
-				return ExitFailure[E, A](onClosed)
+				return ExitFailure[E, A](closeFailure)
 			}
 			return ExitSuccess[E](value)
 		case <-ctx.Done():
-			return exitInterrupted[E, A](lifetime.CancellationReason(ctx))
+			return exitInterrupt[E, A](lifetime.CancellationReason(ctx))
 		}
 	})
 }
@@ -85,6 +85,6 @@ func (Operations[R, E]) Recv[A any](ch <-chan A) Effect[R, E, Receive[A]] {
 
 // RecvOrFail receives from a native channel and fails with onClosed when the
 // channel has been closed and drained.
-func (Operations[R, E]) RecvOrFail[A any](ch <-chan A, onClosed E) Effect[R, E, A] {
-	return RecvOrFail[R](ch, onClosed)
+func (Operations[R, E]) RecvOrFail[A any](ch <-chan A, closeFailure E) Effect[R, E, A] {
+	return RecvOrFail[R](ch, closeFailure)
 }

@@ -12,7 +12,7 @@ import (
 // Log emits one structured record through the runtime Logger. R and E are
 // phantom channels that allow the infallible operation to compose directly.
 func Log[R, E any](level slog.Level, message string, fields ...slog.Attr) Effect[R, E, Unit] {
-	ownedFields := slices.Clone(fields)
+	snapshot := slices.Clone(fields)
 	return fromRuntime(func(ctx context.Context, state *runtimecore.State, _ R) Exit[E, Unit] {
 		capabilities := state.Capabilities()
 		metadata := state.Metadata()
@@ -20,7 +20,7 @@ func Log[R, E any](level slog.Level, message string, fields ...slog.Attr) Effect
 			Timestamp: capabilities.Clock.Now(),
 			Level:     level,
 			Message:   message,
-			Fields:    withoutRepeatedKeys(metadata.Attributes, ownedFields),
+			Fields:    mergeAttributes(metadata.Attributes, snapshot),
 			Operation: metadata.Operation,
 			FiberID:   metadata.FiberID,
 			SpanID:    metadata.SpanID,
@@ -38,7 +38,7 @@ func Log[R, E any](level slog.Level, message string, fields ...slog.Attr) Effect
 			})
 			return ExitSuccess[E](Unit{})
 		}
-		if state.Observing() {
+		if state.HasObserver() {
 			event := state.Event(capability.EventLogEmitted)
 			event.Timestamp = record.Timestamp
 			event.Status = capability.EventStatusSuccess
@@ -56,7 +56,7 @@ func LogInfo[R, E any](message string, fields ...slog.Attr) Effect[R, E, Unit] {
 	return Log[R, E](slog.LevelInfo, message, fields...)
 }
 
-// withoutRepeatedKeys is the span's inherited attributes plus this record's
+// mergeAttributes is the span's inherited attributes plus this record's
 // own, with a key stated twice appearing once.
 //
 // The record's own wins, because it was written about this line while the
@@ -68,22 +68,22 @@ func LogInfo[R, E any](message string, fields ...slog.Attr) Effect[R, E, Unit] {
 //
 // The inherited order is kept, so a reader scanning a stream of records sees
 // the same keys in the same places.
-func withoutRepeatedKeys(inherited []slog.Attr, own []slog.Attr) []slog.Attr {
-	if len(own) == 0 {
-		return inherited
+func mergeAttributes(span []slog.Attr, record []slog.Attr) []slog.Attr {
+	if len(record) == 0 {
+		return span
 	}
-	stated := make(map[string]struct{}, len(own))
-	for _, field := range own {
+	stated := make(map[string]struct{}, len(record))
+	for _, field := range record {
 		stated[field.Key] = struct{}{}
 	}
-	merged := make([]slog.Attr, 0, len(inherited)+len(own))
-	for _, field := range inherited {
+	merged := make([]slog.Attr, 0, len(span)+len(record))
+	for _, field := range span {
 		if _, repeated := stated[field.Key]; repeated {
 			continue
 		}
 		merged = append(merged, field)
 	}
-	return append(merged, own...)
+	return append(merged, record...)
 }
 
 func LogWarn[R, E any](message string, fields ...slog.Attr) Effect[R, E, Unit] {

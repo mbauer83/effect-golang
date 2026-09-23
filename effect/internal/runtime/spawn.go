@@ -23,16 +23,16 @@ func StartFiber(
 	childCtx, cancel := context.WithCancelCause(parent)
 	child := lifetime.NewScope(childCtx)
 	fiber := lifetime.NewFiber(state.NextFiberID(), cancel)
-	childState := state.Forked(child, fiber.ID())
+	childState := state.ForChild(child, fiber.ID())
 
 	// The ledger is credited before the goroutine can be scheduled, so a
 	// snapshot can never observe a completion without its start.
 	ledger := state.Ledger()
-	ledger.FiberStarted()
+	ledger.RecordFiberStart()
 	started := owner.Fork(func() {
 		defer fiber.CompleteOnPanic()
 		defer cancel(lifetime.ErrFiberInterrupted)
-		defer ledger.FiberCompleted()
+		defer ledger.RecordFiberCompletion()
 
 		childCtx := child.Context()
 		startedAt := childState.EmitStart(childCtx, capability.EventFiberStarted)
@@ -45,7 +45,7 @@ func StartFiber(
 		fiber.Complete(exit)
 	})
 	if !started {
-		ledger.FiberCompleted()
+		ledger.RecordFiberCompletion()
 		cancel(lifetime.ErrScopeClosed)
 		return nil, false
 	}
