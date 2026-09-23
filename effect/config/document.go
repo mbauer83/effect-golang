@@ -67,7 +67,7 @@ func rowsOf(expects []Expectation) [][]string {
 			Render(expectation.Path),
 			expectation.Type,
 			expectationText(expectation),
-			expectation.Doc,
+			expectation.Description,
 		})
 	}
 	return rows
@@ -103,8 +103,8 @@ func widthsOf(rows [][]string) []int {
 func (expectation Expectation) String() string {
 	line := fmt.Sprintf("%s (%s, %s)",
 		Render(expectation.Path), expectation.Type, expectationText(expectation))
-	if expectation.Doc == "" {
+	if expectation.Description == "" {
 		return line
 	}
-	return line + ": " + expectation.Doc
+	return line + ": " + expectation.Description
 }

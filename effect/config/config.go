@@ -41,8 +41,8 @@ type Expectation struct {
 	Path []string
 	// Type is what the text is read as: "text", "integer", "duration".
 	Type string
-	// Doc is what WithDescription said about it, or empty.
-	Doc string
+	// Description is what WithDescription said about it, or empty.
+	Description string
 	// Default is the stand-in rendered as text, and empty when there is none.
 	Default string
 	// Optional is true when absence is an answer this description accepts.
@@ -184,8 +184,8 @@ func (description Config[A]) Validate(message string, keep func(A) bool) Config[
 func (description Config[A]) WithDescription(doc string) Config[A] {
 	expects := slices.Clone(description.expects)
 	for at := range expects {
-		if expects[at].Doc == "" {
-			expects[at].Doc = doc
+		if expects[at].Description == "" {
+			expects[at].Description = doc
 		}
 	}
 	description.expects = expects
