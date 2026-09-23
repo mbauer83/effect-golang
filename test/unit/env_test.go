@@ -72,9 +72,9 @@ func TestAStepResolvesWhatItNeedsAndReadsAsOrdinaryGo(t *testing.T) {
 	needs := env.ResolverFor[error]()
 	given := env.Empty().With[Films](filmStore{}).With[Clock](wallClock{})
 
-	program := direct.Run(func(bind *direct.Binder[env.Services, error]) string {
-		films := direct.Bind(bind, needs.Service[Films]())
-		now := direct.Bind(bind, needs.Service[Clock]())
+	program := direct.Run(func(do *direct.Do[env.Services, error]) string {
+		films := do.Await(needs.Service[Films]())
+		now := do.Await(needs.Service[Clock]())
 		return films.Title(949) + ", read in " + itoa(now.Year())
 	})
 
@@ -91,8 +91,8 @@ func TestADependencyNobodyProvidedIsADefectAndNotAFailure(t *testing.T) {
 	needs := env.ResolverFor[error]()
 	given := env.Empty().With[Films](filmStore{})
 
-	program := direct.Run(func(bind *direct.Binder[env.Services, error]) int {
-		return direct.Bind(bind, needs.Service[Clock]()).Year()
+	program := direct.Run(func(do *direct.Do[env.Services, error]) int {
+		return do.Await(needs.Service[Clock]()).Year()
 	})
 
 	cause, failed := effect.Run(context.Background(), given, program).Cause()

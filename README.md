@@ -161,12 +161,13 @@ construction. That directory does not have to be the module root, and it is not.
 
 ### Experimental
 
-`experimental/direct` offers a direct-style alternative to `Workflow`, built on
-the public API and short-circuiting through a contained panic sentinel. See the
+`experimental/direct` writes a dependent sequence as ordinary Go:
+`customer := do.Await(loadCustomer(id))`. The body runs on a goroutine in lock
+step with the interpretation and ends early with `runtime.Goexit`, so no
+`recover()` can swallow a failure and a `defer` runs as a finalizer. See the
 [direct style reference](docs/reference/direct.md) for its exact semantics and
-its two hazards, and
 [sequencing in Go](docs/explanation/sequencing-in-go.md#what-it-measures) for
-what it costs. Prefer `Workflow`, for the reasons given there.
+what it costs.
 
 ## Examples
 

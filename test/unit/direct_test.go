@@ -17,9 +17,9 @@ type directProgram = effect.Effect[effect.Unit, string, string]
 var directOperations = effect.For[effect.Unit, string]()
 
 func TestDirectStyleSequencesDependentSteps(t *testing.T) {
-	program := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		first := direct.Bind(bind, directOperations.Succeed("alpha"))
-		second := direct.Bind(bind, directOperations.Succeed(first+"-beta"))
+	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		first := do.Await(directOperations.Succeed("alpha"))
+		second := do.Await(directOperations.Succeed(first + "-beta"))
 		return second + "-gamma"
 	})
 
@@ -31,8 +31,8 @@ func TestDirectStyleSequencesDependentSteps(t *testing.T) {
 
 func TestDirectStyleIsLazyAndReusable(t *testing.T) {
 	tracker := &effecttest.Tracker{}
-	program := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		return direct.Bind(bind, directOperations.From(
+	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		return do.Await(directOperations.From(
 			func(context.Context, effect.Unit) effect.Exit[string, string] {
 				tracker.Record("evaluated")
 				return effect.ExitSuccess[string]("done")
@@ -55,8 +55,8 @@ func TestDirectStyleIsLazyAndReusable(t *testing.T) {
 
 func TestDirectStyleShortCircuitsOnATypedFailure(t *testing.T) {
 	tracker := &effecttest.Tracker{}
-	program := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		direct.Bind(bind, directOperations.Fail[string]("rejected"))
+	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		do.Await(directOperations.Fail[string]("rejected"))
 		tracker.Record("unreachable")
 		return "unreachable"
 	})
@@ -75,8 +75,8 @@ func TestDirectStyleShortCircuitsOnATypedFailure(t *testing.T) {
 }
 
 func TestDirectStylePropagatesDefectsAndInterruptionUnchanged(t *testing.T) {
-	defecting := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		return direct.Bind(bind, effecttest.Panic[effect.Unit, string, string]("source exploded"))
+	defecting := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		return do.Await(effecttest.Panic[effect.Unit, string, string]("source exploded"))
 	})
 	exit := effect.Run(context.Background(), effect.Unit{}, defecting)
 	if cause, failed := exit.Cause(); !failed || !cause.ContainsDefect() {
@@ -86,8 +86,8 @@ func TestDirectStylePropagatesDefectsAndInterruptionUnchanged(t *testing.T) {
 	stop := errors.New("caller stopped")
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(stop)
-	interrupted := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		return direct.Bind(bind, directOperations.Succeed("unreachable"))
+	interrupted := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		return do.Await(directOperations.Succeed("unreachable"))
 	})
 	cause, failed := effect.Run(ctx, effect.Unit{}, interrupted).Cause()
 	if !failed {
@@ -99,7 +99,7 @@ func TestDirectStylePropagatesDefectsAndInterruptionUnchanged(t *testing.T) {
 }
 
 func TestDirectStyleTurnsABodyPanicIntoADefect(t *testing.T) {
-	program := direct.Run(func(*direct.Binder[effect.Unit, string]) string {
+	program := direct.Run(func(*direct.Do[effect.Unit, string]) string {
 		panic("body exploded")
 	})
 
@@ -122,10 +122,10 @@ func TestDirectStyleUsesTheSurroundingRuntimeAndScope(t *testing.T) {
 	runtime, clock := effecttest.NewManualClockRuntime(t, effect.WithLogger(logger))
 
 	program := effect.Scoped(func(scope effect.Scope) directProgram {
-		return direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-			held := direct.Bind(bind, effecttest.TrackResource[effect.Unit, string](scope, tracker, "handle"))
-			direct.Bind(bind, directOperations.LogInfo("bound "+held))
-			return direct.Bind(bind, directOperations.Now().Map(
+		return direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+			held := do.Await(effecttest.TrackResource[effect.Unit, string](scope, tracker, "handle"))
+			do.Await(directOperations.LogInfo("bound " + held))
+			return do.Await(directOperations.Now().Map(
 				func(moment time.Time) string { return moment.Format(time.RFC3339) },
 			))
 		})
@@ -147,21 +147,21 @@ func TestDirectStyleUsesTheSurroundingRuntimeAndScope(t *testing.T) {
 	}
 }
 
-func TestDirectStyleReportsABinderUsedAfterItsBodyReturned(t *testing.T) {
-	var escaped *direct.Binder[effect.Unit, string]
+func TestDirectStyleReportsADoUsedAfterItsBodyReturned(t *testing.T) {
+	var escaped *direct.Do[effect.Unit, string]
 
-	leaking := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		escaped = bind
+	leaking := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		escaped = do
 		return "captured"
 	})
 	if exit := effect.Run(context.Background(), effect.Unit{}, leaking); exit.IsFailure() {
 		t.Fatalf("unexpected failure: %v", exit)
 	}
 
-	// Using the escaped binder must say so rather than evaluate against an
+	// Using the escaped Do must say so rather than evaluate against an
 	// interpretation that has ended.
 	later := effect.WithInterpreter(func(effect.Interpreter[effect.Unit, string]) effect.Exit[string, string] {
-		return effect.ExitSuccess[string](direct.Bind(escaped, directOperations.Succeed("late")))
+		return effect.ExitSuccess[string](escaped.Await(directOperations.Succeed("late")))
 	})
 	exit := effect.Run(context.Background(), effect.Unit{}, later)
 	cause, failed := exit.Cause()
@@ -173,38 +173,38 @@ func TestDirectStyleReportsABinderUsedAfterItsBodyReturned(t *testing.T) {
 	}
 }
 
-func TestDirectStyleDetectsASwallowedShortCircuit(t *testing.T) {
-	// A broad recover() in the body cannot be prevented. It can be detected,
-	// which is the difference between reporting a defect and returning a value
-	// the program never computed.
-	program := direct.Run(func(bind *direct.Binder[effect.Unit, string]) (result string) {
+func TestARecoverInTheBodyCannotSwallowAFailure(t *testing.T) {
+	// A failed Await ends the body with runtime.Goexit, which recover() does not
+	// see: the deferred call runs and finds nothing to recover, and the failure
+	// reaches the effect as it was.
+	program := direct.Run(func(do *direct.Do[effect.Unit, string]) (result string) {
 		defer func() {
 			if recover() != nil {
 				result = "swallowed"
 			}
 		}()
-		return direct.Bind(bind, directOperations.Fail[string]("rejected"))
+		return do.Await(directOperations.Fail[string]("rejected"))
 	})
 
 	exit := effect.Run(context.Background(), effect.Unit{}, program)
 	if value, ok := exit.Value(); ok {
-		t.Fatalf("expected a defect rather than the value %q", value)
+		t.Fatalf("expected the failure rather than the value %q", value)
 	}
 	cause, _ := exit.Cause()
-	if !cause.ContainsDefect() || !strings.Contains(cause.String(), "swallowed a Bind short-circuit") {
-		t.Fatalf("expected the swallowed sentinel to be named, got %v", cause)
+	if failure, ok := cause.Failure(); !ok || failure != "rejected" {
+		t.Fatalf("expected the typed failure unchanged, got %v", cause)
 	}
 }
 
 func TestNestedDirectRunsDoNotCatchEachOthersShortCircuit(t *testing.T) {
-	program := direct.Run(func(outer *direct.Binder[effect.Unit, string]) string {
-		inner := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-			direct.Bind(bind, directOperations.Fail[string]("inner rejected"))
+	program := direct.Run(func(outer *direct.Do[effect.Unit, string]) string {
+		inner := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+			do.Await(directOperations.Fail[string]("inner rejected"))
 			return "unreachable"
 		})
 		// The inner Run's failure is an ordinary typed failure out here, so the
 		// outer body decides what it means.
-		recovered := direct.Bind(outer, inner.CatchAll(
+		recovered := outer.Await(inner.CatchAll(
 			func(failure string) directProgram {
 				return directOperations.Succeed("handled: " + failure)
 			},

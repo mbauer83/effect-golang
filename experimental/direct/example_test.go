@@ -12,14 +12,14 @@ import (
 	"github.com/mbauer83/effect-golang/experimental/direct"
 )
 
-// A dependent sequence reads as ordinary Go: each Bind returns a value the next
+// A dependent sequence reads as ordinary Go: each Await returns a value the next
 // line can use.
 func ExampleRun() {
 	operations := effect.For[effect.Unit, string]()
 
-	program := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		greeting := direct.Bind(bind, operations.Succeed("hello"))
-		subject := direct.Bind(bind, operations.Succeed("world"))
+	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		greeting := do.Await(operations.Succeed("hello"))
+		subject := do.Await(operations.Succeed("world"))
 		return greeting + ", " + subject
 	})
 
@@ -29,14 +29,14 @@ func ExampleRun() {
 	// Output: hello, world
 }
 
-// A failing Bind abandons the rest of the body, so later steps do not run and
+// A failing Await abandons the rest of the body, so later steps do not run and
 // the failure reaches the effect's error channel unchanged.
-func ExampleBind_shortCircuit() {
+func ExampleDo_Await_shortCircuit() {
 	operations := effect.For[effect.Unit, string]()
 
-	program := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		first := direct.Bind(bind, operations.Succeed("loaded"))
-		direct.Bind(bind, operations.Fail[string]("catalogue unavailable"))
+	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		first := do.Await(operations.Succeed("loaded"))
+		do.Await(operations.Fail[string]("catalogue unavailable"))
 		fmt.Println("this line never runs")
 		return first
 	})
@@ -50,11 +50,11 @@ func ExampleBind_shortCircuit() {
 
 // A defect and an interruption abandon the body too, and neither is turned into
 // a typed failure on the way out.
-func ExampleBind_defect() {
+func ExampleDo_Await_defect() {
 	operations := effect.For[effect.Unit, string]()
 
-	program := direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-		return direct.Bind(bind, operations.From(
+	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+		return do.Await(operations.From(
 			func(context.Context, effect.Unit) effect.Exit[string, string] {
 				panic("index out of range")
 			},
@@ -70,40 +70,36 @@ func ExampleBind_defect() {
 	// contains a defect: true
 }
 
-// A recover() in the body can swallow the short-circuit. That cannot be
-// prevented, but it is detected: reporting a defect is better than returning a
-// value the program never computed.
-func ExampleRun_swallowedShortCircuit() {
+// A failure runs the body's deferred calls, as a finally block would, and a
+// recover() among them finds nothing to recover: the failure is not a panic.
+func ExampleDo_Await_deferred() {
 	operations := effect.For[effect.Unit, string]()
 
-	program := direct.Run(func(bind *direct.Binder[effect.Unit, string]) (result string) {
+	program := direct.Run(func(do *direct.Do[effect.Unit, string]) string {
 		defer func() {
-			if recover() != nil {
-				result = "recovered"
-			}
+			fmt.Println("recovered:", recover())
 		}()
-		return direct.Bind(bind, operations.Fail[string]("rejected"))
+		return do.Await(operations.Fail[string]("rejected"))
 	})
 
 	exit := effect.Run(context.Background(), effect.Unit{}, program)
-	_, succeeded := exit.Value()
 	cause, _ := exit.Cause()
-	fmt.Println("returned a value:", succeeded)
-	fmt.Println("contains a defect:", cause.ContainsDefect())
+	failure, _ := cause.Failure()
+	fmt.Println("failed with:", failure)
 	// Output:
-	// returned a value: false
-	// contains a defect: true
+	// recovered: <nil>
+	// failed with: rejected
 }
 
-// A bound effect runs inside the surrounding interpretation, so it sees the
+// An awaited effect runs inside the surrounding interpretation, so it sees the
 // runtime's capabilities and the enclosing scope. Here the resource is released
 // by the scope, not by the body.
-func ExampleBind_scoped() {
+func ExampleDo_Await_scoped() {
 	operations := effect.For[effect.Unit, string]()
 
 	program := effect.Scoped(func(scope effect.Scope) effect.Effect[effect.Unit, string, string] {
-		return direct.Run(func(bind *direct.Binder[effect.Unit, string]) string {
-			handle := direct.Bind(bind, scope.AcquireRelease(
+		return direct.Run(func(do *direct.Do[effect.Unit, string]) string {
+			handle := do.Await(scope.AcquireRelease(
 				operations.Succeed("connection"),
 				func(resource string) effect.Effect[effect.Unit, effect.Never, effect.Unit] {
 					return effect.AddFinalizer[effect.Unit](func(context.Context) error {

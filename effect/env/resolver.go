@@ -15,7 +15,7 @@ type Resolver[E any] struct{}
 // ResolverFor selects the failure channel a program's resolutions are written in.
 //
 //	needs := env.ResolverFor[fault.Fault]()
-//	repository := direct.Bind(bind, needs.Service[catalog.Repository]())
+//	repository := do.Await(needs.Service[catalog.Repository]())
 func ResolverFor[E any]() Resolver[E] {
 	return Resolver[E]{}
 }

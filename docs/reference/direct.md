@@ -1,90 +1,112 @@
 # Direct style reference
 
-`experimental/direct` is an alternative to [`Workflow`](core.md) for a dependent
-sequence. It is experimental, and the reasons are in
+`experimental/direct` writes a dependent sequence of effects as ordinary Go. It
+is the recommended way to write one; the reasons, and what it replaced, are in
 [sequencing in Go](../explanation/sequencing-in-go.md).
 
 ```go
-func Run[R, E, A any](body func(*Binder[R, E]) A) effect.Effect[R, E, A]
-func Bind[R, E, A any](binder *Binder[R, E], fx effect.Effect[R, E, A]) A
+func Run[R, E, A any](body func(*Do[R, E]) A) effect.Effect[R, E, A]
+func (do *Do[R, E]) Await[A any](fx effect.Effect[R, E, A]) A
+func (do *Do[R, E]) Fail(failure E)
 ```
 
 ```go
-program := direct.Run(func(bind *direct.Binder[Env, AppError]) Quote {
-    customer := direct.Bind(bind, loadCustomer(id))
-    basket := direct.Bind(bind, loadBasket(customer))
+program := direct.Run(func(do *direct.Do[Env, AppError]) Quote {
+    customer := do.Await(loadCustomer(id))
+    basket := do.Await(loadBasket(customer))
+    if basket.IsEmpty() {
+        do.Fail(ErrEmptyBasket)
+    }
     return price(customer, basket)
 })
 ```
 
 ## What behaves exactly as the core operators do
 
-Everything except the short-circuit, because it is built on the public API and
-not on a second mechanism.
+Everything, because every awaited effect is interpreted by the surrounding
+interpretation and not by a second mechanism.
 
 - The effect is a description. `Run` evaluates nothing; the body runs when the
   effect is interpreted, once per interpretation.
-- One `Run` value is reusable. Its per-run state is created per run.
-- Interruption is observed. A bound effect is a normal interpretation, so it
-  checks cancellation where any effect would.
-- A bound effect sees the surrounding interpretation: the runtime's clock,
+- One `Run` value is reusable. A retry runs the body again, and concurrent runs
+  each have their own body and their own `Do`.
+- Interruption is observed at the next `Await`, where any effect would observe
+  it.
+- An awaited effect sees the surrounding interpretation: the runtime's clock,
   filesystem, logger and observer, the enclosing scope, and the current
-  observation metadata. A resource acquired through a bound `AcquireRelease` is
-  released by the scope that owns it.
+  observation metadata. A resource acquired through an awaited `AcquireRelease`
+  is released by the scope that owns it.
 - A panic in the body becomes a defect, exactly as it would inside `From`.
 
-## What Bind does with each outcome
+## What Await does with each outcome
 
 | Outcome | Effect |
 |---|---|
 | success | returns the value; the body continues |
-| typed failure | abandons the body; the failure becomes the effect's failure |
-| defect | abandons the body; the defect stays a defect |
-| interruption | abandons the body; the interruption stays an interruption |
+| typed failure | ends the body; the failure becomes the effect's failure |
+| defect | ends the body; the defect stays a defect |
+| interruption | ends the body; the interruption stays an interruption |
 
-A composite cause is passed through whole. `Bind` never selects one failure out
-of a `Both`, and never discards a cleanup defect from a `Then`.
+A composite cause is passed through whole. `Await` never selects one failure out
+of a `Both`, and never discards a cleanup defect from a `Then`. `Fail` is
+`Await` of a failed effect, written where the judgement is made.
 
-## How the short-circuit works
+## How a body ends early
 
-`Bind` must return an `A` while also abandoning the body when the effect did not
-succeed. Go has no resumable suspension and no typed early-return protocol, so
-the implementation panics with a private sentinel.
+`Await` must return an `A` and must also abandon the body when the effect did not
+succeed, and Go has no resumable suspension. So the body runs on a goroutine of
+its own, in lock step with the interpretation: the interpretation waits while
+the body runs, and the body evaluates what it awaits with the interpretation's
+context, scope and capabilities. A failed `Await` ends the body's goroutine with
+`runtime.Goexit`.
 
-The sentinel's type is unexported, and each `Run` carries its own token, so a
-nested `Run` recovers only its own short-circuit. An inner `Run`'s failure is an
-ordinary typed failure to the outer body, which can therefore handle it with
-`CatchAll` like any other.
+Two properties follow, and they are why this replaced a panic:
 
-## The two hazards
+- **Nothing can swallow a failure.** `recover()` does not see a `Goexit`, so a
+  broad `recover()` in the body finds nothing and the failure reaches the effect
+  as it was.
+- **A `defer` is a finalizer.** A `Goexit` runs the body's deferred calls, so a
+  `defer` runs on a failure as on a success — what a `finally` block is in
+  Effect's `gen` and `ensuring` is in ZIO.
 
-**A `defer` in the body runs on every expected failure.** Not only on a panic.
-A body whose `defer` assumes it is cleaning up after an exception will run that
-cleanup on an ordinary domain failure.
-
-**A broad `recover()` in the body can swallow the short-circuit.** This cannot
-be prevented. It is detected: if the body returns a value although a `Bind` had
-short-circuited, the sentinel was swallowed, and the result is a defect naming
-the cause that was abandoned. Reporting that is better than returning a result
-the program never computed, but the detection is after the fact.
+An inner `Run`'s failure is an ordinary typed failure to the outer body, which
+can handle it with `CatchAll` like any other.
 
 ## Misuse that is reported rather than silent
 
-A `Binder` used after its `Run` body returned reports a defect naming the
-mistake, instead of evaluating against an interpretation that has ended. A
-`Binder` must not be published: hold the `Effect` values and interpret them
-inside your own `Run`.
+- A `Do` used after its body ended reports a defect naming the mistake, instead
+  of evaluating against an interpretation that has ended. Hold the `Effect`
+  values and interpret them inside your own `Run`.
+- A `Do` used from a goroutine the body started reports a defect when the two
+  overlap. `Await` belongs to the body's own goroutine; fork an effect instead.
+- A `runtime.Goexit` of the body's own — `testing.T.FailNow` inside a body is
+  the realistic case — ends the body and is reported as a defect.
+
+## Where it stops
+
+**Recursion through `Run`.** Every running body holds a goroutine, and a body
+awaiting another body holds one for each. A handler awaiting a service awaiting
+a repository is three; a program that recurses through `Run` a million deep is a
+million, where the same recursion through `FlatMap` is stack-safe. Loop with
+`for` inside one body.
+
+**What belongs to a goroutine.** The body is not the goroutine that called
+`Run`, so `runtime.LockOSThread` and profiler labels do not carry over.
+
+**Recovery part-way through.** `Await` ends the body, so there is no way to
+catch a failure and carry on inside one. Await the effect with `CatchAll` or
+`OrElse` applied, and the body continues with whatever that answers.
 
 ## The seam it is built on
 
 ```go
 func WithInterpreter[R, E, A any](body func(Interpreter[R, E]) Exit[E, A]) Effect[R, E, A]
-func Evaluate[R, E, A any](interpreter Interpreter[R, E], fx Effect[R, E, A]) Exit[E, A]
+func Interpret[R, E, A any](interpreter Interpreter[R, E], fx Effect[R, E, A]) Exit[E, A]
 func (interpreter Interpreter[R, E]) Context() context.Context
 ```
 
 `WithInterpreter` is public and useful beyond direct style: it is how any caller
-writes a combinator this package does not provide. `Evaluate` interprets an
+writes a combinator this package does not provide. `Interpret` interprets an
 effect inside the *current* interpretation, which is the point — reaching for
 the package-level `Run` instead would silently give the effect a fresh runtime
 with live defaults, a scope of its own and no cancellation, so a `Sleep` would
@@ -95,54 +117,35 @@ An `Interpreter` is valid only while the body that received it is running.
 
 ## Cost
 
-Measured, not assumed. The numbers and what they do and do not justify are in
-[sequencing in Go](../explanation/sequencing-in-go.md#what-it-measures). The
-short version: direct style is cheaper than `Workflow` on the success path and
-about a quarter more expensive on the failure path, so **cost is not a reason to
-prefer `Workflow`** — the two hazards above are.
+A run costs about one goroutine hand-off on top of what `FlatMap` costs, however
+many effects it awaits; a failed run costs a fresh goroutine, a few microseconds
+more. The numbers are in
+[sequencing in Go](../explanation/sequencing-in-go.md#what-it-measures). Against
+any real work — a query, a file, a request — that is noise. For an effect run per
+element of a hot stream, write `FlatMap`.
 
 ## Choosing
 
-**Use direct style for a dependent sequence, unless one of the three below
-applies.** That is the working convention, and it is stronger than what this
-section said at first — which was to prefer `Workflow` and reach for direct
-style only when the state type had become the problem. Writing the transports,
-the database layer and their examples settled it the other way: a sequence of
-three or four steps written as `FlatMap`s nests each step inside the one before
-it, so the last thing to happen is indented deepest and the reading order is the
-reverse of the doing order. Nothing about the domain is clearer for it.
+**Use direct style for a dependent sequence.** A sequence of three or four steps
+written as `FlatMap`s nests each step inside the one before it, so the last
+thing to happen is indented deepest and the reading order is the reverse of the
+doing order.
 
-Three cases where it is the wrong tool, and they are the same three every time:
+`FlatMap` is still the shorter form for a single step passed point-free —
+`open(…).FlatMap(await)` — and for a `Map` over one value.
 
-- **A `defer` in the body.** It runs on an ordinary domain failure and not only
-  on a panic, so a body whose cleanup assumes an exception will do it on a
-  refusal too.
-- **A broad `recover()` in the body.** It can swallow the short-circuit. That is
-  detected and reported as a defect, but after the fact.
-- **Recovery part-way through.** `Bind` *abandons* the body, so there is no way
-  to catch a failure and carry on inside one — a sequence that has to fall back
-  needs `FlatMap` and `CatchAll`, and reads perfectly well that way because the
-  branch is the point.
-
-And two cases where `FlatMap` is simply shorter: a single step passed
-point-free — `open(…).FlatMap(await)` — and a `Map` over one value.
-
-Failing inside a body is binding a failure:
+A refusal is a guard clause:
 
 ```go
-direct.Run(func(bind *direct.Binder[Env, Refusal]) Book {
-    held := direct.Bind(bind, store.All())
+direct.Run(func(do *direct.Do[Env, Refusal]) Book {
+    held := do.Await(store.All())
     index := slices.IndexFunc(held, sameTitle(title))
     if index < 0 {
-        direct.Bind(bind, operations.Fail[Book](Refusal{Kind: NotFound}))
+        do.Fail(Refusal{Kind: NotFound})
     }
     return held[index]
 })
 ```
-
-Binding a failed effect short-circuits, which is what a refusal means — so the
-refusal reads as a statement rather than as a branch returning a different
-effect.
 
 [`examples/checkout`](../../examples/checkout/program.go) is written both ways,
 and an end-to-end test asserts the two agree on every path.

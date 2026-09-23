@@ -14,9 +14,9 @@ import (
 // type the failure does not have, so Fail is the same short-circuit with the
 // type gone.
 func TestAGuardClauseAbandonsTheBodyWithItsFailure(t *testing.T) {
-	refused := direct.Run(func(bind *direct.Binder[effect.Unit, string]) int {
+	refused := direct.Run(func(do *direct.Do[effect.Unit, string]) int {
 		if true {
-			direct.Fail(bind, "the aggregate refused")
+			do.Fail("the aggregate refused")
 		}
 		return 7
 	})
@@ -43,8 +43,8 @@ func TestAGuardClauseAbandonsTheBodyWithItsFailure(t *testing.T) {
 // guard clause is worth having.
 func TestNothingAfterAGuardClauseRuns(t *testing.T) {
 	reached := false
-	guarded := direct.Run(func(bind *direct.Binder[effect.Unit, string]) int {
-		direct.Fail(bind, "stop here")
+	guarded := direct.Run(func(do *direct.Do[effect.Unit, string]) int {
+		do.Fail("stop here")
 		reached = true
 		return 7
 	})

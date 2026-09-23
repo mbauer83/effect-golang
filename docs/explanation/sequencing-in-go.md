@@ -12,9 +12,10 @@ resumable generators. A Go library can add neither.
 Go's range-over-function iterators are not an equivalent mechanism. Their
 `yield` callback sends values *from* the iterator *to* the loop; the loop cannot
 resume the producer with an arbitrarily typed result. They also require one
-homogeneous iteration type. Encoding heterogeneous effect results through `any`,
-reflection and hidden goroutines would lose the static channels and complicate
-cancellation, so it is not used as fake do-notation.
+homogeneous iteration type. `iter.Pull` does resume a coroutine, and was
+measured as the basis for direct style and rejected: it passes a
+`runtime.Goexit` in the producer through to whoever called `next`, which is the
+goroutine running the fiber.
 
 ## First remove the dependency
 
@@ -61,71 +62,86 @@ composition.
 
 ## Direct style, and what it actually costs
 
-An API shaped like `user := direct.Bind(bind, LoadUser())` is attractive, and it
-exists in `experimental/direct`. `Bind` must return an `A` while also abandoning
-the callback when the effect did not succeed, and Go has no resumable suspension
-and no typed early-return protocol, so the implementation uses a private panic
-sentinel carrying a token unique to one `Run`.
+`customer := do.Await(loadCustomer(id))` is what `experimental/direct` offers.
+`Await` must return an `A` while also abandoning the body when the effect did not
+succeed, and Go has no resumable suspension, so the body runs on a goroutine of
+its own in lock step with the interpretation, and a failed `Await` ends that
+goroutine with `runtime.Goexit`.
 
-Two of the risks turn out to be detectable rather than merely documentable:
+It replaced an implementation that ended the body with a private panic, and the
+difference is soundness, not taste:
 
-- a `Binder` used after its body returned reports that, instead of evaluating
-  against an interpretation that has ended;
-- a `recover()` in the body that swallows the sentinel is caught afterwards — if
-  the body returns a value although a `Bind` short-circuited, the sentinel was
-  swallowed, and reporting a defect is better than returning a result the
-  program never computed.
-
-Two costs remain and cannot be fixed. A `defer` block in the body runs on every
-expected failure, not only on an exceptional one; and a panic is paid for on the
-expected-failure path.
+- a `recover()` in the body could swallow the panic. That was detected after the
+  fact and reported as a defect, but it could not be prevented. `recover()` does
+  not see a `Goexit`, so there is nothing to swallow;
+- a `defer` in the body ran on every expected failure, which was listed as a
+  hazard. It is the right behaviour: a `Goexit` runs deferred calls, and a
+  `defer` is a finalizer, as a `finally` block is in Effect's `gen`;
+- recursion through the panic design grew one Go stack, and at a hundred
+  thousand levels the process died of `fatal error: stack overflow`, which no
+  `recover` catches.
 
 ### What it measures
 
 Three-step dependent workflow, same steps, three styles
-(`test/benchmark`, Go 1.27.1, i7-13700H):
+(`test/benchmark`, Go 1.27.1, i7-13700H, 20 threads):
 
 | Style | Success | Failure |
 |---|---|---|
-| `FlatMap` | 438 ns, 10 allocs | 470 ns, 9 allocs |
-| `Workflow` | 802 ns, 24 allocs | 685 ns, 18 allocs |
-| `direct` | 609 ns, 11 allocs | 861 ns, 10 allocs |
+| `FlatMap` | 460 ns, 10 allocs | 990 ns, 14 allocs |
+| `Workflow` | 870 ns, 24 allocs | 1420 ns, 23 allocs |
+| `direct` | 1900 ns, 13 allocs | 5400 ns, 18 allocs |
 
-The panic costs about 250 ns, which is the gap between direct style's own
-success and failure paths.
+The steps are `Succeed`, so these numbers are almost all framework overhead.
+Direct style's is one goroutine hand-off per run, whatever the number of
+awaits, and bodies run on parked workers so that the hand-off does not also pay
+for a new goroutine growing its stack. A failed run ends its worker, so it pays
+for a new one. About half of either path is the scheduler waking an idle thread,
+which an idle twenty-thread machine maximises and a loaded one mostly does not.
 
-This is not the result the design expected, and it is worth stating plainly:
-**direct style is cheaper than the safe builder on the success path**, in time
-and in allocations, because `Workflow` allocates a closure pair and copies its
-state on every `Bind`. On the failure path it is about 26% more expensive than
-`Workflow`.
+At scale, with every fiber parked inside its program — a hundred thousand
+requests each waiting on I/O — a fiber costs 17 KB written with `FlatMap` and
+26 KB in direct style, whose fiber holds two goroutines: its own and its body's.
 
-The steps here are `Succeed`, so these numbers are almost all framework
-overhead. Against any real work — a query, a file, a request — all three
-collapse into noise.
+Recursion through the program itself is where the approaches differ in kind:
+
+| Depth | `FlatMap` | `direct` |
+|---|---|---|
+| 100k | 21 ms, 7 MB | 683 ms, 901 MB |
+| 1M | 231 ms, 83 MB | 30 s, 9 GB |
+
+`FlatMap` is stack-safe because the interpreter keeps its own continuation
+stack. A body awaiting a body holds a goroutine per level, so recursion belongs
+in a `for` loop inside one body.
 
 ### What that changes, and what it does not
 
-The recommendation is still to prefer `Workflow`, but **the cost argument does
-not support that preference and should not be used to justify it.** The reasons
-are the two unfixable ones above: a `defer` that runs on an expected path, and a
-`recover()` that can swallow a short-circuit. Those are properties of the
-approach, not of its speed.
+The recommendation is direct style for a dependent sequence. The cost is real
+and small: a microsecond or two per run is noise against a query, a file or a
+request, and it is not paid per step. Where it is not noise — an effect run per
+element of a hot stream — write `FlatMap`, which is what the other two compile
+down to anyway.
 
-Reach for direct style when the explicit state type is the thing making a
-workflow hard to read, and when the body contains no `defer` you would be
-surprised to see run on a failure.
+`Workflow` remains for now. Its two lambdas per step are the price of an
+explicit state type, which is the thing direct style removes.
 
-## Why not a source generator
+## Where a source generator belongs
 
-A generator could invent do-syntax and emit `FlatMap`, but it would add a second
-source language, generated-code navigation problems and another compatibility
-surface, and Go has no hygienic macro facility to make it transparent.
+A generator that invents do-syntax would add a second source language, and Go
+has no hygienic macro facility to make it transparent. That is still true, and
+none is planned.
 
-Generation is useful where the output is a boring adapter a person could have
-written: an application façade that fixes `R` and `E` once, a declared error
-mapping, a stub for a narrow port. It must not infer mappings by naming
-convention, rewrite user function bodies, or generate a hidden control-flow
-protocol. `go generate` is not run by `go build`, so hand-written `Operations`
-remains the dependable base API, and the library and its tutorials stay ordinary
-Go with no generation step.
+Rewriting direct style is a different proposition, because the source is
+already ordinary Go that compiles and runs correctly without any generator.
+A rewrite into `FlatMap` chains is then an optimisation and not a semantics:
+`go build -overlay` substitutes rewritten files without touching the tree,
+`//line` directives keep positions pointing at the source, and a body the
+rewriter cannot prove equivalent is simply left alone. Running a test suite
+both ways is what checks the claim.
+
+Elsewhere, generation is useful where the output is a boring adapter a person
+could have written: an application façade that fixes `R` and `E` once, a
+declared error mapping, a stub for a narrow port. It must not infer mappings by
+naming convention. `go generate` is not run by `go build`, so hand-written
+`Operations` remains the dependable base API, and the library and its tutorials
+stay ordinary Go with no generation step.

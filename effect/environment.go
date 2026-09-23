@@ -51,7 +51,7 @@ func EnvironmentWith[R, E, A any](read func(R) A) Effect[R, E, A] {
 // Anywhere is an effect that requires nothing, run where something is
 // required.
 //
-//	direct.Bind(bind, effect.Anywhere[Services](catalog.Resolve(kept, source, id)))
+//	do.Await(effect.Anywhere[Services](catalog.Resolve(kept, source, id)))
 //
 // A domain that requires nothing is the point of the requirement channel: it
 // says, in the type, that resolving a film needs a repository and a source

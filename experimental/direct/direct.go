@@ -1,158 +1,113 @@
-// Package direct is an experimental direct-style alternative to Workflow.
+// Package direct is direct-style sequencing: a dependent sequence of effects
+// written as ordinary Go.
 //
-// It lets a dependent sequence read as ordinary Go:
-//
-//	program := direct.Run(func(bind *direct.Binder[Env, AppError]) Quote {
-//	    customer := direct.Bind(bind, loadCustomer(id))
-//	    basket := direct.Bind(bind, loadBasket(customer))
+//	program := direct.Run(func(do *direct.Do[Env, AppError]) Quote {
+//	    customer := do.Await(loadCustomer(id))
+//	    basket := do.Await(loadBasket(customer))
+//	    if basket.IsEmpty() {
+//	        do.Fail(ErrEmptyBasket)
+//	    }
 //	    return price(customer, basket)
 //	})
 //
-// # Why this is experimental
+// # How it ends a body early
 //
-// Bind must return an A while also abandoning the callback when the effect did
-// not succeed. Go has no resumable suspension and no typed early-return
-// protocol, so the only way to do that is a panic. The sentinel is private and
-// carries a token unique to one Run, so a nested Run cannot catch an outer
-// one's short-circuit, but three costs are real and unfixable:
+// Await must return an A and must also abandon the body when the effect did
+// not succeed, and Go has no resumable suspension. So the body runs on a
+// goroutine of its own, in lock step with the interpretation: the
+// interpretation waits while the body runs, and the body evaluates every
+// effect it awaits with the interpretation's own context, scope and
+// capabilities. A failed Await ends the body with runtime.Goexit.
 //
-//   - a deferred block in the body runs on every expected failure, not only on
-//     an exceptional one;
-//   - a broad recover() in the body can swallow the short-circuit. That is
-//     detected and reported as a defect rather than silently returning a value
-//     the program never computed, but it cannot be prevented;
-//   - the cost of a panic is paid on the expected-failure path.
+// That is what makes it sound where a panic was not. No recover() can catch a
+// Goexit, so a body cannot swallow its own failure; and a Goexit runs the
+// body's deferred calls, so a defer is a finalizer that runs on failure as on
+// success -- what a finally block is in Effect.gen and ensuring is in ZIO.
 //
-// Everything else behaves exactly as the core operators do, because it is built
-// on them: the effect stays lazy, cancellation is observed, a user panic still
-// becomes a defect, and the runtime's capabilities and scope are the ones the
-// surrounding interpretation is using.
+// # What it costs, and where it stops
 //
-// Prefer Workflow. Reach for this only when the explicit state type is the
-// thing making a workflow hard to read, and read
-// docs/explanation/sequencing-in-go.md first.
+// A run costs a goroutine hand-off on top of what FlatMap costs, about a
+// microsecond, and a failed run a fresh goroutine, a few more. Against any real
+// work that is noise; for an effect run per element of a hot stream, write
+// FlatMap.
+//
+// Every body holds a goroutine while it runs, and a body that awaits another
+// body holds one for each. That is nothing for a handler awaiting a service
+// awaiting a repository, and it is the wrong tool for recursion: a program
+// that recurses through Run a million deep holds a million goroutines, where
+// the same recursion through FlatMap is stack-safe. Loop with for inside one
+// body instead.
+//
+// The body is not the goroutine that called Run, so what belongs to a
+// goroutine does not carry over: runtime.LockOSThread, profiler labels, and a
+// testing.T's FailNow, which ends the body and is reported as a defect.
 package direct
 
 import (
 	"fmt"
-	"runtime/debug"
+	"runtime"
+	"sync/atomic"
 
 	"github.com/mbauer83/effect-golang/effect"
 )
 
-// Binder short-circuits the enclosing Run when a bound effect does not succeed.
+// Do is a running body's access to the interpretation around it.
 //
-// It is valid only while the body that received it is running, and only on the
-// goroutine running that body. Publishing it does not work and says so.
-type Binder[R, E any] struct {
+// It is valid only while that body is running, and only on the body's own
+// goroutine. Using it anywhere else reports a defect rather than evaluating an
+// effect against an interpretation that has ended or is busy.
+type Do[R, E any] struct {
 	interpreter effect.Interpreter[R, E]
-	progress    *progress[E]
+	cause       effect.Cause[E]
+	failed      bool
+	live        atomic.Bool
+	busy        atomic.Bool
 }
-
-// progress is one Run's short-circuit state.
-//
-// token identifies this Run's sentinel, so a nested Run recovers only its own.
-// tripped records that a short-circuit was raised, which is how a sentinel a
-// recover() in the body swallowed is detected afterwards.
-type progress[E any] struct {
-	token   *sentinel
-	cause   effect.Cause[E]
-	tripped bool
-	live    bool
-}
-
-// sentinel is the private panic value. Its type is unexported, so nothing
-// outside this package can construct one or match on it.
-type sentinel struct{}
 
 // Run interprets body in direct style.
-func Run[R, E, A any](body func(*Binder[R, E]) A) effect.Effect[R, E, A] {
+//
+// The body runs once per interpretation, so one Run value is reusable: a retry
+// runs the body again, and concurrent runs each have their own.
+func Run[R, E, A any](body func(*Do[R, E]) A) effect.Effect[R, E, A] {
 	return effect.WithInterpreter(func(interpreter effect.Interpreter[R, E]) effect.Exit[E, A] {
-		binder := &Binder[R, E]{
-			interpreter: interpreter,
-			progress:    &progress[E]{token: &sentinel{}, live: true},
-		}
-		return evaluateBody(binder, body)
+		do := &Do[R, E]{interpreter: interpreter}
+		do.live.Store(true)
+		ended := make(chan effect.Exit[E, A], 1)
+		dispatch(func() { runBody(do, body, ended) })
+		return <-ended
 	})
 }
 
-// Bind evaluates fx and returns its value, abandoning the body when it did not
-// succeed. A typed failure, a defect and an interruption all abandon it, and
-// all reach the resulting effect unchanged.
+// Await evaluates fx and returns its value.
 //
-// It is a package function because its result is the effect's own success type
-// and its receiver is generic (golang/go#80172).
-func Bind[R, E, A any](binder *Binder[R, E], fx effect.Effect[R, E, A]) A {
-	if binder == nil || binder.progress == nil || !binder.progress.live {
-		panic(fmt.Errorf("direct: Binder used outside the Run body that created it"))
+// When fx does not succeed the body ends here: its deferred calls run, and the
+// typed failure, defect or interruption reaches the resulting effect
+// unchanged.
+func (do *Do[R, E]) Await[A any](fx effect.Effect[R, E, A]) A {
+	if !do.live.Load() {
+		panic(fmt.Errorf("direct: Do used outside the Run body that created it"))
 	}
-
-	exit := effect.Interpret(binder.interpreter, fx)
+	if !do.busy.CompareAndSwap(false, true) {
+		panic(fmt.Errorf("direct: Do used from two goroutines at once"))
+	}
+	exit := effect.Interpret(do.interpreter, fx)
+	do.busy.Store(false)
 	if value, ok := exit.Value(); ok {
 		return value
 	}
-
-	cause, _ := exit.Cause()
-	binder.progress.cause = cause
-	binder.progress.tripped = true
-	panic(binder.progress.token)
+	do.cause, _ = exit.Cause()
+	do.failed = true
+	runtime.Goexit()
+	panic("unreachable: runtime.Goexit returned")
 }
 
-// evaluateBody runs the body and turns its three possible endings into an Exit:
-// a normal return, this Run's short-circuit, or a panic.
-func evaluateBody[R, E, A any](binder *Binder[R, E], body func(*Binder[R, E]) A) (exit effect.Exit[E, A]) {
-	defer func() {
-		binder.progress.live = false
-		exit = settle(binder.progress, exit, recover())
-	}()
-	return effect.ExitSuccess[E](body(binder))
-}
-
-func settle[E, A any](state *progress[E], result effect.Exit[E, A], recovered any) effect.Exit[E, A] {
-	switch {
-	case recovered == state.token:
-		return effect.ExitCause[E, A](state.cause)
-	case recovered != nil:
-		// A panic from the body, or a nested Run's sentinel escaping because
-		// something recovered ours. Either way it is a defect, captured here
-		// rather than re-panicked so the stack is not unwound twice.
-		return effect.ExitCause[E, A](effect.DieCause[E](effect.Defect{
-			Value: recovered,
-			Stack: string(debug.Stack()),
-		}))
-	case state.tripped:
-		// The body returned a value although a Bind had short-circuited, which
-		// means a recover() in the body swallowed the sentinel. Returning that
-		// value would report a result the program never computed.
-		return effect.ExitCause[E, A](effect.DieCause[E](effect.Defect{
-			Value: fmt.Errorf(
-				"direct: a recover() in the Run body swallowed a Bind short-circuit; "+
-					"the abandoned cause was %v", state.cause),
-			Stack: string(debug.Stack()),
-		}))
-	default:
-		return result
-	}
-}
-
-// Fail abandons the body with this failure.
+// Fail ends the body with this failure.
 //
 // A guard clause. Every judgement a step makes has this shape -- the aggregate
-// refused, so there is nothing to write and nothing to answer with -- and
-// without it the refusal has to be bound as an effect whose success type is
-// the one the body returns:
-//
-//	return Bind(bind, effect.Fail[Services, Tracking](refused))   // before
-//	Fail(bind, refused)                                           // after
-//
-// The difference is not the line count. The first names a type the failure
-// does not have, which reads as though the failing branch produced a tracking,
-// and it can only appear where the body returns rather than where the
-// judgement was made.
-//
-// It does not return: like a bound failure, it unwinds to the enclosing Run.
-func Fail[R, E any](binder *Binder[R, E], failure E) {
-	Bind(binder, effect.Fail[R, never](failure))
+// refused, so there is nothing to write and nothing to answer with -- and it
+// belongs where the judgement is made, not where the body returns.
+func (do *Do[R, E]) Fail(failure E) {
+	do.Await(effect.Fail[R, never](failure))
 }
 
 // never is the success type of an effect that has none. Unexported and

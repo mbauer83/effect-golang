@@ -5,10 +5,8 @@ package checkout
 // they agree on every path.
 //
 // The difference is the whole point: this version needs no state type and no
-// transition per step, because each Bind returns the value the next line uses.
-// What it gives up is described in docs/reference/direct.md; in particular a
-// defer in this body would run on an ordinary pricing failure, not only on a
-// panic, so there is none.
+// transition per step, because each Await returns the value the next line uses.
+// What it costs is described in docs/reference/direct.md.
 
 import (
 	"log/slog"
@@ -22,10 +20,10 @@ import (
 // It is the same workflow as Program: the same steps, the same failures, the
 // same laziness. Only the sequencing differs.
 func DirectProgram(customerID string, items []string) workflowEffect[Quote] {
-	return direct.Run(func(bind *direct.Binder[Catalog, CheckoutError]) Quote {
-		customer := direct.Bind(bind, loadCustomer(customerID))
-		basket := direct.Bind(bind, loadBasket(customer, items))
-		return direct.Bind(bind, price(customer, basket))
+	return direct.Run(func(do *direct.Do[Catalog, CheckoutError]) Quote {
+		customer := do.Await(loadCustomer(customerID))
+		basket := do.Await(loadBasket(customer, items))
+		return do.Await(price(customer, basket))
 	}).
 		WithName("checkout").
 		WithSpan("checkout", slog.String("customer", customerID))

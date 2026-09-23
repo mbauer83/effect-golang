@@ -57,10 +57,10 @@ func sequenceWorkflow(second func(int) step) step {
 }
 
 func sequenceDirect(second func(int) step) step {
-	return direct.Run(func(bind *direct.Binder[effect.Unit, string]) int {
-		first := direct.Bind(bind, loadFirst())
-		value := direct.Bind(bind, second(first))
-		return direct.Bind(bind, loadThird(value))
+	return direct.Run(func(do *direct.Do[effect.Unit, string]) int {
+		first := do.Await(loadFirst())
+		value := do.Await(second(first))
+		return do.Await(loadThird(value))
 	})
 }
 

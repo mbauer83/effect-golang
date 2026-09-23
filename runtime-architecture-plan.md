@@ -2008,6 +2008,30 @@ returned a value although a bind had short-circuited. Detecting a swallowed
 sentinel is the difference between a defect and a result the program never
 computed.
 
+CORRECTED again: the "even less suitable goroutine/channel coroutine" is the
+one that is sound. The body now runs on a goroutine in lock step with the
+interpretation, evaluates each awaited effect with the interpretation's own
+context, scope and capabilities, and ends early with `runtime.Goexit`. That
+removes both hazards this section called unfixable: `recover()` does not see a
+`Goexit`, so nothing can swallow a failure, and the deferred calls a `Goexit`
+runs are finalizers, as a `finally` is in Effect's `gen`. It also removed a third
+hazard nobody had listed: recursion through the panic design grew one Go stack,
+and at a hundred thousand levels the process died of a fatal stack overflow.
+
+The price is a goroutine hand-off per run and a goroutine per running body:
+
+```text
+three-step dependent workflow    success             failure
+FlatMap                           460 ns, 10 allocs   990 ns, 14 allocs
+Workflow                          870 ns, 24 allocs  1420 ns, 23 allocs
+direct                           1900 ns, 13 allocs  5400 ns, 18 allocs
+```
+
+`iter.Pull` coroutines were measured as the alternative and rejected: they pass
+a `Goexit` in the body through to the goroutine running the fiber. The API is
+`do.Await(fx)` and `do.Fail(e)`, and direct style is the recommended way to
+write a dependent sequence; see `docs/explanation/sequencing-in-go.md`.
+
 ADDED: direct style needs one seam the core did not have. A bound effect must be
 evaluated inside the *current* interpretation, or it would silently get a fresh
 runtime with live defaults, a scope of its own and no cancellation. `WithInterpreter`

@@ -75,35 +75,31 @@ Return a new state value rather than mutating shared data. A state value can
 still hold pointers, slices or maps; the builder is sequential and does not
 synchronize what those refer to.
 
-## Or drop the state type, experimentally
+## Or drop the state type
 
 `experimental/direct` writes the same workflow without a state type, because
-each `Bind` returns the value the next line uses:
+each `Await` returns the value the next line uses:
 
 ```go
-program := direct.Run(func(bind *direct.Binder[Env, AppError]) Quote {
-    customer := direct.Bind(bind, loadCustomer(id))
-    basket := direct.Bind(bind, loadBasket(customer))
+program := direct.Run(func(do *direct.Do[Env, AppError]) Quote {
+    customer := do.Await(loadCustomer(id))
+    basket := do.Await(loadBasket(customer))
+    if basket.IsEmpty() {
+        do.Fail(ErrEmptyBasket)
+    }
     return price(customer, basket)
 })
 ```
 
-A failing `Bind` abandons the rest of the body, and the failure, defect or
-interruption reaches the effect unchanged. Everything else behaves as the core
-operators do: the effect stays lazy, one value is reusable, cancellation is
-observed, and a bound effect sees the surrounding runtime and scope.
+A failing `Await` ends the rest of the body, and the failure, defect or
+interruption reaches the effect unchanged. A `defer` in the body runs on that
+failure as on a success, and a `recover()` cannot swallow it. Everything else
+behaves as the core operators do: the effect stays lazy, one value is reusable,
+cancellation is observed, and an awaited effect sees the surrounding runtime and
+scope.
 
-Two things to know before choosing it:
-
-- **A `defer` in the body runs on every expected failure**, not only on a panic.
-  Write the body without one, or use `Workflow`.
-- **A broad `recover()` in the body can swallow the short-circuit.** That is
-  detected and reported as a defect rather than returning a value the program
-  never computed, but it is detected after the fact.
-
-Cost is *not* a reason to prefer `Workflow`: direct style is
-[measurably cheaper on the success path](../explanation/sequencing-in-go.md#what-it-measures).
-The two hazards above are the reason.
+Loop with `for` inside one body rather than recursing through `Run`: each
+running body holds a goroutine.
 
 [`examples/checkout`](../../examples/checkout/program.go) is written both ways,
 and an end-to-end test asserts they agree on every path. The exact semantics are
