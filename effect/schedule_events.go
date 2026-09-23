@@ -17,11 +17,6 @@ import (
 // become a channel for sensitive data and an exporter cannot derive an
 // unbounded metric label from one.
 
-// The scheduling events below carry only bounded metadata: an attempt number,
-// the selected delay and a terminal classification. No environment, failure
-// value or successful result is attached, so an observer cannot become a
-// channel for sensitive data or unbounded metric labels.
-
 func retryScheduledEvent(attempt uint64, delay time.Duration) attemptEvent {
 	return attemptEventOf(capability.EventRetryScheduled, attempt, delay, capability.EventStatusFailure)
 }
