@@ -11,8 +11,8 @@ import (
 // Every emitted statement list ends in a terminating statement, and k is how a
 // list that runs off its end continues: empty at the top of the body, where Go
 // has already checked that no path runs off, and "return continuationN()"
-// wherever a branch has to rejoin what follows it. brk is what an unlabeled
-// break in the innermost translated switch becomes.
+// wherever a branch has to rejoin what follows it. jumps are what an unlabeled
+// break or continue becomes, where it leaves a translated switch or loop.
 type emitter struct {
 	src    *source
 	info   *types.Info
@@ -39,7 +39,7 @@ func (em *emitter) decline(reason string) {
 func (em *emitter) body() string {
 	var out strings.Builder
 	out.WriteString(em.effect + ".Suspend[" + em.r + ", " + em.e + ", " + em.a + "](func() " + em.eff + " {\n")
-	out.WriteString(em.list(em.site.literal.Body.List, "", ""))
+	out.WriteString(em.list(em.site.literal.Body.List, "", jumpTargets{}))
 	out.WriteString("})")
 	for call := range em.site.steps {
 		if !em.emitted[call] {
@@ -52,30 +52,30 @@ func (em *emitter) body() string {
 func (em *emitter) needs(stmt ast.Stmt) bool { return em.site.containsStep(stmt) }
 
 // list emits stmts, continuing with k when they run off their end.
-func (em *emitter) list(stmts []ast.Stmt, k, brk string) string {
+func (em *emitter) list(stmts []ast.Stmt, k string, jumps jumpTargets) string {
 	var out strings.Builder
 	for i, stmt := range stmts {
 		if em.failure != "" {
 			return ""
 		}
 		if !em.needs(stmt) {
-			out.WriteString(em.src.line(stmt) + em.text(stmt, nil, brk) + "\n")
+			out.WriteString(em.src.line(stmt) + em.text(stmt, nil, jumps) + "\n")
 			continue
 		}
-		out.WriteString(em.statement(stmt, stmts[i+1:], k, brk))
+		out.WriteString(em.statement(stmt, stmts[i+1:], k, jumps))
 		return out.String()
 	}
-	if k != "" && (len(stmts) == 0 || !em.terminates(stmts[len(stmts)-1], brk)) {
+	if k != "" && (len(stmts) == 0 || !em.terminates(stmts[len(stmts)-1], jumps)) {
 		out.WriteString(k + "\n")
 	}
 	return out.String()
 }
 
 // statement emits one statement that holds a step, and everything after it.
-func (em *emitter) statement(stmt ast.Stmt, rest []ast.Stmt, k, brk string) string {
+func (em *emitter) statement(stmt ast.Stmt, rest []ast.Stmt, k string, jumps jumpTargets) string {
 	if wrapped, ok := em.withoutInit(stmt); ok {
-		return em.compound(rest, k, brk, func(next string) string {
-			inner := em.list(wrapped, next, brk)
+		return em.compound(rest, k, jumps, func(next string) string {
+			inner := em.list(wrapped, next, jumps)
 			return "return func() " + em.eff + " {\n" + inner + "}()\n"
 		})
 	}
@@ -83,20 +83,26 @@ func (em *emitter) statement(stmt ast.Stmt, rest []ast.Stmt, k, brk string) stri
 	if em.failure != "" {
 		return ""
 	}
+	if tail, ok := em.tailStep(stmt); ok {
+		em.emitted[tail] = true
+		return em.chain(own[:len(own)-1], func(temps map[*ast.CallExpr]string) string {
+			return "return " + em.src.line(stmt) + em.text(em.site.steps[tail].argument, temps, jumpTargets{}) + "\n"
+		})
+	}
 	switch stmt.(type) {
 	case *ast.IfStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.BlockStmt:
-		return em.compound(rest, k, brk, func(next string) string {
+		return em.compound(rest, k, jumps, func(next string) string {
 			return em.chain(own, func(temps map[*ast.CallExpr]string) string {
-				return em.branching(stmt, temps, next, brk)
+				return em.branching(stmt, temps, next, jumps)
 			})
 		})
 	}
 	return em.chain(own, func(temps map[*ast.CallExpr]string) string {
-		if em.terminates(stmt, brk) {
+		if em.terminates(stmt, jumps) {
 			em.unreachable(rest)
 			return em.simple(stmt, temps)
 		}
-		return em.simple(stmt, temps) + em.list(rest, k, brk)
+		return em.simple(stmt, temps) + em.list(rest, k, jumps)
 	})
 }
 
@@ -113,10 +119,30 @@ func (em *emitter) unreachable(rest []ast.Stmt) {
 	}
 }
 
+// tailStep recognises return do.Await(fx) where fx answers with the body's own
+// type. The awaited effect is then the body's answer as it stands, and
+// returning it saves the FlatMap, the closure and the Succeed that awaiting it
+// and answering its value would cost.
+func (em *emitter) tailStep(stmt ast.Stmt) (*ast.CallExpr, bool) {
+	ret, ok := stmt.(*ast.ReturnStmt)
+	if !ok || len(ret.Results) != 1 {
+		return nil, false
+	}
+	call, ok := ast.Unparen(ret.Results[0]).(*ast.CallExpr)
+	if !ok {
+		return nil, false
+	}
+	found, isStep := em.site.steps[call]
+	if !isStep || found.fail || !types.Identical(found.value, em.site.a) {
+		return nil, false
+	}
+	return call, true
+}
+
 // compound emits a statement whose branches rejoin what follows it. What
 // follows becomes a continuation defined before the statement, so it sees the
 // names the statement's own scope would have hidden from it.
-func (em *emitter) compound(rest []ast.Stmt, k, brk string, emit func(next string) string) string {
+func (em *emitter) compound(rest []ast.Stmt, k string, jumps jumpTargets, emit func(next string) string) string {
 	if len(rest) == 0 {
 		return emit(k)
 	}
@@ -126,7 +152,7 @@ func (em *emitter) compound(rest []ast.Stmt, k, brk string, emit func(next strin
 	if !strings.Contains(statement, next) {
 		return statement
 	}
-	return name + " := func() " + em.eff + " {\n" + em.list(rest, k, brk) + "}\n" + statement
+	return name + " := func() " + em.eff + " {\n" + em.list(rest, k, jumps) + "}\n" + statement
 }
 
 // withoutInit splits an if or switch whose init or header holds a step into
@@ -179,7 +205,7 @@ func (em *emitter) chain(own []*ast.CallExpr, inner func(map[*ast.CallExpr]strin
 			em.decline("a step's value has a type this file cannot name")
 			return ""
 		}
-		out.WriteString("return " + em.src.line(call) + em.text(found.argument, temps, "") +
+		out.WriteString("return " + em.src.line(call) + em.text(found.argument, temps, jumpTargets{}) +
 			".FlatMap(func(" + name + " " + value + ") " + em.eff + " {\n")
 		temps[call] = name
 		closing++
@@ -197,11 +223,18 @@ func (em *emitter) simple(stmt ast.Stmt, temps map[*ast.CallExpr]string) string 
 			if found, isStep := em.site.steps[call]; isStep {
 				if found.fail {
 					return "return " + em.src.line(stmt) + em.effect + ".Fail[" + em.r + ", " + em.a + ", " + em.e + "](" +
-						em.text(found.argument, temps, "") + ")\n"
+						em.text(found.argument, temps, jumpTargets{}) + ")\n"
 				}
 				return "_ = " + temps[call] + "\n"
 			}
 		}
 	}
-	return em.src.line(stmt) + em.text(stmt, temps, "") + "\n"
+	return em.src.line(stmt) + em.text(stmt, temps, jumpTargets{}) + "\n"
+}
+
+// jumpTargets are what an unlabeled break and continue become inside a translated
+// switch or loop. Empty where the construct they would leave was not
+// translated, so they stay as written.
+type jumpTargets struct {
+	brk, cont string
 }

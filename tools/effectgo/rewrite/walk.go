@@ -12,23 +12,24 @@ import (
 //   - an awaited step is replaced by the name its value was bound to;
 //   - a return answers its value as an effect, because the body now answers
 //     with an effect;
-//   - an unlabeled break that leaves a translated switch continues with brk;
+//   - an unlabeled break or continue that leaves a translated switch or loop
+//     becomes what jumps says it does;
 //   - a := that reuses a name declared earlier assigns to it, because the
 //     statement may now be in a different block from that declaration, where
 //     := would declare a second variable instead of assigning the first.
 //
 // Inside a function literal only the first applies: its returns and breaks
 // belong to it.
-func (em *emitter) text(node ast.Node, temps map[*ast.CallExpr]string, brk string) string {
+func (em *emitter) text(node ast.Node, temps map[*ast.CallExpr]string, jumps jumpTargets) string {
 	var edits []edit
-	em.collect(node, node, temps, brk, false, &edits)
+	em.collect(node, node, temps, jumps, false, &edits)
 	return em.src.splice(em.src.offset(node.Pos()), em.src.offset(node.End()), edits)
 }
 
 func (em *emitter) collect(
 	root, node ast.Node,
 	temps map[*ast.CallExpr]string,
-	brk string,
+	jumps jumpTargets,
 	inFunction bool,
 	edits *[]edit,
 ) {
@@ -58,27 +59,38 @@ func (em *emitter) collect(
 			}
 		case *ast.FuncLit:
 			if n != root {
-				em.collect(n.Body, n.Body, temps, "", true, edits)
+				em.collect(n.Body, n.Body, temps, jumpTargets{}, true, edits)
 				return false
 			}
 		case *ast.ReturnStmt:
 			if !inFunction && len(n.Results) == 1 {
 				add(n, "return "+em.effect+".Succeed["+em.r+", "+em.e+", "+em.a+"]("+
-					em.text(n.Results[0], temps, brk)+")")
+					em.text(n.Results[0], temps, jumps)+")")
 				return false
 			}
 		case *ast.BranchStmt:
-			if !inFunction && n.Tok == token.BREAK && n.Label == nil && brk != "" {
-				add(n, brk)
+			if inFunction || n.Label != nil {
+				return true
 			}
-		case *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
-			if n != root && brk != "" {
-				em.collect(n, n, temps, "", inFunction, edits)
+			if n.Tok == token.BREAK && jumps.brk != "" {
+				add(n, jumps.brk)
+			}
+			if n.Tok == token.CONTINUE && jumps.cont != "" {
+				add(n, jumps.cont)
+			}
+		case *ast.ForStmt, *ast.RangeStmt:
+			if n != root && jumps != (jumpTargets{}) {
+				em.collect(n, n, temps, jumpTargets{}, inFunction, edits)
+				return false
+			}
+		case *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
+			if n != root && jumps.brk != "" {
+				em.collect(n, n, temps, jumpTargets{cont: jumps.cont}, inFunction, edits)
 				return false
 			}
 		case *ast.AssignStmt:
 			if !inFunction && n.Tok == token.DEFINE && !isTypeSwitchGuard(n) {
-				if replacement, reuses := em.redeclaration(n, temps, brk); reuses {
+				if replacement, reuses := em.redeclaration(n, temps, jumps); reuses {
 					add(n, replacement)
 					return false
 				}
@@ -90,7 +102,7 @@ func (em *emitter) collect(
 
 // redeclaration spells a := that reuses an earlier name as declarations of
 // the new names and an assignment to all of them.
-func (em *emitter) redeclaration(assign *ast.AssignStmt, temps map[*ast.CallExpr]string, brk string) (string, bool) {
+func (em *emitter) redeclaration(assign *ast.AssignStmt, temps map[*ast.CallExpr]string, jumps jumpTargets) (string, bool) {
 	reuses := false
 	var declared []string
 	left := make([]string, len(assign.Lhs))
@@ -117,7 +129,7 @@ func (em *emitter) redeclaration(assign *ast.AssignStmt, temps map[*ast.CallExpr
 	}
 	right := make([]string, len(assign.Rhs))
 	for i, expr := range assign.Rhs {
-		right[i] = em.text(expr, temps, brk)
+		right[i] = em.text(expr, temps, jumps)
 	}
 	return strings.Join(declared, "") + strings.Join(left, ", ") + " = " + strings.Join(right, ", "), true
 }

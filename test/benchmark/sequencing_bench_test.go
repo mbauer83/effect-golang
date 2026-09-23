@@ -39,6 +39,14 @@ func sequenceFlatMap(second func(int) step) step {
 	})
 }
 
+// sequenceFlatMapPerRun is the same chain built once per interpretation, which
+// is what a direct-style body is: its locals are fresh for every run, so a
+// retry or a concurrent run shares nothing. It is the fair baseline for direct
+// style rewritten by effectgo, where sequenceFlatMap reuses a chain built once.
+func sequenceFlatMapPerRun(second func(int) step) step {
+	return effect.Suspend(func() step { return sequenceFlatMap(second) })
+}
+
 func sequenceWorkflow(second func(int) step) step {
 	return effect.NewWorkflow[effect.Unit, string](func() state { return state{} }).
 		Bind(
@@ -79,10 +87,16 @@ func measure(b *testing.B, program step) {
 	}
 }
 
-func BenchmarkSucceedingFlatMap(b *testing.B)  { measure(b, sequenceFlatMap(loadSecond)) }
+func BenchmarkSucceedingFlatMap(b *testing.B) { measure(b, sequenceFlatMap(loadSecond)) }
+func BenchmarkSucceedingFlatMapPerRun(b *testing.B) {
+	measure(b, sequenceFlatMapPerRun(loadSecond))
+}
 func BenchmarkSucceedingWorkflow(b *testing.B) { measure(b, sequenceWorkflow(loadSecond)) }
 func BenchmarkSucceedingDirect(b *testing.B)   { measure(b, sequenceDirect(loadSecond)) }
 
-func BenchmarkFailingFlatMap(b *testing.B)  { measure(b, sequenceFlatMap(rejectAtSecond)) }
+func BenchmarkFailingFlatMap(b *testing.B) { measure(b, sequenceFlatMap(rejectAtSecond)) }
+func BenchmarkFailingFlatMapPerRun(b *testing.B) {
+	measure(b, sequenceFlatMapPerRun(rejectAtSecond))
+}
 func BenchmarkFailingWorkflow(b *testing.B) { measure(b, sequenceWorkflow(rejectAtSecond)) }
 func BenchmarkFailingDirect(b *testing.B)   { measure(b, sequenceDirect(rejectAtSecond)) }

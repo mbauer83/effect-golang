@@ -142,9 +142,18 @@ checks the claim, and this repository's CI does.
 
 | Style | Success | Failure |
 |---|---|---|
-| `FlatMap` | 490 ns, 10 allocs | 930 ns, 14 allocs |
+| `FlatMap`, built once | 490 ns, 10 allocs | 1000 ns, 14 allocs |
+| `FlatMap`, built per run | 570 ns, 14 allocs | 1130 ns, 18 allocs |
 | `direct` | 1860 ns, 13 allocs | 4890 ns, 19 allocs |
-| `direct`, rewritten | 620 ns, 17 allocs | 1150 ns, 18 allocs |
+| `direct`, rewritten | 580 ns, 14 allocs | 1220 ns, 18 allocs |
+
+The fair comparison is the chain built per run. A direct-style body runs once
+per interpretation, so its locals are fresh for a retry or a concurrent run,
+and its rewrite keeps that by wrapping the chain in `Suspend`; the chain built
+once reuses its first step across every run, which is a different program. The
+four allocations between them are the per-run construction, and a rewrite
+cannot remove them without proving that constructing the first effect has no
+effect of its own.
 
 A rewritten body is a `FlatMap` chain, so it is stack-safe and holds no
 goroutine of its own.

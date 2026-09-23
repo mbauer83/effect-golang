@@ -131,12 +131,12 @@ func (em *emitter) pure(call *ast.CallExpr) bool {
 
 // terminates reports whether stmt ends the list it is in, so that nothing is
 // emitted after it that vet would call unreachable.
-func (em *emitter) terminates(stmt ast.Stmt, brk string) bool {
+func (em *emitter) terminates(stmt ast.Stmt, jumps jumpTargets) bool {
 	switch node := stmt.(type) {
 	case *ast.ReturnStmt:
 		return true
 	case *ast.BranchStmt:
-		return node.Tok == token.BREAK && brk != ""
+		return node.Tok == token.BREAK && jumps.brk != "" || node.Tok == token.CONTINUE && jumps.cont != ""
 	case *ast.ExprStmt:
 		call, ok := ast.Unparen(node.X).(*ast.CallExpr)
 		if !ok {
@@ -149,12 +149,12 @@ func (em *emitter) terminates(stmt ast.Stmt, brk string) bool {
 		builtin, isBuiltin := em.info.Uses[ident].(*types.Builtin)
 		return ident != nil && isBuiltin && builtin.Name() == "panic"
 	case *ast.BlockStmt:
-		return len(node.List) > 0 && em.terminates(node.List[len(node.List)-1], brk)
+		return len(node.List) > 0 && em.terminates(node.List[len(node.List)-1], jumps)
 	case *ast.IfStmt:
 		if node.Else == nil || len(node.Body.List) == 0 {
 			return false
 		}
-		return em.terminates(node.Body.List[len(node.Body.List)-1], brk) && em.terminates(node.Else, brk)
+		return em.terminates(node.Body.List[len(node.Body.List)-1], jumps) && em.terminates(node.Else, jumps)
 	case *ast.ForStmt:
 		return node.Cond == nil && !breaks(node.Body)
 	}
