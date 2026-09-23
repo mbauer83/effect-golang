@@ -207,18 +207,6 @@ func TestAGenericBody(t *testing.T) {
 	want(t, strings.Join(value, ""), "xx")
 }
 
-// A loop is declined and still runs, on direct's goroutine.
-func TestADeclinedBodyStillRuns(t *testing.T) {
-	value, _ := run(t, direct.Run(func(do *body) int {
-		total := 0
-		for i := range 4 {
-			total += do.Await(ops.Succeed(i))
-		}
-		return total
-	}))
-	want(t, value, 6)
-}
-
 func TestAFailureInABranchSkipsTheContinuation(t *testing.T) {
 	ran := false
 	_, failure := run(t, direct.Run(func(do *body) int {

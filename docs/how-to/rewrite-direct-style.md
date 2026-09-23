@@ -49,13 +49,23 @@ calls cannot be seen.
   `||`;
 - `if`, `else if`, `switch`, type switches and blocks whose branches await, with
   an unlabeled `break` leaving a translated `switch`;
+- `for` loops and ranges over an integer, a slice, an array, a pointer to an
+  array or a channel whose bodies await, with `break`, `continue` and `return`
+  inside them. Each iteration is a function call whose parameters are that
+  iteration's variables, so a closure made in one iteration keeps seeing its
+  own, as Go has since 1.22; and every iteration goes through `Suspend`, so a
+  million of them add no Go stack;
 - nested bodies, each rewritten on its own.
 
 ## What is declined
 
 Run with `EFFECTGO_EXPLAIN=1` to see every declined body and why.
 
-- a step inside a loop, a `select` or a `go` statement;
+- a step inside a `select` or a `go` statement, or in a loop's init, condition
+  or post statement;
+- a step inside a range over a map, a string or an iterator function: a map's
+  iteration tolerates deletion mid-way in a way a snapshot does not, a string's
+  decodes runes, and an iterator's `yield` cannot wait for an effect;
 - a body that defers a call, or uses a label, `goto` or `fallthrough`;
 - `do` used other than as the receiver of `Await` or `Fail`, or inside a
   function literal;

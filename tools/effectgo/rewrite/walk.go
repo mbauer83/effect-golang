@@ -33,6 +33,7 @@ func (em *emitter) collect(
 	inFunction bool,
 	edits *[]edit,
 ) {
+	jumps = jumpsInside(node, jumps)
 	add := func(n ast.Node, text string) {
 		*edits = append(*edits, edit{start: em.src.offset(n.Pos()), end: em.src.offset(n.End()), text: text})
 	}
@@ -78,14 +79,9 @@ func (em *emitter) collect(
 			if n.Tok == token.CONTINUE && jumps.cont != "" {
 				add(n, jumps.cont)
 			}
-		case *ast.ForStmt, *ast.RangeStmt:
-			if n != root && jumps != (jumpTargets{}) {
-				em.collect(n, n, temps, jumpTargets{}, inFunction, edits)
-				return false
-			}
-		case *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
-			if n != root && jumps.brk != "" {
-				em.collect(n, n, temps, jumpTargets{cont: jumps.cont}, inFunction, edits)
+		case *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
+			if n != node && jumps != (jumpTargets{}) {
+				em.collect(n, n, temps, jumps, inFunction, edits)
 				return false
 			}
 		case *ast.AssignStmt:
@@ -142,4 +138,17 @@ func isTypeSwitchGuard(assign *ast.AssignStmt) bool {
 	}
 	assertion, ok := ast.Unparen(assign.Rhs[0]).(*ast.TypeAssertExpr)
 	return ok && assertion.Type == nil
+}
+
+// jumpsInside is what a break and a continue mean inside node: a loop is what both
+// of them leave, and a switch or a select is what a break leaves. That holds
+// for the node being spelled as much as for one nested inside it.
+func jumpsInside(node ast.Node, jumps jumpTargets) jumpTargets {
+	switch node.(type) {
+	case *ast.ForStmt, *ast.RangeStmt:
+		return jumpTargets{}
+	case *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
+		return jumpTargets{cont: jumps.cont}
+	}
+	return jumps
 }

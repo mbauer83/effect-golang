@@ -79,6 +79,12 @@ func (em *emitter) statement(stmt ast.Stmt, rest []ast.Stmt, k string, jumps jum
 			return "return func() " + em.eff + " {\n" + inner + "}()\n"
 		})
 	}
+	switch node := stmt.(type) {
+	case *ast.ForStmt:
+		return em.compound(rest, k, jumps, func(next string) string { return em.forLoop(node, next) })
+	case *ast.RangeStmt:
+		return em.compound(rest, k, jumps, func(next string) string { return em.rangeLoop(node, next) })
+	}
 	own := em.ownSteps(stmt)
 	if em.failure != "" {
 		return ""

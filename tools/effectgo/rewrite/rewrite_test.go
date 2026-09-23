@@ -62,9 +62,9 @@ func TestTheCasesPassAsWrittenAndAsRewritten(t *testing.T) {
 		}
 	}
 	if declined != 1 {
-		t.Errorf("expected exactly the loop to be declined, got %d declined", declined)
+		t.Errorf("expected exactly the range over a map to be declined, got %d declined", declined)
 	}
-	if rewritten < 15 {
+	if rewritten < 20 {
 		t.Errorf("expected every other body rewritten, got %d", rewritten)
 	}
 	encoded, _ := json.Marshal(map[string]map[string]string{"Replace": replace})

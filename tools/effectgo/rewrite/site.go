@@ -157,7 +157,7 @@ func identOf(expr ast.Expr) *ast.Ident {
 }
 
 // unsupported names the first construct in the body this package does not
-// translate, or answers empty. Loops, defer, go, select and labels are
+// translate, or answers empty. Defer, go, select and labels are
 // declined as a whole rather than one by one: each would need a translation
 // of its own, and until one exists the body runs on direct's goroutine.
 func (found *site) unsupported() string {
@@ -177,9 +177,9 @@ func (found *site) unsupported() string {
 			if node.Tok == token.GOTO || node.Tok == token.FALLTHROUGH || node.Label != nil {
 				reason = "the body uses " + node.Tok.String()
 			}
-		case *ast.ForStmt, *ast.RangeStmt, *ast.SelectStmt, *ast.GoStmt:
+		case *ast.SelectStmt, *ast.GoStmt:
 			if found.containsStep(node) {
-				reason = "a step is inside a loop, a select or a go statement"
+				reason = "a step is inside a select or a go statement"
 			}
 		case *ast.CallExpr:
 			if name := endsGoroutine(node); name != "" {
