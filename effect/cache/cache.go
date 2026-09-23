@@ -47,7 +47,7 @@ func (entry Entry) IsStorable() bool {
 	return entry.Key != "" && entry.Fresh > 0
 }
 
-// Kept is what a store had, and whether it had anything still worth having.
+// Lookup is what a store had, and whether it had anything still worth having.
 //
 // A value carrying whether there was one, rather than an absence reported as a
 // failure, because a miss is the ordinary state of a key nobody has asked for

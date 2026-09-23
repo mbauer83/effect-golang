@@ -91,14 +91,14 @@ records its call site once when it is described.
 
 ```go
 operations := effect.IO()
-loaded := effect.Zip(
+snapshot := effect.Zip(
     operations.ReadFile(inputPath),
     operations.Now(),
 ).Map(func(values effect.Product[[]byte, time.Time]) sourceSnapshot {
-    return sourceSnapshot{content: values.First, observedAt: values.Second}
+    return sourceSnapshot{content: values.First, timestamp: values.Second}
 })
 
-program := loaded.FlatMap(normalizeAndStore(operations, inputPath, outputPath))
+program := snapshot.FlatMap(normalizeAndStore(operations, inputPath, outputPath))
 ```
 
 This is preferable to emulating do-notation for a short workflow: it is ordinary
