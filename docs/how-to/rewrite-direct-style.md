@@ -6,7 +6,7 @@ the bodies it can translate, by rewriting them into the `FlatMap` chains you
 would otherwise have written by hand.
 
 ```sh
-go get -tool github.com/mbauer83/effect-golang/tools/effectgo@v0.3.0
+go get -tool github.com/mbauer83/effect-golang/tools/effectgo@v0.4.0
 
 go tool effectgo test ./...
 go tool effectgo build -o server ./cmd/server

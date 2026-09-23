@@ -13,7 +13,7 @@ import (
 // translates. A rewrite is only as sound as its model of what it rewrites, so
 // against any other series effectgo rewrites nothing and says so: the code as
 // written is always correct, only slower.
-const series = "v0.3"
+const series = "v0.4"
 
 // understood reports whether the build uses an effect-golang this rewrite
 // knows. A module being worked on -- the main module, or one a workspace or a
