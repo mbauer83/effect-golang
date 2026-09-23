@@ -6,11 +6,16 @@ the bodies it can translate, by rewriting them into the `FlatMap` chains you
 would otherwise have written by hand.
 
 ```sh
-go -C tools/effectgo build -o "$(go env GOPATH)/bin/effectgo" .   # from a checkout
+go get -tool github.com/mbauer83/effect-golang/tools/effectgo@v0.3.0
 
-effectgo test ./...
-effectgo build -o server ./cmd/server
+go tool effectgo test ./...
+go tool effectgo build -o server ./cmd/server
 ```
+
+The tool is pinned in `go.mod` like any requirement, so every checkout and every
+CI run uses the same version. Its version follows the runtime's: an effectgo
+rewrites the release series of effect-golang it was released with, and against
+any other it rewrites nothing and says so.
 
 `effectgo` runs the go command with an `-overlay` naming rewritten copies of the
 files that hold direct-style bodies. The source tree is not touched, nothing is
@@ -18,7 +23,7 @@ generated into it, and an editor sees the code as written. To use the overlay
 with a command of your own:
 
 ```sh
-go test -race -overlay="$(effectgo overlay ./...)" ./...
+go test -race -overlay="$(go tool effectgo overlay ./...)" ./...
 ```
 
 ## What it does and does not change
@@ -77,5 +82,14 @@ Run with `EFFECTGO_EXPLAIN=1` to see every declined body and why.
 ## Checking it
 
 The claim that a rewrite changes nothing is checked, not assumed: run the test
-suite both ways. This repository's CI does, and so does the rewriter's own suite,
-on a module of bodies chosen for what a rewrite could get wrong.
+suite both ways. The CI of every module in this project does:
+
+```yaml
+- name: Test
+  run: go test -race -count=1 ./...
+- name: Test, rewritten
+  run: go tool effectgo test -race -count=1 ./...
+```
+
+and so does the rewriter's own suite, on a module of bodies chosen for what a
+rewrite could get wrong.

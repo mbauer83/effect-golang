@@ -1,12 +1,17 @@
 # Releasing
 
-The four modules are one project in four repositories:
+The modules are one project in seven repositories, and one of them carries a
+second module:
 
 ```text
-github.com/mbauer83/effect-golang         the runtime
-github.com/mbauer83/effect-golang-schema  descriptions, on the runtime
-github.com/mbauer83/effect-golang-sql     tables and migrations, on both
-github.com/mbauer83/effect-golang-web     transports, on the first two
+github.com/mbauer83/effect-golang                   the runtime
+github.com/mbauer83/effect-golang/tools/effectgo    the rewriter, in the runtime's repository
+github.com/mbauer83/effect-golang-schema            descriptions, on the runtime
+github.com/mbauer83/effect-golang-sql               tables and migrations, on both
+github.com/mbauer83/effect-golang-web               transports, on the first two
+github.com/mbauer83/effect-golang-cache             Redis and Valkey, on the runtime
+github.com/mbauer83/effect-golang-observe           metrics and processes, on the runtime
+github.com/mbauer83/effect-golang-observe-web       inspection, on observe, schema and web
 ```
 
 Each carries its own version, and a module's `go.mod` records which versions of
@@ -31,10 +36,12 @@ is why the order below matters more than it would elsewhere.
 
 Dependency order, one module fully released before the next begins:
 
-1. `effect-golang`
-2. `effect-golang-schema`
-3. `effect-golang-sql`
-4. `effect-golang-web`
+1. `effect-golang`, then its rewriter
+2. `effect-golang-schema`, `effect-golang-cache`, `effect-golang-observe`
+3. `effect-golang-sql`, `effect-golang-web`
+4. `effect-golang-observe-web`
+
+Within a step the order does not matter; between steps it does.
 
 Only the modules that changed need releasing; the order is the order among
 those.
@@ -60,6 +67,35 @@ Then wait for that repository's CI to go green before starting the next one. Its
 green run is the evidence the next module's requirement can be resolved, which
 is the thing being checked.
 
+## The rewriter is released with the runtime
+
+`tools/effectgo` is a module of its own, so the runtime keeps no dependencies,
+and a module in a subdirectory is versioned by tags carrying its path:
+
+```sh
+git tag -a tools/effectgo/v0.3.0 -m 'effectgo v0.3.0'
+git push origin tools/effectgo/v0.3.0
+go list -m github.com/mbauer83/effect-golang/tools/effectgo@v0.3.0
+```
+
+It shares the runtime's version numbers, because what couples the two is not a
+requirement but a behaviour: effectgo rewrites `effect.Gen` bodies, and is only
+as sound as its model of what `Gen` does. Its `series` constant names the
+runtime release series it understands, and against any other it rewrites
+nothing and says so. So a runtime release that starts a new series -- `v0.4.0`
+after `v0.3.x` -- is followed by an effectgo release whose `series` says
+`v0.4`, even if nothing else in it changed.
+
+A module adopts it as a tool, pinned in its `go.mod` like any requirement:
+
+```sh
+go get -tool github.com/mbauer83/effect-golang/tools/effectgo@v0.3.0
+go tool effectgo test -race ./...
+```
+
+and its CI runs every suite twice, as written and as rewritten, because the
+claim that a rewrite changes nothing is checked rather than assumed.
+
 ## Bumping to the next version
 
 Bump the module that changed. A dependent module follows only when it wants
@@ -81,13 +117,14 @@ module that raised it are two pushes in that order, never one.
 
 ## Working on several at once
 
-A `go.work` above all four resolves them to the working copies beside each
+A `go.work` above all of them resolves them to the working copies beside each
 other, so a change to a description can be tried against the transports before
 anything is tagged:
 
 ```sh
 cd workspace
-go work init ./effect-golang ./effect-golang-schema ./effect-golang-sql ./effect-golang-web
+go work init ./effect-golang ./effect-golang/tools/effectgo ./effect-golang-schema ./effect-golang-sql \
+  ./effect-golang-web ./effect-golang-cache ./effect-golang-observe ./effect-golang-observe-web
 ```
 
 It is not checked in to any of the modules — it belongs to whoever has several

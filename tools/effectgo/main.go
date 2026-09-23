@@ -15,8 +15,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,6 +54,9 @@ func run(args []string) error {
 		if len(patterns) == 0 {
 			patterns = []string{"./..."}
 		}
+		if !understood() {
+			patterns = nil
+		}
 		path, err := overlay(patterns)
 		if err != nil {
 			return err
@@ -64,7 +65,7 @@ func run(args []string) error {
 		return nil
 	}
 	command := exec.Command("go", args...)
-	if slices.Contains(overlaid, args[0]) {
+	if slices.Contains(overlaid, args[0]) && understood() {
 		patterns, err := workspacePatterns()
 		if err != nil {
 			return err
@@ -97,9 +98,13 @@ func workspacePatterns() ([]string, error) {
 // overlay rewrites the packages matching patterns and answers with the path of
 // an overlay file naming every rewritten file.
 func overlay(patterns []string) (string, error) {
-	importers, err := importersOfGen(patterns)
-	if err != nil {
-		return "", err
+	var importers []string
+	if len(patterns) > 0 {
+		found, err := importersOfGen(patterns)
+		if err != nil {
+			return "", err
+		}
+		importers = found
 	}
 	cache, err := cacheDir()
 	if err != nil {
@@ -200,36 +205,4 @@ func explain(declined []rewrite.Decline) {
 	for _, decline := range declined {
 		fmt.Fprintf(os.Stderr, "effectgo: %s: left as it was: %s\n", decline.Position, decline.Reason)
 	}
-}
-
-func cacheDir() (string, error) {
-	base, err := os.UserCacheDir()
-	if err != nil {
-		return "", err
-	}
-	dir := filepath.Join(base, "effectgo")
-	return dir, os.MkdirAll(dir, 0o755)
-}
-
-// store writes content under a name derived from it, so a file rewritten the
-// same way twice is written once and an overlay never names a stale file.
-func store(dir, name string, content []byte) (string, error) {
-	sum := sha256.Sum256(append([]byte(name+"\x00"), content...))
-	target := filepath.Join(dir, hex.EncodeToString(sum[:12])+"-"+filepath.Base(name))
-	if _, err := os.Stat(target); err == nil {
-		return target, nil
-	}
-	temporary, err := os.CreateTemp(dir, "writing-*")
-	if err != nil {
-		return "", err
-	}
-	defer os.Remove(temporary.Name())
-	if _, err := temporary.Write(content); err != nil {
-		temporary.Close()
-		return "", err
-	}
-	if err := temporary.Close(); err != nil {
-		return "", err
-	}
-	return target, os.Rename(temporary.Name(), target)
 }
