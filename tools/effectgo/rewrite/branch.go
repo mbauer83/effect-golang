@@ -98,3 +98,42 @@ func hasDefault(body *ast.BlockStmt) bool {
 	}
 	return false
 }
+
+// withoutInit splits an if or switch whose init or header holds a step into
+// the init and the statement without it, to be emitted inside a scope of their
+// own: the init's names belong to the statement and not to what follows it.
+func (em *emitter) withoutInit(stmt ast.Stmt) ([]ast.Stmt, bool) {
+	switch node := stmt.(type) {
+	case *ast.IfStmt:
+		if node.Init != nil && (em.needs(node.Init) || em.headerHasStep(node.Cond)) {
+			clone := *node
+			clone.Init = nil
+			return []ast.Stmt{node.Init, em.detach(&clone)}, true
+		}
+	case *ast.SwitchStmt:
+		if node.Init != nil && (em.needs(node.Init) || em.headerHasStep(node.Tag)) {
+			clone := *node
+			clone.Init = nil
+			return []ast.Stmt{node.Init, em.detach(&clone)}, true
+		}
+	case *ast.TypeSwitchStmt:
+		if node.Init != nil && (em.needs(node.Init) || em.needs(node.Assign)) {
+			clone := *node
+			clone.Init = nil
+			return []ast.Stmt{node.Init, em.detach(&clone)}, true
+		}
+	}
+	return nil, false
+}
+
+func (em *emitter) detach(stmt ast.Stmt) ast.Stmt {
+	if em.detached == nil {
+		em.detached = map[ast.Stmt]bool{}
+	}
+	em.detached[stmt] = true
+	return stmt
+}
+
+func (em *emitter) headerHasStep(expr ast.Expr) bool {
+	return expr != nil && em.site.containsStep(expr)
+}

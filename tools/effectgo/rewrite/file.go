@@ -67,7 +67,7 @@ func File(fset *token.FileSet, file *ast.File, info *types.Info, pkg *types.Pack
 			edits = append(edits, edit{start: src.offset(call.Pos()), end: src.offset(call.End()), text: replacement})
 		}
 	}
-	edits = append(edits, importEdits(src, file, typeNames)...)
+	edits = append(edits, importEdits(src, file, typeNames, edits)...)
 	result.Source = []byte(src.splice(0, len(text), edits))
 	return result
 }
@@ -126,8 +126,9 @@ func insideAny(call *ast.CallExpr, others map[*ast.CallExpr]string) bool {
 }
 
 // importEdits adds the imports generated code needs, on the line of the last
-// import so no line below moves.
-func importEdits(src *source, file *ast.File, typeNames *typeNames) []edit {
+// import so no line below moves. Only those the replacements spell: naming a
+// type a body did not end up emitting would leave an import nothing uses.
+func importEdits(src *source, file *ast.File, typeNames *typeNames, replacements []edit) []edit {
 	var last *ast.GenDecl
 	for _, decl := range file.Decls {
 		if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.IMPORT {
@@ -139,7 +140,13 @@ func importEdits(src *source, file *ast.File, typeNames *typeNames) []edit {
 	}
 	var importText strings.Builder
 	for _, path := range slices.Sorted(maps.Keys(typeNames.additions)) {
-		importText.WriteString("; import " + typeNames.additions[path] + " " + strconv.Quote(path))
+		alias := typeNames.additions[path]
+		if slices.ContainsFunc(replacements, func(replacement edit) bool { return strings.Contains(replacement.text, alias+".") }) {
+			importText.WriteString("; import " + alias + " " + strconv.Quote(path))
+		}
+	}
+	if importText.Len() == 0 {
+		return nil
 	}
 	at := src.offset(last.End())
 	return []edit{{start: at, end: at, text: importText.String()}}

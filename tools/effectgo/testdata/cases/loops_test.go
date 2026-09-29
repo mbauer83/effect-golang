@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/mbauer83/effect-golang/effect"
+
+	"cases/relay"
 )
 
 // Every iteration has its own variable, as Go has since 1.22: a closure made
@@ -122,4 +124,22 @@ func TestADeclinedBodyStillRuns(t *testing.T) {
 		return total
 	}))
 	want(t, value, 3)
+}
+
+// A loop whose body calls a function value declared before it, of a type
+// naming a package this file does not import: nothing about it crosses an
+// iteration, so the rewrite must not leave that package imported and unused.
+func TestALoopOverAFunctionOfAnUnimportedType(t *testing.T) {
+	value, _ := run(t, effect.Gen(func(do *body) string {
+		greet := relay.Greeter()
+		said := ""
+		for window := 0; ; {
+			mark := do.Await(ops.Succeed("!"))
+			said += greet(relay.Ada()) + mark
+			if window++; window == 2 {
+				return said
+			}
+		}
+	}))
+	want(t, value, "hello ada!hello ada!")
 }

@@ -62,6 +62,10 @@ calls cannot be seen.
   million of them add no Go stack;
 - nested bodies, each rewritten on its own.
 
+The chain is the one a person would write: `return do.Await(fx)` returns `fx`
+as it stands, and a last step followed only by statements and a value becomes a
+`Map` rather than a `FlatMap` whose continuation wraps the value again.
+
 ## What is declined
 
 Run with `EFFECTGO_EXPLAIN=1` to see every declined body and why.

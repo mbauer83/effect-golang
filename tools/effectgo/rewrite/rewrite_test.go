@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"golang.org/x/tools/go/packages"
@@ -31,7 +32,7 @@ func TestTheCasesPassAsWrittenAndAsRewritten(t *testing.T) {
 		t.Fatal(err)
 	}
 	replace := map[string]string{}
-	rewritten, declined := 0, 0
+	rewritten, declined, mapped := 0, 0, 0
 	for _, pkg := range loaded {
 		for _, problem := range pkg.Errors {
 			t.Fatalf("loading the cases: %v", problem)
@@ -54,6 +55,7 @@ func TestTheCasesPassAsWrittenAndAsRewritten(t *testing.T) {
 			if result.Source == nil {
 				continue
 			}
+			mapped += strings.Count(string(result.Source), ".Map(func(")
 			target := filepath.Join(t.TempDir(), filepath.Base(filename))
 			if err := os.WriteFile(target, result.Source, 0o644); err != nil {
 				t.Fatal(err)
@@ -63,6 +65,9 @@ func TestTheCasesPassAsWrittenAndAsRewritten(t *testing.T) {
 	}
 	if declined != 1 {
 		t.Errorf("expected exactly the range over a map to be declined, got %d declined", declined)
+	}
+	if mapped == 0 {
+		t.Error("expected a body ending in a value after its last step to end in a Map")
 	}
 	if rewritten < 20 {
 		t.Errorf("expected every other body rewritten, got %d", rewritten)

@@ -27,6 +27,9 @@ type emitter struct {
 
 	emitted map[*ast.CallExpr]bool
 	failure string
+	// detached are the statements withoutInit split from their init. Their
+	// source still spans the init, so they are spelled from their parts.
+	detached map[ast.Stmt]bool
 }
 
 func (em *emitter) decline(reason string) {
@@ -57,6 +60,10 @@ func (em *emitter) list(stmts []ast.Stmt, k string, jumps jumpTargets) string {
 	for i, stmt := range stmts {
 		if em.failure != "" {
 			return ""
+		}
+		if !em.needs(stmt) && em.detached[stmt] {
+			out.WriteString(em.branch(stmt, nil, "", jumps))
+			continue
 		}
 		if !em.needs(stmt) {
 			out.WriteString(em.src.line(stmt) + em.text(stmt, nil, jumps) + "\n")
@@ -102,6 +109,9 @@ func (em *emitter) statement(stmt ast.Stmt, rest []ast.Stmt, k string, jumps jum
 				return em.branch(stmt, temps, next, jumps)
 			})
 		})
+	}
+	if tail, ok := em.valueTail(stmt, rest, k, jumps, own); ok {
+		return tail
 	}
 	return em.chain(own, func(temps map[*ast.CallExpr]string) string {
 		if em.terminates(stmt, jumps) {
@@ -159,37 +169,6 @@ func (em *emitter) compound(rest []ast.Stmt, k string, jumps jumpTargets, emit f
 		return statement
 	}
 	return name + " := func() " + em.eff + " {\n" + em.list(rest, k, jumps) + "}\n" + statement
-}
-
-// withoutInit splits an if or switch whose init or header holds a step into
-// the init and the statement without it, to be emitted inside a scope of their
-// own: the init's names belong to the statement and not to what follows it.
-func (em *emitter) withoutInit(stmt ast.Stmt) ([]ast.Stmt, bool) {
-	switch node := stmt.(type) {
-	case *ast.IfStmt:
-		if node.Init != nil && (em.needs(node.Init) || em.headerHasStep(node.Cond)) {
-			clone := *node
-			clone.Init = nil
-			return []ast.Stmt{node.Init, &clone}, true
-		}
-	case *ast.SwitchStmt:
-		if node.Init != nil && (em.needs(node.Init) || em.headerHasStep(node.Tag)) {
-			clone := *node
-			clone.Init = nil
-			return []ast.Stmt{node.Init, &clone}, true
-		}
-	case *ast.TypeSwitchStmt:
-		if node.Init != nil && (em.needs(node.Init) || em.needs(node.Assign)) {
-			clone := *node
-			clone.Init = nil
-			return []ast.Stmt{node.Init, &clone}, true
-		}
-	}
-	return nil, false
-}
-
-func (em *emitter) headerHasStep(expr ast.Expr) bool {
-	return expr != nil && em.site.containsStep(expr)
 }
 
 // chain awaits each step in order, each inside the continuation of the one
