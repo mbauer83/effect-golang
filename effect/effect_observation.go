@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"runtime"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/mbauer83/effect-golang/effect/capability"
@@ -78,13 +79,24 @@ func (fx Effect[R, E, A]) withContext(ctx context.Context) Effect[R, E, A] {
 
 // callSite renders the file and line of the caller at the requested depth, or
 // an empty string when the location is unavailable.
+// callSite is file:line of the caller depth frames up. It is taken whenever a
+// failure or a span is described, so only the program counter is read each
+// time and a site is resolved and formatted once.
 func callSite(depth int) string {
-	_, file, line, ok := runtime.Caller(depth)
-	if !ok {
+	var counters [1]uintptr
+	if runtime.Callers(depth+1, counters[:]) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("%s:%d", file, line)
+	if site, resolved := callSites.Load(counters[0]); resolved {
+		return site.(string)
+	}
+	frame, _ := runtime.CallersFrames(counters[:]).Next()
+	site := fmt.Sprintf("%s:%d", frame.File, frame.Line)
+	callSites.Store(counters[0], site)
+	return site
 }
+
+var callSites sync.Map
 
 func replaceState(state *runtimecore.State) func(*runtimecore.State) *runtimecore.State {
 	return func(*runtimecore.State) *runtimecore.State {
