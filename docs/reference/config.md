@@ -294,6 +294,13 @@ The question a description can answer and a function that reads cannot. A
 deployment that has just been told a value is missing can be shown the whole
 list without starting anything.
 
+`Load` is `Read` for a program's entry point: whatever is missing or wrong
+comes back as one error that ends with that list.
+
+```go
+settings, err := config.Load(config.Environment(), SettingsConfig)
+```
+
 ## Deliberately absent
 
 **Reloading.** A source is read when a description is read, and a program that

@@ -3,6 +3,7 @@ package config
 // Printing what a program needs to be told.
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -107,4 +108,17 @@ func (expectation Expectation) String() string {
 		return line
 	}
 	return line + ": " + expectation.Description
+}
+
+// Load reads a program's settings at start-up. Whatever is missing or wrong
+// comes back as one error that also lists everything the program reads, so a
+// deployment is told the whole of what to set at once.
+//
+//	settings, err := config.Load(config.Environment(), SettingsConfig)
+func Load[A any](source Source, description Config[A]) (A, error) {
+	settings, failure := Read(context.Background(), source, description)
+	if !failure.IsEmpty() {
+		return settings, fmt.Errorf("%w\n\nwhat this program reads:\n%s", failure, Document(description.Expects()))
+	}
+	return settings, nil
 }
