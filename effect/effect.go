@@ -74,9 +74,17 @@ func Try[R, E, A any](eval func(context.Context, R) (A, error), mapError func(er
 // state between interpretations. create runs once per interpretation, so
 // repeated and concurrent runs of the same Effect value stay independent.
 func Suspend[R, E, A any](create func() Effect[R, E, A]) Effect[R, E, A] {
-	return suspendRuntime(func(context.Context, *runtimecore.State, R) Effect[R, E, A] {
-		return create()
-	})
+	// create is held as it is, with no closure around it: every direct-style
+	// body effectgo rewrites is one of these, so an allocation here is paid once
+	// per body per run.
+	return fromInstructions[R, E, A](&runtimecore.Suspend{Create: deferred[R, E, A](create)})
+}
+
+// deferred is Suspend's constructor, as the runtime reads it.
+type deferred[R, E, A any] func() Effect[R, E, A]
+
+func (create deferred[R, E, A]) Node(runtimecore.Interpretation) runtimecore.Node {
+	return create().instructions()
 }
 
 // run interprets fx to completion on the calling goroutine.

@@ -151,9 +151,9 @@ func suspendRuntime[R, E, A any](
 	create func(context.Context, *runtimecore.State, R) Effect[R, E, A],
 ) Effect[R, E, A] {
 	return fromInstructions[R, E, A](&runtimecore.Suspend{
-		Create: func(interpretation runtimecore.Interpretation) runtimecore.Node {
+		Create: runtimecore.CreationFunc(func(interpretation runtimecore.Interpretation) runtimecore.Node {
 			environment := asEnvironment[R](interpretation.Environment)
 			return create(interpretation.Context, interpretation.State, environment).instructions()
-		},
+		}),
 	})
 }

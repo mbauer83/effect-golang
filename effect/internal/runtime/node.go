@@ -41,8 +41,20 @@ type Eval struct {
 
 // Suspend defers instruction construction until interpretation.
 type Suspend struct {
-	Create func(Interpretation) Node
+	Create Creation
 }
+
+// Creation builds the instructions a Suspend defers. An interface, so a typed
+// constructor is held as it is rather than behind one more closure: every
+// direct-style body effectgo rewrites is a Suspend, run once per interpretation.
+type Creation interface {
+	Node(Interpretation) Node
+}
+
+// CreationFunc is a Creation written as a function.
+type CreationFunc func(Interpretation) Node
+
+func (create CreationFunc) Node(interpretation Interpretation) Node { return create(interpretation) }
 
 // Transform rewrites a successful value.
 type Transform struct {

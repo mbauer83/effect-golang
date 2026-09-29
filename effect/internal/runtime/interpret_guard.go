@@ -70,7 +70,7 @@ func handleCause(handle func(outcome.Cause) Node, cause outcome.Cause) (node Nod
 
 func createNode(instruction *Suspend, interpretation Interpretation) (node Node, defect *outcome.Defect) {
 	defer captureDefect(&defect)
-	return instruction.Create(interpretation), nil
+	return instruction.Create.Node(interpretation), nil
 }
 
 func adaptEnvironment(adapt func(any) any, environment any) (result any, defect *outcome.Defect) {
