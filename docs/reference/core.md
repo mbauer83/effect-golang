@@ -43,6 +43,10 @@ own failure channel is `Never` or whose requirement channel is unused: `Fork`,
 `RecvOrFail`, `Suspend`, `CheckInterrupt`, `WidenError` and
 `OrDie`.
 
+`Task[A]` is `Effect[Unit, fault.Fault, A]`, the shape most of an application
+is written in, with `FromValue`, `FromFault`, `Done` and `TaskOperations`; see
+[faults and tasks](fault.md), which also covers `RunUntilStopped`.
+
 A longer dependent sequence is written in direct style; see the
 [direct style reference](gen.md).
 
@@ -52,6 +56,17 @@ A longer dependent sequence is written in direct style; see the
 one; `scope.AcquireRelease` registers a resource; `scope.Fork`, `Fork` and
 `ForkDaemon` choose an owner. `fx.Ensuring` and `fx.OnExit` attach cleanup to a
 single effect. See [scope](scope.md) and [fiber](fiber.md).
+
+`StructPar(FieldOf(fx, assign)...)` runs effects of different types at once
+into the named fields of one struct, where nested `ZipPar` would give a
+`Product` per effect:
+
+```go
+page := effect.StructPar(
+    effect.FieldOf(panelOf(film), func(page *Page, panel Panel) { page.Panel = panel }),
+    effect.FieldOf(copiesOf(viewer), func(page *Page, copies []Copy) { page.Copies = copies }),
+)
+```
 
 `ZipPar`, `ZipParChannels`, `Race`, `RaceFirst`, `ForEachPar`, `ForEachParN`,
 `AllPar`, `AllParN`, `Timeout`, `TimeoutFail` and `TimeoutTo` are the
