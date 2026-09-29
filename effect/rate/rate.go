@@ -17,6 +17,8 @@ package rate
 import (
 	"context"
 	"time"
+
+	"github.com/mbauer83/effect-golang/effect/fault"
 )
 
 // Allowance is what something permits: how many in how long, counted under a
@@ -95,3 +97,7 @@ func (fault Fault) Error() string {
 // Unwrap keeps the limiter's own error reachable, so a caller can tell a
 // limiter that is unreachable from a queue it will not join.
 func (fault Fault) Unwrap() error { return fault.Err }
+
+// Kind is the kind of the limiter's own error: Unavailable unless it states
+// another, because a turn refused now may be granted later.
+func (failure Fault) Kind() fault.Kind { return fault.KindOf(failure.Err) }

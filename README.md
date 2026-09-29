@@ -134,6 +134,7 @@ construction. That directory does not have to be the module root, and it is not.
 ### Reference
 
 - [Core model](docs/reference/core.md)
+- [Faults and tasks](docs/reference/fault.md)
 - [Scope](docs/reference/scope.md)
 - [Fiber](docs/reference/fiber.md)
 - [Cause](docs/reference/cause.md)

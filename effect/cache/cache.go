@@ -25,6 +25,8 @@ package cache
 import (
 	"context"
 	"time"
+
+	"github.com/mbauer83/effect-golang/effect/fault"
 )
 
 // Entry is a value to be kept: its key, what it is about, what it holds, and
@@ -101,3 +103,7 @@ func (fault Fault) Error() string {
 // Unwrap keeps the store's own error reachable, so a caller can tell a
 // connection that is down from a value that would not encode.
 func (fault Fault) Unwrap() error { return fault.Err }
+
+// Kind is the kind of the store's own error: a store that could not be
+// reached is Unavailable, a value that would not decode Unreadable.
+func (failure Fault) Kind() fault.Kind { return fault.KindOf(failure.Err) }
