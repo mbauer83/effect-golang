@@ -11,7 +11,8 @@ github.com/mbauer83/effect-golang-sql               tables and migrations, on bo
 github.com/mbauer83/effect-golang-web               transports, on the first two
 github.com/mbauer83/effect-golang-cache             Redis and Valkey, on the runtime
 github.com/mbauer83/effect-golang-observe           metrics and processes, on the runtime
-github.com/mbauer83/effect-golang-observe-web       inspection, on observe, schema and web
+github.com/mbauer83/effect-golang-observe-export    OTLP traces and a Prometheus scrape, on observe and web
+github.com/mbauer83/effect-golang-observe-web       inspection and telemetry, on observe, export, schema and web
 ```
 
 Each carries its own version, and a module's `go.mod` records which versions of
@@ -39,7 +40,8 @@ Dependency order, one module fully released before the next begins:
 1. `effect-golang`, then its rewriter
 2. `effect-golang-schema`, `effect-golang-cache`, `effect-golang-observe`
 3. `effect-golang-sql`, `effect-golang-web`
-4. `effect-golang-observe-web`
+4. `effect-golang-observe-export`
+5. `effect-golang-observe-web`
 
 Within a step the order does not matter; between steps it does.
 
@@ -124,7 +126,8 @@ anything is tagged:
 ```sh
 cd workspace
 go work init ./effect-golang ./effect-golang/tools/effectgo ./effect-golang-schema ./effect-golang-sql \
-  ./effect-golang-web ./effect-golang-cache ./effect-golang-observe ./effect-golang-observe-web
+  ./effect-golang-web ./effect-golang-cache ./effect-golang-observe ./effect-golang-observe-export \
+  ./effect-golang-observe-web
 ```
 
 It is not checked in to any of the modules — it belongs to whoever has several
